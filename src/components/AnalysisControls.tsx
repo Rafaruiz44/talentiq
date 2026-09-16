@@ -3,12 +3,14 @@ import type { CandidateResume, JobRequirements } from '../types'
 interface AnalysisControlsProps {
   requirements: JobRequirements
   resume: CandidateResume
-  onAnalyze: () => void
+  loading: boolean
+  onAnalyze: () => Promise<void>
 }
 
 export function AnalysisControls({
   requirements,
   resume,
+  loading,
   onAnalyze,
 }: AnalysisControlsProps) {
   const isDisabled =
@@ -23,11 +25,16 @@ export function AnalysisControls({
       <button
         type="button"
         onClick={onAnalyze}
-        disabled={isDisabled}
+        disabled={isDisabled || loading}
         data-testid="run-analysis"
       >
-        Procesar análisis
+        {loading ? 'Procesando análisis...' : 'Procesar análisis'}
       </button>
+      {loading && (
+        <p role="status" data-testid="analysis-loading">
+          Procesando análisis...
+        </p>
+      )}
     </section>
   )
 }

@@ -1,9 +1,31 @@
 import type { ChangeEvent } from 'react'
+import * as pdfjsLib from 'pdfjs-dist'
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { CandidateResume } from '../types'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker
 
 interface CvUploadProps {
   value: CandidateResume
   onChange: (value: CandidateResume) => void
+}
+
+async function extractPdfText(file: File): Promise<string> {
+  const document = await pdfjsLib.getDocument({
+    data: await file.arrayBuffer(),
+  }).promise
+  const pages: string[] = []
+
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const page = await document.getPage(pageNumber)
+    const content = await page.getTextContent()
+    const pageText = content.items
+      .map((item) => ('str' in item ? item.str : ''))
+      .join(' ')
+    pages.push(pageText)
+  }
+
+  return pages.join('\n')
 }
 
 export function CvUpload({ value, onChange }: CvUploadProps) {
@@ -21,8 +43,13 @@ export function CvUpload({ value, onChange }: CvUploadProps) {
       return
     }
 
+    const text =
+      file.type === 'application/pdf'
+        ? await extractPdfText(file)
+        : await file.text()
+
     onChange({
-      text: await file.text(),
+      text,
       fileName: file.name,
     })
   }
@@ -46,7 +73,7 @@ export function CvUpload({ value, onChange }: CvUploadProps) {
         id="candidate-resume-file"
         name="candidate-resume-file"
         type="file"
-        accept=".txt,text/plain"
+        accept=".txt,.pdf,text/plain,application/pdf"
         onChange={handleFileChange}
         data-testid="candidate-resume-file"
       />

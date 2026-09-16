@@ -11,12 +11,18 @@ export function JobRequirementsForm({
   onChange,
 }: JobRequirementsFormProps) {
   const [submitted, setSubmitted] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [skillsText, setSkillsText] = useState(value.skills.join(', '))
 
   const handleRoleChange = (role: string) => {
+    setSaved(false)
     onChange({ ...value, role })
   }
 
   const handleSkillsChange = (skillsText: string) => {
+    setSaved(false)
+    setSkillsText(skillsText)
+
     const skills = skillsText
       .split(',')
       .map((skill) => skill.trim())
@@ -26,12 +32,20 @@ export function JobRequirementsForm({
   }
 
   const handleSeniorityChange = (seniority: string) => {
+    setSaved(false)
     onChange({ ...value, seniority })
   }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitted(true)
+
+    const isValid =
+      value.role.trim().length > 0 &&
+      value.skills.length > 0 &&
+      value.seniority.trim().length > 0
+
+    setSaved(isValid)
   }
 
   const isInvalid = submitted && (
@@ -63,7 +77,7 @@ export function JobRequirementsForm({
         id="job-skills"
         name="skills"
         type="text"
-        value={value.skills.join(', ')}
+        value={skillsText}
         onChange={(event) => handleSkillsChange(event.target.value)}
         data-testid="job-skills"
         required
@@ -91,6 +105,11 @@ export function JobRequirementsForm({
       </button>
       {isInvalid && (
         <p role="status">Completá todos los campos obligatorios.</p>
+      )}
+      {saved && (
+        <p role="status" data-testid="requirements-saved">
+          Requerimientos guardados correctamente.
+        </p>
       )}
     </form>
   )

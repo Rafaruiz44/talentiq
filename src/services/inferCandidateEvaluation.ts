@@ -4,49 +4,104 @@ import type {
   JobRequirements,
 } from '../types'
 
-const normalize = (value: string): string => value.trim().toLocaleLowerCase()
+interface AzureOpenAIResponse {
+  choices?: Array<{
+    message?: {
+      content?: string
+    }
+  }>
+}
 
-export function inferCandidateEvaluation(
+const isCandidateEvaluation = (
+  value: unknown,
+): value is CandidateEvaluation => {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+
+  const candidate = value as Record<string, unknown>
+
+  return (
+    typeof candidate.candidateName === 'string' &&
+    typeof candidate.matchScore === 'number' &&
+    candidate.matchScore >= 0 &&
+    candidate.matchScore <= 100 &&
+    (candidate.verdict === 'Apto' || candidate.verdict === 'No Apto') &&
+    Array.isArray(candidate.strengths) &&
+    candidate.strengths.every((item) => typeof item === 'string') &&
+    Array.isArray(candidate.gaps) &&
+    candidate.gaps.every((item) => typeof item === 'string')
+  )
+}
+
+export async function inferCandidateEvaluation(
   requirements: JobRequirements,
   resume: CandidateResume,
-): CandidateEvaluation {
-  const resumeText = normalize(resume.text)
-  const matchedSkills = requirements.skills.filter((skill) =>
-    resumeText.includes(normalize(skill)),
-  )
-  const missingSkills = requirements.skills.filter(
-    (skill) => !matchedSkills.includes(skill),
-  )
-  const roleMatches =
-    requirements.role.trim().length > 0 &&
-    resumeText.includes(normalize(requirements.role))
-  const seniorityMatches =
-    requirements.seniority.trim().length > 0 &&
-    resumeText.includes(normalize(requirements.seniority))
-  const totalCriteria = requirements.skills.length + 2
-  const fulfilledCriteria =
-    matchedSkills.length + Number(roleMatches) + Number(seniorityMatches)
-  const matchScore = Math.round((fulfilledCriteria / totalCriteria) * 100)
-  const strengths = [
-    ...matchedSkills.map((skill) => `Experiencia con ${skill}`),
-    ...(roleMatches ? [`Perfil alineado al rol ${requirements.role}`] : []),
-    ...(seniorityMatches
-      ? [`Seniority coincidente: ${requirements.seniority}`]
-      : []),
-  ]
-  const gaps = [
-    ...missingSkills.map((skill) => `Falta experiencia con ${skill}`),
-    ...(!roleMatches ? [`No se encontró el rol ${requirements.role}`] : []),
-    ...(!seniorityMatches
-      ? [`No se encontró el seniority ${requirements.seniority}`]
-      : []),
-  ]
+): Promise<CandidateEvaluation> {
+  const endpoint = import.meta.env.VITE_AZURE_OPENAI_ENDPOINT as string | undefined
+  const key = import.meta.env.VITE_AZURE_OPENAI_KEY as string | undefined
+  const deployment = import.meta.env.VITE_AZURE_OPENAI_DEPLOYMENT as
+    | string
+    | undefined
+  const apiVersion = import.meta.env.VITE_AZURE_OPENAI_API_VERSION as
+    | string
+    | undefined
 
-  return {
-    candidateName: resume.fileName ?? 'Candidato ingresado',
-    matchScore,
-    verdict: matchScore >= 60 ? 'Apto' : 'No Apto',
-    strengths,
-    gaps,
+  if (!endpoint || !key || !deployment || !apiVersion) {
+    throw new Error('Faltan variables de entorno de Azure OpenAI.')
   }
+
+  const url = `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${apiVersion}`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api-key': key,
+    },
+    body: JSON.stringify({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements y respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "matchScore": number (0 a 100), "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            jobRequirements: requirements,
+            candidateResume: resume.text,
+          }),
+        },
+      ],
+    }),
+  })
+
+  if (!response.ok) {
+    const errorDetails: unknown = await response.json()
+    console.error('Detalle error Azure:', errorDetails)
+    throw new Error(
+      `Azure OpenAI error ${response.status}: ${JSON.stringify(errorDetails)}`,
+    )
+  }
+
+  const data = (await response.json()) as AzureOpenAIResponse
+  const content = data.choices?.[0]?.message?.content
+
+  if (!content) {
+    throw new Error('Azure OpenAI no devolvió contenido.')
+  }
+
+  let parsed: unknown
+
+  try {
+    parsed = JSON.parse(content)
+  } catch {
+    throw new Error('Azure OpenAI devolvió un JSON inválido.')
+  }
+
+  if (!isCandidateEvaluation(parsed)) {
+    throw new Error('La respuesta no cumple el contrato CandidateEvaluation.')
+  }
+
+  return parsed
 }
