@@ -15,6 +15,11 @@ export function App() {
     role: '',
     skills: [],
     seniority: '',
+    weights: {
+      role: 40,
+      skills: 40,
+      seniority: 20,
+    },
   })
   const [candidateResume, setCandidateResume] = useState<CandidateResume>({
     text: '',

@@ -13,7 +13,10 @@ export function EvaluationResults({ evaluation }: EvaluationResultsProps) {
         Porcentaje de afinidad: <strong>{evaluation.matchScore}%</strong>
       </p>
       <p data-testid="evaluation-verdict">
-        Veredicto: <strong>{evaluation.verdict}</strong>
+        Veredicto:{' '}
+        <strong className={`verdict-${evaluation.verdict === 'Apto' ? 'approved' : 'rejected'}`}>
+          {evaluation.verdict}
+        </strong>
       </p>
 
       <h3>Fortalezas</h3>

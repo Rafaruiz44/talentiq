@@ -63,7 +63,7 @@ export async function inferCandidateEvaluation(
         {
           role: 'system',
           content:
-            'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements y respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "matchScore": number (0 a 100), "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
+            'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Usá los pesos indicados para calcular el matchScore: rol, tecnologías y seniority deben aportar según su porcentaje, que siempre suma 100. Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "matchScore": number (0 a 100), "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
         },
         {
           role: 'user',
