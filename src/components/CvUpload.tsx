@@ -30,12 +30,17 @@ async function extractPdfText(file: File): Promise<string> {
 
 export function CvUpload({ value, onChange }: CvUploadProps) {
   const [isDragging, setIsDragging] = useState(false)
+  const [fileError, setFileError] = useState<string | null>(null)
 
   const handleFile = async (file: File) => {
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setFileError('Solo se aceptan archivos PDF.')
+      return
+    }
+
+    setFileError(null)
     const text =
-      file.type === 'application/pdf'
-        ? await extractPdfText(file)
-        : await file.text()
+      await extractPdfText(file)
 
     onChange({
       text,
@@ -87,11 +92,17 @@ export function CvUpload({ value, onChange }: CvUploadProps) {
           id="candidate-resume-file"
           name="candidate-resume-file"
           type="file"
-          accept=".txt,.pdf,text/plain,application/pdf"
+          accept=".pdf,application/pdf"
           onChange={handleFileChange}
           data-testid="candidate-resume-file"
         />
       </label>
+
+      {fileError && (
+        <p role="alert" data-testid="candidate-resume-file-error">
+          {fileError}
+        </p>
+      )}
 
       {value.fileName && (
         <p role="status" data-testid="candidate-resume-file-name">
