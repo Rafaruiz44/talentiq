@@ -5,12 +5,16 @@ interface EvaluationResultsProps {
 }
 
 export function EvaluationResults({ evaluation }: EvaluationResultsProps) {
+  const scorePercentage = Math.round(
+    (evaluation.earnedPoints / evaluation.totalPoints) * 100,
+  )
+
   return (
     <section aria-labelledby="evaluation-results-title">
       <h2 id="evaluation-results-title">Resultados del análisis</h2>
 
       <p data-testid="match-score">
-        Porcentaje de afinidad: <strong>{evaluation.matchScore}%</strong>
+        Puntaje obtenido: <strong>{scorePercentage}%</strong>
       </p>
       <p data-testid="evaluation-verdict">
         Veredicto:{' '}

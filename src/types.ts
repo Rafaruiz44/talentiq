@@ -1,12 +1,18 @@
+export interface SkillRequirement {
+  name: string
+  points: number
+}
+
 export interface JobRequirements {
   role: string
-  skills: string[]
+  skills: SkillRequirement[]
   seniority: string
-  weights: {
-    role: number
-    skills: number
-    seniority: number
-  }
+  seniorityPoints: number
+}
+
+export interface JobRequirementsImport {
+  sourceUrl: string
+  requirements: JobRequirements
 }
 
 export interface CandidateResume {
@@ -16,7 +22,8 @@ export interface CandidateResume {
 
 export interface CandidateEvaluation {
   candidateName: string
-  matchScore: number
+  earnedPoints: number
+  totalPoints: number
   verdict: 'Apto' | 'No Apto'
   strengths: string[]
   gaps: string[]

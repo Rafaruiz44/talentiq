@@ -17,10 +17,7 @@ export function AnalysisControls({
     requirements.role.trim().length === 0 ||
     requirements.skills.length === 0 ||
     requirements.seniority.trim().length === 0 ||
-    Object.values(requirements.weights).reduce(
-      (total, weight) => total + weight,
-      0,
-    ) !== 100 ||
+    requirements.seniorityPoints < 1 ||
     resume.text.trim().length === 0
 
   return (

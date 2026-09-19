@@ -23,9 +23,11 @@ const isCandidateEvaluation = (
 
   return (
     typeof candidate.candidateName === 'string' &&
-    typeof candidate.matchScore === 'number' &&
-    candidate.matchScore >= 0 &&
-    candidate.matchScore <= 100 &&
+    typeof candidate.earnedPoints === 'number' &&
+    candidate.earnedPoints >= 0 &&
+    typeof candidate.totalPoints === 'number' &&
+    candidate.totalPoints > 0 &&
+    candidate.earnedPoints <= candidate.totalPoints &&
     (candidate.verdict === 'Apto' || candidate.verdict === 'No Apto') &&
     Array.isArray(candidate.strengths) &&
     candidate.strengths.every((item) => typeof item === 'string') &&
@@ -63,7 +65,7 @@ export async function inferCandidateEvaluation(
         {
           role: 'system',
           content:
-            'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Usá los pesos indicados para calcular el matchScore: rol, tecnologías y seniority deben aportar según su porcentaje, que siempre suma 100. Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "matchScore": number (0 a 100), "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
+            'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Cada habilidad tiene puntos propios y el seniority tiene seniorityPoints; calculá earnedPoints y totalPoints según los requisitos cumplidos. Respondé Apto si la proporción de puntos obtenidos es igual o mayor al 70%, y No Apto si es menor. Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
         },
         {
           role: 'user',

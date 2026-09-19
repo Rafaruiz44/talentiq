@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { JobRequirements } from '../types'
+import type { JobRequirements, SkillRequirement } from '../types'
 
 interface JobRequirementsFormProps {
   value: JobRequirements
@@ -12,23 +12,48 @@ export function JobRequirementsForm({
 }: JobRequirementsFormProps) {
   const [submitted, setSubmitted] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [skillsText, setSkillsText] = useState(value.skills.join(', '))
+  const [skillName, setSkillName] = useState('')
+  const [skillPoints, setSkillPoints] = useState('1')
 
   const handleRoleChange = (role: string) => {
     setSaved(false)
     onChange({ ...value, role })
   }
 
-  const handleSkillsChange = (skillsText: string) => {
+  const handleSkillNameChange = (name: string) => {
     setSaved(false)
-    setSkillsText(skillsText)
+    setSkillName(name)
+  }
 
-    const skills = skillsText
-      .split(',')
-      .map((skill) => skill.trim())
-      .filter((skill) => skill.length > 0)
+  const handleSkillPointsChange = (points: string) => {
+    setSaved(false)
+    setSkillPoints(points)
+  }
 
-    onChange({ ...value, skills })
+  const handleAddSkill = () => {
+    const normalizedName = skillName.trim()
+
+    if (!normalizedName) {
+      return
+    }
+
+    const newSkill: SkillRequirement = {
+      name: normalizedName,
+      points: Number(skillPoints),
+    }
+
+    onChange({ ...value, skills: [...value.skills, newSkill] })
+    setSkillName('')
+    setSkillPoints('1')
+    setSaved(false)
+  }
+
+  const handleRemoveSkill = (skillIndex: number) => {
+    onChange({
+      ...value,
+      skills: value.skills.filter((_, index) => index !== skillIndex),
+    })
+    setSaved(false)
   }
 
   const handleSeniorityChange = (seniority: string) => {
@@ -36,24 +61,13 @@ export function JobRequirementsForm({
     onChange({ ...value, seniority })
   }
 
-  const handleWeightChange = (
-    requirement: keyof JobRequirements['weights'],
-    weight: string,
-  ) => {
+  const handleSeniorityPointsChange = (points: string) => {
     setSaved(false)
     onChange({
       ...value,
-      weights: {
-        ...value.weights,
-        [requirement]: Number(weight) || 0,
-      },
+      seniorityPoints: Number(points),
     })
   }
-
-  const totalWeight = Object.values(value.weights).reduce(
-    (total, weight) => total + weight,
-    0,
-  )
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -63,7 +77,7 @@ export function JobRequirementsForm({
       value.role.trim().length > 0 &&
       value.skills.length > 0 &&
       value.seniority.trim().length > 0 &&
-      totalWeight === 100
+      value.seniorityPoints >= 1
 
     setSaved(isValid)
   }
@@ -72,7 +86,7 @@ export function JobRequirementsForm({
     value.role.trim().length === 0 ||
     value.skills.length === 0 ||
     value.seniority.trim().length === 0 ||
-    totalWeight !== 100
+    value.seniorityPoints < 1
   )
 
   return (
@@ -98,13 +112,50 @@ export function JobRequirementsForm({
         id="job-skills"
         name="skills"
         type="text"
-        value={skillsText}
-        onChange={(event) => handleSkillsChange(event.target.value)}
+        value={skillName}
+        onChange={(event) => handleSkillNameChange(event.target.value)}
         data-testid="job-skills"
-        required
       />
+      <label htmlFor="job-skill-points">Puntos de la habilidad</label>
+      <select
+        id="job-skill-points"
+        name="skill-points"
+        value={skillPoints}
+        onChange={(event) => handleSkillPointsChange(event.target.value)}
+        data-testid="job-skill-points"
+      >
+        {Array.from({ length: 10 }, (_, index) => index + 1).map((points) => (
+          <option key={points} value={points}>
+            {points}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={handleAddSkill}
+        disabled={skillName.trim().length === 0}
+        data-testid="add-skill"
+      >
+        Agregar
+      </button>
+      {value.skills.length > 0 && (
+        <ul data-testid="skills-list">
+          {value.skills.map((skill, index) => (
+            <li key={`${skill.name}-${index}`}>
+              {skill.name} ({skill.points} puntos)
+              <button
+                type="button"
+                onClick={() => handleRemoveSkill(index)}
+                data-testid={`remove-skill-${index}`}
+              >
+                Quitar
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {submitted && value.skills.length === 0 && (
-        <p role="alert">Ingresá al menos una tecnología excluyente.</p>
+        <p role="alert">Agregá al menos una habilidad.</p>
       )}
 
       <label htmlFor="job-seniority">Años / seniority</label>
@@ -117,74 +168,23 @@ export function JobRequirementsForm({
         data-testid="job-seniority"
         required
       />
+      <label htmlFor="job-seniority-points">Puntos del seniority</label>
+      <select
+        id="job-seniority-points"
+        name="seniority-points"
+        value={value.seniorityPoints}
+        onChange={(event) => handleSeniorityPointsChange(event.target.value)}
+        data-testid="job-seniority-points"
+      >
+        {Array.from({ length: 10 }, (_, index) => index + 1).map((points) => (
+          <option key={points} value={points}>
+            {points}
+          </option>
+        ))}
+      </select>
       {submitted && value.seniority.trim().length === 0 && (
         <p role="alert">Ingresá los años o el seniority requerido.</p>
       )}
-
-      <fieldset>
-        <legend>Peso de cada requerimiento (%)</legend>
-
-        <div className="weight-row">
-          <label htmlFor="job-role-weight">Rol</label>
-          <input
-            id="job-role-weight"
-            name="role-weight"
-            type="number"
-            min="0"
-            max="100"
-            value={value.weights.role}
-            onChange={(event) =>
-              handleWeightChange('role', event.target.value)
-            }
-            data-testid="job-role-weight"
-            required
-          />
-        </div>
-
-        <div className="weight-row">
-          <label htmlFor="job-skills-weight">Tecnologías</label>
-          <input
-            id="job-skills-weight"
-            name="skills-weight"
-            type="number"
-            min="0"
-            max="100"
-            value={value.weights.skills}
-            onChange={(event) =>
-              handleWeightChange('skills', event.target.value)
-            }
-            data-testid="job-skills-weight"
-            required
-          />
-        </div>
-
-        <div className="weight-row">
-          <label htmlFor="job-seniority-weight">Seniority</label>
-          <input
-            id="job-seniority-weight"
-            name="seniority-weight"
-            type="number"
-            min="0"
-            max="100"
-            value={value.weights.seniority}
-            onChange={(event) =>
-              handleWeightChange('seniority', event.target.value)
-            }
-            data-testid="job-seniority-weight"
-            required
-          />
-        </div>
-
-        <p
-          role={submitted && totalWeight !== 100 ? 'alert' : 'status'}
-          data-testid="weights-total"
-        >
-          Total de pesos: {totalWeight}%
-        </p>
-        {submitted && totalWeight !== 100 && (
-          <p role="alert">Los pesos deben sumar exactamente 100%.</p>
-        )}
-      </fieldset>
 
       <button type="submit" data-testid="job-requirements-submit">
         Guardar requerimientos
