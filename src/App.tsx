@@ -11,7 +11,9 @@ import type {
 } from './types'
 
 export function App() {
-  const [darkMode, setDarkMode] = useState(false)
+  const [darkMode, setDarkMode] = useState(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches,
+  )
   const [jobRequirements, setJobRequirements] = useState<JobRequirements>({
     role: '',
     skills: [],
