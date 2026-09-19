@@ -4,16 +4,17 @@ import type { JobRequirements, SkillRequirement } from '../types'
 interface JobRequirementsFormProps {
   value: JobRequirements
   onChange: (value: JobRequirements) => void
+  onSave: () => void
 }
 
 export function JobRequirementsForm({
   value,
   onChange,
+  onSave,
 }: JobRequirementsFormProps) {
   const [submitted, setSubmitted] = useState(false)
   const [saved, setSaved] = useState(false)
   const [skillName, setSkillName] = useState('')
-  const [skillPoints, setSkillPoints] = useState('1')
 
   const handleRoleChange = (role: string) => {
     setSaved(false)
@@ -25,34 +26,31 @@ export function JobRequirementsForm({
     setSkillName(name)
   }
 
-  const handleSkillPointsChange = (points: string) => {
-    setSaved(false)
-    setSkillPoints(points)
-  }
-
   const handleAddSkill = () => {
-    const normalizedName = skillName.trim()
+    const normalizedNames = skillName
+      .split(/[,;]/)
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0)
+      .filter(
+        (name, index, names) =>
+          names.findIndex(
+            (candidate) => candidate.toLocaleLowerCase() === name.toLocaleLowerCase(),
+          ) === index,
+      )
 
-    if (!normalizedName) {
+    if (normalizedNames.length === 0) {
       return
     }
 
-    const newSkill: SkillRequirement = {
-      name: normalizedName,
-      points: Number(skillPoints),
-    }
+    const existingSkillNames = new Set(
+      value.skills.map((skill) => skill.name.toLocaleLowerCase()),
+    )
+    const newSkills: SkillRequirement[] = normalizedNames
+      .filter((name) => !existingSkillNames.has(name.toLocaleLowerCase()))
+      .map((name) => ({ name, points: 5 }))
 
-    onChange({ ...value, skills: [...value.skills, newSkill] })
+    onChange({ ...value, skills: [...value.skills, ...newSkills] })
     setSkillName('')
-    setSkillPoints('1')
-    setSaved(false)
-  }
-
-  const handleRemoveSkill = (skillIndex: number) => {
-    onChange({
-      ...value,
-      skills: value.skills.filter((_, index) => index !== skillIndex),
-    })
     setSaved(false)
   }
 
@@ -80,6 +78,9 @@ export function JobRequirementsForm({
       value.seniorityPoints >= 1
 
     setSaved(isValid)
+    if (isValid) {
+      onSave()
+    }
   }
 
   const isInvalid = submitted && (
@@ -93,7 +94,10 @@ export function JobRequirementsForm({
     <form onSubmit={handleSubmit} noValidate>
       <h2>Requerimientos del puesto</h2>
 
-      <label htmlFor="job-role">Rol</label>
+      <label htmlFor="job-role">ROL / Puesto</label>
+      {submitted && value.role.trim().length === 0 && (
+        <p role="alert">Ingresá el rol del puesto.</p>
+      )}
       <input
         id="job-role"
         name="role"
@@ -103,11 +107,11 @@ export function JobRequirementsForm({
         data-testid="job-role"
         required
       />
-      {submitted && value.role.trim().length === 0 && (
-        <p role="alert">Ingresá el rol del puesto.</p>
-      )}
 
-      <label htmlFor="job-skills">Tecnologías excluyentes</label>
+      <label htmlFor="job-skills">Habilidades solicitadas</label>
+      {submitted && value.skills.length === 0 && (
+        <p role="alert">Agregá al menos una habilidad.</p>
+      )}
       <input
         id="job-skills"
         name="skills"
@@ -116,20 +120,7 @@ export function JobRequirementsForm({
         onChange={(event) => handleSkillNameChange(event.target.value)}
         data-testid="job-skills"
       />
-      <label htmlFor="job-skill-points">Puntos de la habilidad</label>
-      <select
-        id="job-skill-points"
-        name="skill-points"
-        value={skillPoints}
-        onChange={(event) => handleSkillPointsChange(event.target.value)}
-        data-testid="job-skill-points"
-      >
-        {Array.from({ length: 10 }, (_, index) => index + 1).map((points) => (
-          <option key={points} value={points}>
-            {points}
-          </option>
-        ))}
-      </select>
+      <p>Separá varias habilidades con , o ;.</p>
       <button
         type="button"
         onClick={handleAddSkill}
@@ -138,27 +129,11 @@ export function JobRequirementsForm({
       >
         Agregar
       </button>
-      {value.skills.length > 0 && (
-        <ul data-testid="skills-list">
-          {value.skills.map((skill, index) => (
-            <li key={`${skill.name}-${index}`}>
-              {skill.name} ({skill.points} puntos)
-              <button
-                type="button"
-                onClick={() => handleRemoveSkill(index)}
-                data-testid={`remove-skill-${index}`}
-              >
-                Quitar
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {submitted && value.skills.length === 0 && (
-        <p role="alert">Agregá al menos una habilidad.</p>
-      )}
 
       <label htmlFor="job-seniority">Años / seniority</label>
+      {submitted && value.seniority.trim().length === 0 && (
+        <p role="alert">Ingresá los años o el seniority requerido.</p>
+      )}
       <input
         id="job-seniority"
         name="seniority"
@@ -168,7 +143,7 @@ export function JobRequirementsForm({
         data-testid="job-seniority"
         required
       />
-      <label htmlFor="job-seniority-points">Puntos del seniority</label>
+      <label htmlFor="job-seniority-points">Valoración del seniority</label>
       <select
         id="job-seniority-points"
         name="seniority-points"
@@ -182,9 +157,6 @@ export function JobRequirementsForm({
           </option>
         ))}
       </select>
-      {submitted && value.seniority.trim().length === 0 && (
-        <p role="alert">Ingresá los años o el seniority requerido.</p>
-      )}
 
       <button type="submit" data-testid="job-requirements-submit">
         Guardar requerimientos

@@ -177,6 +177,62 @@ ul {
   padding-left: 24px;
 }
 
+.requirements-summary-group {
+  display: grid;
+  gap: 8px;
+}
+
+.requirements-summary-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1.5fr) minmax(150px, 2fr) 48px 32px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.remove-skill-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: #ffffff;
+  background: #dc2626;
+  border-radius: 50%;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.remove-skill-button:hover {
+  background: #b91c1c;
+}
+
+.requirements-summary-row input[type='range'] {
+  width: 100%;
+  padding: 0;
+}
+
+.requirements-summary-row output {
+  display: inline-grid;
+  min-width: 40px;
+  min-height: 32px;
+  place-items: center;
+  border: 1px solid #9ca3af;
+  border-radius: 6px;
+  background: #ffffff;
+  font-weight: 700;
+}
+
+main.dark-mode .requirements-summary-row {
+  border-color: #4b5563;
+  background: #111827;
+}
+
+main.dark-mode .requirements-summary-row output {
+  background: #1f2937;
+}
+
 h3 {
   margin: 8px 0 0;
   color: #374151;

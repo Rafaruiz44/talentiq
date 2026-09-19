@@ -10,9 +10,30 @@ test('valida los campos requeridos de la definición del puesto', async ({ page 
   await expect(alerts).toHaveCount(3)
   await expect(alerts).toContainText([
     'Ingresá el rol del puesto.',
-    'Ingresá al menos una tecnología excluyente.',
+    'Agregá al menos una habilidad.',
     'Ingresá los años o el seniority requerido.',
   ])
+})
+
+test('separa habilidades y permite valorar cada una de forma independiente', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  await page.getByLabel('Habilidades solicitadas').fill('SQL, Java; Python, React')
+  await page.getByTestId('add-skill').click()
+  await page.getByLabel('ROL / Puesto').fill('Desarrollador')
+  await page.getByLabel('Años / seniority').fill('Senior')
+  await page.getByRole('button', { name: 'Guardar requerimientos' }).click()
+
+  await expect(page.getByTestId('job-requirements-summary')).toBeVisible()
+  await page.getByTestId('summary-skill-bar-0').fill('10')
+  await page.getByTestId('summary-skill-bar-1').fill('3')
+
+  await expect(page.getByTestId('summary-skill-bar-0')).toHaveValue('10')
+  await expect(page.getByTestId('summary-skill-bar-1')).toHaveValue('3')
+  await expect(page.getByTestId('summary-skill-bar-2')).toHaveValue('5')
+  await expect(page.getByTestId('summary-skill-bar-3')).toHaveValue('5')
 })
 
 test('permite cargar un CV pegando texto plano', async ({ page }) => {
@@ -26,20 +47,21 @@ test('permite cargar un CV pegando texto plano', async ({ page }) => {
   await expect(resumeInput).toHaveValue(resumeText)
 })
 
-test('exige que los pesos de los requerimientos sumen 100%', async ({ page }) => {
+test('permite guardar pesos individuales sin límite de suma total', async ({ page }) => {
   await page.goto('/')
 
-  await page.getByLabel('Peso del rol').fill('50')
-  await page.getByLabel('Peso de tecnologías').fill('30')
-  await page.getByLabel('Peso del seniority').fill('10')
-
+  await page.getByLabel('ROL / Puesto').fill('Desarrollador')
+  await page.getByLabel('Habilidades solicitadas').fill('SQL, Java, Python')
+  await page.getByTestId('add-skill').click()
+  await page.getByLabel('Años / seniority').fill('Senior')
   await page.getByRole('button', { name: 'Guardar requerimientos' }).click()
+  await page.getByTestId('summary-skill-bar-0').fill('10')
+  await page.getByTestId('summary-skill-bar-1').fill('10')
+  await page.getByTestId('summary-skill-bar-2').fill('10')
 
-  await expect(page.getByTestId('weights-total')).toHaveText(
-    'Total de pesos: 90%',
-  )
-  await expect(
-    page.getByText('Los pesos deben sumar exactamente 100%.'),
-  ).toBeVisible()
-  await expect(page.getByTestId('run-analysis')).toBeDisabled()
+  await expect(page.getByTestId('requirements-saved')).toBeVisible()
+  await expect(page.getByTestId('job-requirements-summary')).toBeVisible()
+  await expect(page.getByTestId('summary-skill-0')).toContainText('SQL')
+  await expect(page.getByTestId('summary-seniority-bar')).toHaveValue('5')
+  await expect(page.getByText(/suma.*100%/i)).toHaveCount(0)
 })

@@ -5,7 +5,7 @@ test('calcula y muestra la compatibilidad y el veredicto', async ({ page }) => {
 
   await page.getByRole('textbox', { name: 'Rol' }).fill('Desarrollador Frontend')
   await page
-    .getByRole('textbox', { name: 'Tecnologías excluyentes' })
+    .getByRole('textbox', { name: 'Habilidades solicitadas' })
     .fill('React, TypeScript')
   await page.getByRole('textbox', { name: 'Años / seniority' }).fill('Semi Senior')
   await page
@@ -25,7 +25,7 @@ test('muestra el desglose de fortalezas y brechas', async ({ page }) => {
 
   await page.getByRole('textbox', { name: 'Rol' }).fill('Desarrollador Frontend')
   await page
-    .getByRole('textbox', { name: 'Tecnologías excluyentes' })
+    .getByRole('textbox', { name: 'Habilidades solicitadas' })
     .fill('React, TypeScript')
   await page.getByRole('textbox', { name: 'Años / seniority' }).fill('Semi Senior')
   await page
