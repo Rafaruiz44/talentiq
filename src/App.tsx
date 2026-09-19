@@ -11,10 +11,18 @@ import type {
 } from './types'
 
 export function App() {
+  const [darkMode, setDarkMode] = useState(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches,
+  )
   const [jobRequirements, setJobRequirements] = useState<JobRequirements>({
     role: '',
     skills: [],
     seniority: '',
+    weights: {
+      role: 40,
+      skills: 40,
+      seniority: 20,
+    },
   })
   const [candidateResume, setCandidateResume] = useState<CandidateResume>({
     text: '',
@@ -47,8 +55,18 @@ export function App() {
   }
 
   return (
-    <main>
+    <main className={darkMode ? 'dark-mode' : ''}>
       <h1>Talentiq</h1>
+      <button
+        type="button"
+        onClick={() => setDarkMode((isDark) => !isDark)}
+        data-testid="theme-toggle"
+        aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        title={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        className="theme-toggle"
+      >
+        <span aria-hidden="true">{darkMode ? '☀' : '☾'}</span>
+      </button>
       <JobRequirementsForm
         value={jobRequirements}
         onChange={setJobRequirements}

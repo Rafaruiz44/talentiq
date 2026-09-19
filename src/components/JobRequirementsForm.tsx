@@ -36,6 +36,25 @@ export function JobRequirementsForm({
     onChange({ ...value, seniority })
   }
 
+  const handleWeightChange = (
+    requirement: keyof JobRequirements['weights'],
+    weight: string,
+  ) => {
+    setSaved(false)
+    onChange({
+      ...value,
+      weights: {
+        ...value.weights,
+        [requirement]: Number(weight) || 0,
+      },
+    })
+  }
+
+  const totalWeight = Object.values(value.weights).reduce(
+    (total, weight) => total + weight,
+    0,
+  )
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitted(true)
@@ -43,7 +62,8 @@ export function JobRequirementsForm({
     const isValid =
       value.role.trim().length > 0 &&
       value.skills.length > 0 &&
-      value.seniority.trim().length > 0
+      value.seniority.trim().length > 0 &&
+      totalWeight === 100
 
     setSaved(isValid)
   }
@@ -51,7 +71,8 @@ export function JobRequirementsForm({
   const isInvalid = submitted && (
     value.role.trim().length === 0 ||
     value.skills.length === 0 ||
-    value.seniority.trim().length === 0
+    value.seniority.trim().length === 0 ||
+    totalWeight !== 100
   )
 
   return (
@@ -99,6 +120,71 @@ export function JobRequirementsForm({
       {submitted && value.seniority.trim().length === 0 && (
         <p role="alert">Ingresá los años o el seniority requerido.</p>
       )}
+
+      <fieldset>
+        <legend>Peso de cada requerimiento (%)</legend>
+
+        <div className="weight-row">
+          <label htmlFor="job-role-weight">Rol</label>
+          <input
+            id="job-role-weight"
+            name="role-weight"
+            type="number"
+            min="0"
+            max="100"
+            value={value.weights.role}
+            onChange={(event) =>
+              handleWeightChange('role', event.target.value)
+            }
+            data-testid="job-role-weight"
+            required
+          />
+        </div>
+
+        <div className="weight-row">
+          <label htmlFor="job-skills-weight">Tecnologías</label>
+          <input
+            id="job-skills-weight"
+            name="skills-weight"
+            type="number"
+            min="0"
+            max="100"
+            value={value.weights.skills}
+            onChange={(event) =>
+              handleWeightChange('skills', event.target.value)
+            }
+            data-testid="job-skills-weight"
+            required
+          />
+        </div>
+
+        <div className="weight-row">
+          <label htmlFor="job-seniority-weight">Seniority</label>
+          <input
+            id="job-seniority-weight"
+            name="seniority-weight"
+            type="number"
+            min="0"
+            max="100"
+            value={value.weights.seniority}
+            onChange={(event) =>
+              handleWeightChange('seniority', event.target.value)
+            }
+            data-testid="job-seniority-weight"
+            required
+          />
+        </div>
+
+        <p
+          role={submitted && totalWeight !== 100 ? 'alert' : 'status'}
+          data-testid="weights-total"
+        >
+          Total de pesos: {totalWeight}%
+        </p>
+        {submitted && totalWeight !== 100 && (
+          <p role="alert">Los pesos deben sumar exactamente 100%.</p>
+        )}
+      </fieldset>
 
       <button type="submit" data-testid="job-requirements-submit">
         Guardar requerimientos
