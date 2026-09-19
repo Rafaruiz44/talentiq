@@ -95,6 +95,38 @@ textarea {
   border-radius: 8px;
 }
 
+.file-dropzone {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  color: #374151;
+  border: 2px dashed #9ca3af;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.file-dropzone input {
+  width: 100%;
+}
+
+.file-dropzone-active {
+  color: #1d4ed8;
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+main.dark-mode .file-dropzone {
+  color: #e5e7eb;
+  border-color: #6b7280;
+}
+
+main.dark-mode .file-dropzone-active {
+  color: #bfdbfe;
+  border-color: #60a5fa;
+  background: #1e3a5f;
+}
+
 textarea {
   resize: vertical;
 }
@@ -161,6 +193,11 @@ h3 {
   background: #166534;
 }
 
+main.dark-mode .verdict-approved {
+  background: #22c55e;
+  color: #052e16;
+}
+
 .verdict-rejected {
   background: #b91c1c;
 }
@@ -173,4 +210,8 @@ h3 {
 [role='status'] {
   margin: 0;
   color: #166534;
+}
+
+main.dark-mode [role='status'] {
+  color: #4ade80;
 }
