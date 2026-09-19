@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AnalysisControls } from './components/AnalysisControls'
 import { CvUpload } from './components/CvUpload'
 import { EvaluationResults } from './components/EvaluationResults'
@@ -10,7 +10,13 @@ import type {
   JobRequirements,
 } from './types'
 
+const getInitialTheme = (): 'light' | 'dark' => {
+  const storedTheme = sessionStorage.getItem('talentiq-theme')
+  return storedTheme === 'dark' ? 'dark' : 'light'
+}
+
 export function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme)
   const [jobRequirements, setJobRequirements] = useState<JobRequirements>({
     role: '',
     skills: [],
@@ -23,6 +29,14 @@ export function App() {
   const [evaluation, setEvaluation] = useState<CandidateEvaluation | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    sessionStorage.setItem('talentiq-theme', theme)
+  }, [theme])
+
+  const handleToggleTheme = () => {
+    setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'))
+  }
 
   const handleAnalyze = async () => {
     setLoading(true)
@@ -47,8 +61,18 @@ export function App() {
   }
 
   return (
-    <main>
-      <h1>Talentiq</h1>
+    <main data-theme={theme}>
+      <header className="app-header">
+        <h1>Talentiq</h1>
+        <button
+          type="button"
+          onClick={handleToggleTheme}
+          aria-label={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+          data-testid="theme-toggle"
+        >
+          {theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+        </button>
+      </header>
       <JobRequirementsForm
         value={jobRequirements}
         onChange={setJobRequirements}
