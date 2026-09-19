@@ -2,6 +2,11 @@ export interface JobRequirements {
   role: string
   skills: string[]
   seniority: string
+  weights: {
+    role: number
+    skills: number
+    seniority: number
+  }
 }
 
 export interface CandidateResume {
