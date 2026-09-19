@@ -11,6 +11,7 @@ import type {
 } from './types'
 
 export function App() {
+  const [darkMode, setDarkMode] = useState(false)
   const [jobRequirements, setJobRequirements] = useState<JobRequirements>({
     role: '',
     skills: [],
@@ -52,8 +53,18 @@ export function App() {
   }
 
   return (
-    <main>
+    <main className={darkMode ? 'dark-mode' : ''}>
       <h1>Talentiq</h1>
+      <button
+        type="button"
+        onClick={() => setDarkMode((isDark) => !isDark)}
+        data-testid="theme-toggle"
+        aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        title={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        className="theme-toggle"
+      >
+        <span aria-hidden="true">{darkMode ? '☀' : '☾'}</span>
+      </button>
       <JobRequirementsForm
         value={jobRequirements}
         onChange={setJobRequirements}
