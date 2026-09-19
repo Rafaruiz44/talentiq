@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react'
+import { useState, type ChangeEvent, type DragEvent } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { CandidateResume } from '../types'
@@ -29,24 +29,18 @@ async function extractPdfText(file: File): Promise<string> {
 }
 
 export function CvUpload({ value, onChange }: CvUploadProps) {
-  const handleTextChange = (text: string) => {
-    onChange({
-      text,
-      fileName: null,
-    })
-  }
+  const [isDragging, setIsDragging] = useState(false)
+  const [fileError, setFileError] = useState<string | null>(null)
 
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-
-    if (!file) {
+  const handleFile = async (file: File) => {
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setFileError('Solo se aceptan archivos PDF.')
       return
     }
 
+    setFileError(null)
     const text =
-      file.type === 'application/pdf'
-        ? await extractPdfText(file)
-        : await file.text()
+      await extractPdfText(file)
 
     onChange({
       text,
@@ -54,29 +48,61 @@ export function CvUpload({ value, onChange }: CvUploadProps) {
     })
   }
 
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+
+    if (file) {
+      await handleFile(file)
+    }
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = () => {
+    setIsDragging(false)
+  }
+
+  const handleDrop = async (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault()
+    setIsDragging(false)
+
+    const file = event.dataTransfer.files[0]
+
+    if (file) {
+      await handleFile(file)
+    }
+  }
+
   return (
     <section>
       <h2>Cargar CV</h2>
 
-      <label htmlFor="candidate-resume-text">Pegá el texto del CV</label>
-      <textarea
-        id="candidate-resume-text"
-        name="candidate-resume-text"
-        value={value.text}
-        onChange={(event) => handleTextChange(event.target.value)}
-        data-testid="candidate-resume-text"
-        rows={8}
-      />
+      <label
+        htmlFor="candidate-resume-file"
+        className={`file-dropzone${isDragging ? ' file-dropzone-active' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <span>Seleccioná un archivo o arrastralo acá</span>
+        <input
+          id="candidate-resume-file"
+          name="candidate-resume-file"
+          type="file"
+          accept=".pdf,application/pdf"
+          onChange={handleFileChange}
+          data-testid="candidate-resume-file"
+        />
+      </label>
 
-      <label htmlFor="candidate-resume-file">Seleccioná un archivo</label>
-      <input
-        id="candidate-resume-file"
-        name="candidate-resume-file"
-        type="file"
-        accept=".txt,.pdf,text/plain,application/pdf"
-        onChange={handleFileChange}
-        data-testid="candidate-resume-file"
-      />
+      {fileError && (
+        <p role="alert" data-testid="candidate-resume-file-error">
+          {fileError}
+        </p>
+      )}
 
       {value.fileName && (
         <p role="status" data-testid="candidate-resume-file-name">
