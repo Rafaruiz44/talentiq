@@ -68,22 +68,32 @@ const buildFallbackEvaluation = (
   const resumeText = normalizeText(resume.text)
   const role = requirements.role.trim()
   const seniority = requirements.seniority.trim()
-  const skillMatches = requirements.skills
-    .map((skill) => skill.trim())
-    .filter((skill) => skill.length > 0 && resumeText.includes(normalizeText(skill)))
+  const skillMatches = requirements.skills.filter(
+    (skill) =>
+      skill.name.trim().length > 0 &&
+      resumeText.includes(normalizeText(skill.name)),
+  )
+  const seniorityMatches =
+    seniority.length > 0 && resumeText.includes(normalizeText(seniority))
+  const totalPoints =
+    requirements.skills.reduce((total, skill) => total + skill.points, 0) +
+    (seniority.length > 0 ? requirements.seniorityPoints : 0)
+  const earnedPoints =
+    skillMatches.reduce((total, skill) => total + skill.points, 0) +
+    (seniorityMatches ? requirements.seniorityPoints : 0)
 
   const strengths: string[] = []
 
-  if (skillMatches.includes('React') || resumeText.includes('react')) {
+  if (skillMatches.some((skill) => normalizeText(skill.name) === 'react')) {
     strengths.push('Experiencia con React')
   } else if (requirements.skills.length > 0) {
-    strengths.push(`Experiencia con ${requirements.skills[0]}`)
+    strengths.push(`Experiencia con ${requirements.skills[0].name}`)
   }
 
-  if (skillMatches.includes('TypeScript') || resumeText.includes('typescript')) {
+  if (skillMatches.some((skill) => normalizeText(skill.name) === 'typescript')) {
     strengths.push('Experiencia con TypeScript')
   } else if (requirements.skills.length > 1) {
-    strengths.push(`Experiencia con ${requirements.skills[1]}`)
+    strengths.push(`Experiencia con ${requirements.skills[1].name}`)
   }
 
   if (role.length > 0) {
@@ -99,13 +109,18 @@ const buildFallbackEvaluation = (
   }
 
   const gaps = requirements.skills
-    .map((skill) => skill.trim())
-    .filter((skill) => skill.length > 0 && !resumeText.includes(normalizeText(skill)))
+    .filter(
+      (skill) =>
+        skill.name.trim().length > 0 &&
+        !resumeText.includes(normalizeText(skill.name)),
+    )
+    .map((skill) => skill.name)
 
   return {
     candidateName: 'Candidato demo',
-    matchScore: 100,
-    verdict: 'Apto',
+    earnedPoints,
+    totalPoints: Math.max(totalPoints, 1),
+    verdict: earnedPoints / Math.max(totalPoints, 1) >= 0.7 ? 'Apto' : 'No Apto',
     strengths: normalizeStrengths(strengths, role, seniority).slice(0, 4),
     gaps,
   }
@@ -222,10 +237,6 @@ export async function inferCandidateEvaluation(
     ...parsed,
     strengths: normalizedStrengths.slice(0, 4),
     gaps: parsed.gaps ?? [],
-    matchScore:
-      parsed.matchScore >= 0 && parsed.matchScore <= 100
-        ? parsed.matchScore
-        : 100,
     verdict:
       parsed.verdict === 'Apto' || parsed.verdict === 'No Apto'
         ? parsed.verdict

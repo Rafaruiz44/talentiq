@@ -3,7 +3,6 @@ import { AnalysisControls } from './components/AnalysisControls'
 import { CvUpload } from './components/CvUpload'
 import { EvaluationResults } from './components/EvaluationResults'
 import { JobRequirementsForm } from './components/JobRequirementsForm'
-import { JobRequirementsSummary } from './components/JobRequirementsSummary'
 import { inferCandidateEvaluation } from './services/inferCandidateEvaluation'
 import type {
   CandidateEvaluation,
@@ -31,7 +30,6 @@ export function App() {
   const [evaluation, setEvaluation] = useState<CandidateEvaluation | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [requirementsSaved, setRequirementsSaved] = useState(false)
 
   const handleRequirementsChange = (requirements: JobRequirements) => {
     setJobRequirements(requirements)
@@ -83,14 +81,7 @@ export function App() {
       <JobRequirementsForm
         value={jobRequirements}
         onChange={handleRequirementsChange}
-        onSave={() => setRequirementsSaved(true)}
       />
-      {requirementsSaved && (
-        <JobRequirementsSummary
-          requirements={jobRequirements}
-          onChange={handleRequirementsChange}
-        />
-      )}
       <CvUpload value={candidateResume} onChange={setCandidateResume} />
       <AnalysisControls
         requirements={jobRequirements}
