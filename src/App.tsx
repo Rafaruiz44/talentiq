@@ -3,6 +3,7 @@ import { AnalysisControls } from './components/AnalysisControls'
 import { CvUpload } from './components/CvUpload'
 import { EvaluationResults } from './components/EvaluationResults'
 import { JobRequirementsForm } from './components/JobRequirementsForm'
+import { JobRequirementsSummary } from './components/JobRequirementsSummary'
 import { inferCandidateEvaluation } from './services/inferCandidateEvaluation'
 import type {
   CandidateEvaluation,
@@ -30,7 +31,7 @@ export function App() {
   const [evaluation, setEvaluation] = useState<CandidateEvaluation | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hasAnalyzed, setHasAnalyzed] = useState(false)
+  const [requirementsSaved, setRequirementsSaved] = useState(false)
 
   const handleRequirementsChange = (requirements: JobRequirements) => {
     setJobRequirements(requirements)
@@ -49,16 +50,13 @@ export function App() {
     setError(null)
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200))
       const result = await inferCandidateEvaluation(
         jobRequirements,
         candidateResume,
       )
       setEvaluation(result)
-      setHasAnalyzed(true)
     } catch (analysisError) {
       setEvaluation(null)
-      setHasAnalyzed(false)
       setError(
         analysisError instanceof Error
           ? analysisError.message
@@ -72,12 +70,7 @@ export function App() {
   return (
     <main data-theme={theme}>
       <header className="app-header">
-        <div>
-          <h1>TALENTIQ</h1>
-          <p className="app-subtitle">
-            Definí el puesto, pesá lo que más te importa y subí el CV.
-          </p>
-        </div>
+        <h1>Talentiq</h1>
         <button
           type="button"
           onClick={handleToggleTheme}
@@ -90,13 +83,19 @@ export function App() {
       <JobRequirementsForm
         value={jobRequirements}
         onChange={handleRequirementsChange}
+        onSave={() => setRequirementsSaved(true)}
       />
+      {requirementsSaved && (
+        <JobRequirementsSummary
+          requirements={jobRequirements}
+          onChange={handleRequirementsChange}
+        />
+      )}
       <CvUpload value={candidateResume} onChange={setCandidateResume} />
       <AnalysisControls
         requirements={jobRequirements}
         resume={candidateResume}
         loading={loading}
-        hasAnalyzed={hasAnalyzed}
         onAnalyze={handleAnalyze}
       />
       {error && (
