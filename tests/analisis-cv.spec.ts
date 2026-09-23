@@ -51,3 +51,16 @@ test('muestra el desglose de fortalezas y brechas', async ({ page }) => {
   ).toBeVisible()
   await expect(lists.nth(1)).toBeEmpty()
 })
+
+test('permite cambiar entre modo claro y oscuro y conservar la elección en la sesión', async ({ page }) => {
+  await page.goto('/')
+
+  const app = page.locator('main')
+  await expect(app).toHaveAttribute('data-theme', 'light')
+
+  await page.getByRole('button', { name: 'Cambiar a modo oscuro' }).click()
+  await expect(app).toHaveAttribute('data-theme', 'dark')
+
+  await page.reload()
+  await expect(app).toHaveAttribute('data-theme', 'dark')
+})

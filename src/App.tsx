@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AnalysisControls } from './components/AnalysisControls'
 import { CvUpload } from './components/CvUpload'
 import { EvaluationResults } from './components/EvaluationResults'
@@ -11,10 +11,13 @@ import type {
   JobRequirements,
 } from './types'
 
+const getInitialTheme = (): 'light' | 'dark' => {
+  const storedTheme = sessionStorage.getItem('talentiq-theme')
+  return storedTheme === 'dark' ? 'dark' : 'light'
+}
+
 export function App() {
-  const [darkMode, setDarkMode] = useState(() =>
-    window.matchMedia('(prefers-color-scheme: dark)').matches,
-  )
+  const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme)
   const [jobRequirements, setJobRequirements] = useState<JobRequirements>({
     role: '',
     skills: [],
@@ -32,6 +35,14 @@ export function App() {
 
   const handleRequirementsChange = (requirements: JobRequirements) => {
     setJobRequirements(requirements)
+  }
+
+  useEffect(() => {
+    sessionStorage.setItem('talentiq-theme', theme)
+  }, [theme])
+
+  const handleToggleTheme = () => {
+    setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'))
   }
 
   const handleAnalyze = async () => {
@@ -57,18 +68,18 @@ export function App() {
   }
 
   return (
-    <main className={darkMode ? 'dark-mode' : ''}>
-      <h1>Talentiq</h1>
-      <button
-        type="button"
-        onClick={() => setDarkMode((isDark) => !isDark)}
-        data-testid="theme-toggle"
-        aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-        title={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-        className="theme-toggle"
-      >
-        <span aria-hidden="true">{darkMode ? '☀' : '☾'}</span>
-      </button>
+    <main data-theme={theme}>
+      <header className="app-header">
+        <h1>Talentiq</h1>
+        <button
+          type="button"
+          onClick={handleToggleTheme}
+          aria-label={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+          data-testid="theme-toggle"
+        >
+          {theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+        </button>
+      </header>
       <JobRequirementsForm
         value={jobRequirements}
         onChange={handleRequirementsChange}
