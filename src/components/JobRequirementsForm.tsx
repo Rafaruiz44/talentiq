@@ -129,7 +129,6 @@ export function JobRequirementsForm({
       >
         Agregar
       </button>
-
       <label htmlFor="job-seniority">Años / seniority</label>
       {submitted && value.seniority.trim().length === 0 && (
         <p role="alert">Ingresá los años o el seniority requerido.</p>

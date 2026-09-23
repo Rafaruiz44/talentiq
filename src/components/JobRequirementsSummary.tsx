@@ -1,4 +1,9 @@
+import type { CSSProperties } from 'react'
 import type { JobRequirements } from '../types'
+
+const getRangeProgress = (points: number): CSSProperties => ({
+  '--range-progress': `${((points - 1) / 9) * 100}%`,
+} as CSSProperties)
 
 interface JobRequirementsSummaryProps {
   requirements: JobRequirements
@@ -59,6 +64,7 @@ export function JobRequirementsSummary({
               min="1"
               max="10"
               value={skill.points}
+              style={getRangeProgress(skill.points)}
               onChange={(event) =>
                 handleSkillPointsChange(index, event.target.value)
               }
@@ -87,6 +93,7 @@ export function JobRequirementsSummary({
           min="1"
           max="10"
           value={requirements.seniorityPoints}
+          style={getRangeProgress(requirements.seniorityPoints)}
           onChange={(event) =>
             handleSeniorityPointsChange(event.target.value)
           }

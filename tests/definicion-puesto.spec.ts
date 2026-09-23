@@ -37,6 +37,7 @@ test('separa habilidades y permite valorar cada una de forma independiente', asy
 })
 
 test('permite cargar un CV pegando texto plano', async ({ page }) => {
+test('permite cargar un CV pegando texto plano', async ({ page }) => {
   await page.goto('/')
 
   const resumeText = 'Experiencia con React y TypeScript'

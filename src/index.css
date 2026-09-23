@@ -120,6 +120,107 @@ section {
   box-shadow: 0 4px 12px var(--panel-shadow);
 }
 
+.step-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.step-heading h2 {
+  margin: 0;
+  font-weight: 700;
+}
+
+.step-number {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  flex: 0 0 26px;
+  color: #ffffff;
+  background: #4f46e5;
+  border-radius: 50%;
+  font-weight: 700;
+}
+
+.field-help,
+.empty-skills {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.field-row input[type='text'],
+.field-row select {
+  flex: 1 1 180px;
+}
+
+.field-row input[type='range'] {
+  flex: 1 1 120px;
+}
+
+.range-value {
+  color: #4f46e5;
+  font-weight: 700;
+}
+
+.skills-list {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.skill-item {
+  display: grid;
+  grid-template-columns: minmax(80px, auto) 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+
+.skill-weight-control {
+  min-width: 120px;
+  border: 0;
+  outline: 0;
+}
+
+.skill-weight-value {
+  min-width: 20px;
+  color: var(--heading-text);
+  font-weight: 700;
+  text-align: center;
+}
+
+.skill-bar-track {
+  height: 8px;
+  overflow: hidden;
+  background: #e5e7eb;
+  border-radius: 999px;
+}
+
+.skill-bar {
+  display: block;
+  height: 100%;
+  background: #6366f1;
+  border-radius: inherit;
+}
+
+.skill-item button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: #ef4444;
+}
 label {
   font-weight: 600;
   color: var(--label-text);
@@ -132,6 +233,50 @@ button {
   font: inherit;
 }
 
+input[type='range'] {
+  width: 100%;
+  height: 20px;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  background: linear-gradient(to right, #4f46e5 var(--range-progress), #c7d2fe var(--range-progress));
+  border-radius: 999px;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  appearance: none;
+  background: #4f46e5;
+  border: 0;
+  border-radius: 50%;
+}
+
+input[type='range']::-moz-range-track {
+  height: 6px;
+  background: #c7d2fe;
+  border-radius: 999px;
+}
+
+input[type='range']::-moz-range-progress {
+  height: 6px;
+  background: #4f46e5;
+  border-radius: 999px;
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #4f46e5;
+  border: 0;
+  border-radius: 50%;
+}
 input,
 textarea {
   width: 100%;
@@ -142,6 +287,19 @@ textarea {
   border-radius: 8px;
 }
 
+input[type='range'] {
+  border: 0;
+  border-radius: 0;
+}
+
+select {
+  width: 100%;
+  padding: 10px 12px;
+  color: var(--app-text);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+}
 .file-dropzone {
   display: grid;
   gap: 8px;
@@ -270,14 +428,10 @@ ul {
 }
 
 .requirements-summary-row output {
-  display: inline-grid;
-  min-width: 40px;
-  min-height: 32px;
-  place-items: center;
-  border: 1px solid #9ca3af;
-  border-radius: 6px;
-  background: #ffffff;
+  display: inline-block;
+  min-width: 20px;
   font-weight: 700;
+  text-align: center;
 }
 
 main.dark-mode .requirements-summary-row {
@@ -286,7 +440,7 @@ main.dark-mode .requirements-summary-row {
 }
 
 main.dark-mode .requirements-summary-row output {
-  background: #1f2937;
+  background: transparent;
 }
 
 .requirements-summary-group {
@@ -326,14 +480,10 @@ main.dark-mode .requirements-summary-row output {
 }
 
 .requirements-summary-row output {
-  display: inline-grid;
-  min-width: 40px;
-  min-height: 32px;
-  place-items: center;
-  border: 1px solid #9ca3af;
-  border-radius: 6px;
-  background: #ffffff;
+  display: inline-block;
+  min-width: 20px;
   font-weight: 700;
+  text-align: center;
 }
 
 main.dark-mode .requirements-summary-row {
@@ -342,7 +492,7 @@ main.dark-mode .requirements-summary-row {
 }
 
 main.dark-mode .requirements-summary-row output {
-  background: #1f2937;
+  background: transparent;
 }
 
 h2,
