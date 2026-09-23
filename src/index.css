@@ -56,6 +56,7 @@ body {
 }
 
 main {
+  position: relative;
   width: min(900px, calc(100% - 32px));
   margin: 0 auto;
   padding: 32px 0 48px;
@@ -68,6 +69,38 @@ main {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 24px;
+}
+
+main.dark-mode {
+  color: #e5e7eb;
+}
+
+main.dark-mode form,
+main.dark-mode section {
+  background: #1f2937;
+  border-color: #4b5563;
+}
+
+main.dark-mode h1,
+main.dark-mode label,
+main.dark-mode h3 {
+  color: #f9fafb;
+}
+
+main.dark-mode input,
+main.dark-mode textarea {
+  color: #f9fafb;
+  background: #111827;
+  border-color: #6b7280;
+}
+
+main.dark-mode button {
+  background: #60a5fa;
+  color: #111827;
+}
+
+main.dark-mode button:hover {
+  background: #93c5fd;
 }
 
 h1 {
@@ -109,8 +142,51 @@ textarea {
   border-radius: 8px;
 }
 
+.file-dropzone {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  color: #374151;
+  border: 2px dashed #9ca3af;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.file-dropzone input {
+  width: 100%;
+}
+
+.file-dropzone-active {
+  color: #1d4ed8;
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+main.dark-mode .file-dropzone {
+  color: #e5e7eb;
+  border-color: #6b7280;
+}
+
+main.dark-mode .file-dropzone-active {
+  color: #bfdbfe;
+  border-color: #60a5fa;
+  background: #1e3a5f;
+}
+
 textarea {
   resize: vertical;
+}
+
+.weight-row {
+  display: grid;
+  grid-template-columns: 1fr 96px;
+  align-items: center;
+  gap: 12px;
+}
+
+.weight-row input {
+  width: 96px;
 }
 
 button {
@@ -121,6 +197,17 @@ button {
   border: 0;
   border-radius: 8px;
   cursor: pointer;
+}
+
+.theme-toggle {
+  position: absolute;
+  top: 32px;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
 }
 
 button:hover {
@@ -156,8 +243,20 @@ h3 {
   display: inline-block;
   padding: 4px 8px;
   color: #ffffff;
-  background: #166534;
   border-radius: 999px;
+}
+
+.verdict-approved {
+  background: #166534;
+}
+
+main.dark-mode .verdict-approved {
+  background: #22c55e;
+  color: #052e16;
+}
+
+.verdict-rejected {
+  background: #b91c1c;
 }
 
 [role='alert'] {
@@ -168,4 +267,8 @@ h3 {
 [role='status'] {
   margin: 0;
   color: var(--status-success);
+}
+
+main.dark-mode [role='status'] {
+  color: #4ade80;
 }

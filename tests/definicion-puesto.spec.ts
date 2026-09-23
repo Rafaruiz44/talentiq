@@ -25,3 +25,21 @@ test('permite cargar un CV pegando texto plano', async ({ page }) => {
 
   await expect(resumeInput).toHaveValue(resumeText)
 })
+
+test('exige que los pesos de los requerimientos sumen 100%', async ({ page }) => {
+  await page.goto('/')
+
+  await page.getByLabel('Peso del rol').fill('50')
+  await page.getByLabel('Peso de tecnologías').fill('30')
+  await page.getByLabel('Peso del seniority').fill('10')
+
+  await page.getByRole('button', { name: 'Guardar requerimientos' }).click()
+
+  await expect(page.getByTestId('weights-total')).toHaveText(
+    'Total de pesos: 90%',
+  )
+  await expect(
+    page.getByText('Los pesos deben sumar exactamente 100%.'),
+  ).toBeVisible()
+  await expect(page.getByTestId('run-analysis')).toBeDisabled()
+})
