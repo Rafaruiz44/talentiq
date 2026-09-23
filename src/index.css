@@ -55,6 +55,11 @@ body {
   transition: background 0.2s ease, color 0.2s ease;
 }
 
+body:has(main[data-theme='dark']) {
+  background: #243253;
+  color: #e5e7eb;
+}
+
 main {
   position: relative;
   width: min(900px, calc(100% - 32px));
@@ -69,6 +74,12 @@ main {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 24px;
+}
+
+main[data-theme='dark'] .app-header {
+  padding: 16px 20px;
+  background: #243253;
+  border-radius: 12px;
 }
 
 main.dark-mode {
@@ -164,6 +175,10 @@ section {
 
 .field-row input[type='range'] {
   flex: 1 1 120px;
+}
+
+.skill-entry-row button {
+  color: #ffffff;
 }
 
 .range-value {
@@ -319,6 +334,12 @@ select {
   color: #1d4ed8;
   border-color: #2563eb;
   background: #eff6ff;
+}
+
+main[data-theme='dark'] .file-dropzone,
+main[data-theme='dark'] .file-dropzone strong,
+main[data-theme='dark'] .file-dropzone small {
+  color: #ffffff;
 }
 
 main.dark-mode .file-dropzone {
