@@ -1,67 +1,45 @@
 import { expect, test } from '@playwright/test'
 
-test('valida los campos requeridos de la definición del puesto', async ({ page }) => {
+test('valida los campos requeridos del puesto y las habilidades', async ({ page }) => {
   await page.goto('/')
 
   await page.getByRole('button', { name: 'Guardar requerimientos' }).click()
 
   const alerts = page.getByRole('alert')
-
-  await expect(alerts).toHaveCount(3)
+  await expect(alerts).toHaveCount(2)
   await expect(alerts).toContainText([
     'Ingresá el rol del puesto.',
     'Agregá al menos una habilidad.',
-    'Ingresá los años o el seniority requerido.',
   ])
 })
 
-test('separa habilidades y permite valorar cada una de forma independiente', async ({
-  page,
-}) => {
+test('agrega una habilidad con su peso individual', async ({ page }) => {
   await page.goto('/')
 
-  await page.getByLabel('Habilidades solicitadas').fill('SQL, Java; Python, React')
-  await page.getByTestId('add-skill').click()
-  await page.getByLabel('ROL / Puesto').fill('Desarrollador')
-  await page.getByLabel('Años / seniority').fill('Senior')
-  await page.getByRole('button', { name: 'Guardar requerimientos' }).click()
+  await page.getByRole('textbox', { name: 'Nombre del puesto' }).fill('Desarrollador Backend')
+  await page.getByRole('textbox', { name: 'Habilidad' }).fill('SQL')
+  await page.getByTestId('skill-points').fill('8')
+  await page.getByRole('button', { name: '+ Agregar' }).click()
 
-  await expect(page.getByTestId('job-requirements-summary')).toBeVisible()
-  await page.getByTestId('summary-skill-bar-0').fill('10')
-  await page.getByTestId('summary-skill-bar-1').fill('3')
-
-  await expect(page.getByTestId('summary-skill-bar-0')).toHaveValue('10')
-  await expect(page.getByTestId('summary-skill-bar-1')).toHaveValue('3')
-  await expect(page.getByTestId('summary-skill-bar-2')).toHaveValue('5')
-  await expect(page.getByTestId('summary-skill-bar-3')).toHaveValue('5')
+  await expect(page.getByRole('textbox', { name: 'Habilidad' })).toHaveValue('')
+  await expect(page.getByRole('listitem')).toContainText('SQL')
+  await expect(page.getByRole('listitem')).toContainText('8')
 })
 
-test('permite cargar un CV pegando texto plano', async ({ page }) => {
+test('permite cargar un CV DOCX desde la zona de selección', async ({ page }) => {
   await page.goto('/')
 
-  const resumeText = 'Experiencia con React y TypeScript'
-  const resumeInput = page.getByRole('textbox', { name: 'Pegá el texto del CV' })
+  const chooserPromise = page.waitForEvent('filechooser')
+  await page.getByRole('button', {
+    name: 'Arrastrá el CV acá o hacé clic para elegirlo PDF o DOCX · máx. 5 MB',
+  }).click()
+  const chooser = await chooserPromise
 
-  await resumeInput.fill(resumeText)
+  await chooser.setFiles({
+    name: 'candidato.docx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    buffer: Buffer.from('CV de prueba'),
+  })
 
-  await expect(resumeInput).toHaveValue(resumeText)
-})
-
-test('permite guardar pesos individuales sin límite de suma total', async ({ page }) => {
-  await page.goto('/')
-
-  await page.getByLabel('ROL / Puesto').fill('Desarrollador')
-  await page.getByLabel('Habilidades solicitadas').fill('SQL, Java, Python')
-  await page.getByTestId('add-skill').click()
-  await page.getByLabel('Años / seniority').fill('Senior')
-  await page.getByRole('button', { name: 'Guardar requerimientos' }).click()
-  await page.getByTestId('summary-skill-bar-0').fill('10')
-  await page.getByTestId('summary-skill-bar-1').fill('10')
-  await page.getByTestId('summary-skill-bar-2').fill('10')
-
-  await expect(page.getByTestId('requirements-saved')).toBeVisible()
-  await expect(page.getByTestId('job-requirements-summary')).toBeVisible()
-  await expect(page.getByTestId('summary-skill-0')).toContainText('SQL')
-  await expect(page.getByTestId('summary-seniority-bar')).toHaveValue('5')
-  await expect(page.getByText(/suma.*100%/i)).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /candidato\.docx/ })).toBeVisible()
 })

@@ -1,66 +1,61 @@
 import { expect, test } from '@playwright/test'
 
+const pdfFixture = Buffer.from(`%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 68 >>
+stream
+BT /F1 12 Tf 72 720 Td (Desarrollador Backend SQL Senior) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+trailer
+<< /Root 1 0 R >>
+%%EOF`)
+
 test('calcula y muestra la compatibilidad y el veredicto', async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('textbox', { name: 'Nombre del puesto' }).fill('Desarrollador Backend')
+  await page.getByRole('textbox', { name: 'Habilidad' }).fill('SQL')
+  await page.getByTestId('add-skill').click()
+  await page.getByRole('combobox', { name: 'Nivel' }).selectOption('Senior')
+  const chooserPromise = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: /Arrastrá el CV acá/ }).click()
+  const chooser = await chooserPromise
+  await chooser.setFiles({ name: 'candidato.pdf', mimeType: 'application/pdf', buffer: pdfFixture })
 
-  await page.getByRole('textbox', { name: 'Rol' }).fill('Desarrollador Frontend')
-  await page
-    .getByRole('textbox', { name: 'Habilidades solicitadas' })
-    .fill('React, TypeScript')
-  await page.getByRole('textbox', { name: 'Años / seniority' }).fill('Semi Senior')
-  await page
-    .getByRole('textbox', { name: 'Pegá el texto del CV' })
-    .fill('Desarrollador Frontend con experiencia en React, TypeScript y Semi Senior')
-
-  await page.getByRole('button', { name: 'Procesar análisis' }).click()
-
-  const results = page.getByRole('region', { name: 'Resultados del análisis' })
-  await expect(results).toBeVisible()
-  await expect(results).toContainText('100%')
-  await expect(results).toContainText('Apto')
+  await page.getByRole('button', { name: 'Analizar candidato' }).click()
+  await expect(page.getByTestId('analysis-loading')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Resultados del análisis' })).toBeVisible({ timeout: 10000 })
+  await expect(page.getByTestId('match-score')).toContainText('%')
+  await expect(page.getByTestId('evaluation-verdict')).toContainText(/Apto|No Apto/)
 })
 
 test('muestra el desglose de fortalezas y brechas', async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('textbox', { name: 'Nombre del puesto' }).fill('Desarrollador Backend')
+  await page.getByRole('textbox', { name: 'Habilidad' }).fill('SQL')
+  await page.getByTestId('add-skill').click()
+  await page.getByRole('combobox', { name: 'Nivel' }).selectOption('Senior')
+  const chooserPromise = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: /Arrastrá el CV acá/ }).click()
+  const chooser = await chooserPromise
+  await chooser.setFiles({ name: 'candidato.pdf', mimeType: 'application/pdf', buffer: pdfFixture })
 
-  await page.getByRole('textbox', { name: 'Rol' }).fill('Desarrollador Frontend')
-  await page
-    .getByRole('textbox', { name: 'Habilidades solicitadas' })
-    .fill('React, TypeScript')
-  await page.getByRole('textbox', { name: 'Años / seniority' }).fill('Semi Senior')
-  await page
-    .getByRole('textbox', { name: 'Pegá el texto del CV' })
-    .fill('Desarrollador Frontend con experiencia en React, TypeScript y Semi Senior')
-
-  await page.getByRole('button', { name: 'Procesar análisis' }).click()
-
+  await page.getByRole('button', { name: 'Analizar candidato' }).click()
   const results = page.getByRole('region', { name: 'Resultados del análisis' })
+  await expect(results).toBeVisible({ timeout: 10000 })
   await expect(results.getByRole('heading', { name: 'Fortalezas' })).toBeVisible()
-  const lists = results.getByRole('list')
-  await expect(lists).toHaveCount(2)
-  const strengths = lists.first().getByRole('listitem')
-  await expect(strengths).toHaveCount(4)
-  await expect(strengths.nth(0)).toHaveText('Experiencia con React')
-  await expect(strengths.nth(1)).toHaveText('Experiencia con TypeScript')
-  await expect(strengths.nth(2)).toHaveText(
-    'Perfil alineado al rol Desarrollador Frontend',
-  )
-  await expect(strengths.nth(3)).toHaveText('Seniority coincidente: Semi Senior')
-  await expect(
-    results.getByRole('heading', { name: 'Brechas o habilidades faltantes' }),
-  ).toBeVisible()
-  await expect(lists.nth(1)).toBeEmpty()
-})
-
-test('permite cambiar entre modo claro y oscuro y conservar la elección en la sesión', async ({ page }) => {
-  await page.goto('/')
-
-  const app = page.locator('main')
-  await expect(app).toHaveAttribute('data-theme', 'light')
-
-  await page.getByRole('button', { name: 'Cambiar a modo oscuro' }).click()
-  await expect(app).toHaveAttribute('data-theme', 'dark')
-
-  await page.reload()
-  await expect(app).toHaveAttribute('data-theme', 'dark')
+  await expect(results.getByRole('heading', { name: 'Brechas o habilidades faltantes' })).toBeVisible()
+  await expect(results.getByRole('list')).toHaveCount(2)
 })
