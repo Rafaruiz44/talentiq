@@ -87,28 +87,40 @@ const seniorityLabels: Record<string, string> = {
 const monthNumbers: Record<string, number> = {
   jan: 0,
   january: 0,
+  enero: 0,
   feb: 1,
   february: 1,
+  febrero: 1,
   mar: 2,
   march: 2,
+  marzo: 2,
   apr: 3,
   april: 3,
+  abril: 3,
   may: 4,
+  mayo: 4,
   jun: 5,
   june: 5,
+  junio: 5,
   jul: 6,
   july: 6,
+  julio: 6,
   aug: 7,
   august: 7,
+  agosto: 7,
   sep: 8,
   sept: 8,
   september: 8,
+  septiembre: 8,
   oct: 9,
   october: 9,
+  octubre: 9,
   nov: 10,
   november: 10,
+  noviembre: 10,
   dec: 11,
   december: 11,
+  diciembre: 11,
 }
 
 const getExperienceYearsFromDates = (
@@ -126,7 +138,7 @@ const getExperienceYearsFromDates = (
   if (!rolePattern) return null
 
   const datePattern =
-    /([a-z]+)\s+(20\d{2})\s*[\u2013-]\s*(present|[a-z]+\s+20\d{2})/i
+    /([a-záéíóú]+)\s+(20\d{2})\s*[\u2013-]\s*(present|presente|actualidad|[a-záéíóú]+\s+20\d{2})/i
   const roleDatePattern = new RegExp(
     `${rolePattern}[\\s\\S]{0,100}?${datePattern.source}`,
     'gi',
@@ -138,8 +150,9 @@ const getExperienceYearsFromDates = (
     const startMonth = monthNumbers[dateMatch[1].toLowerCase()]
     const startYear = Number(dateMatch[2])
     const endParts = dateMatch[3].toLowerCase().split(' ')
-    const endMonth = endParts[0] === 'present' ? new Date().getMonth() : monthNumbers[endParts[0]]
-    const endYear = endParts[0] === 'present' ? new Date().getFullYear() : Number(endParts[1])
+    const isCurrent = ['present', 'presente', 'actualidad'].includes(endParts[0])
+    const endMonth = isCurrent ? new Date().getMonth() : monthNumbers[endParts[0]]
+    const endYear = isCurrent ? new Date().getFullYear() : Number(endParts[1])
 
     if (
       startMonth === undefined ||
@@ -221,6 +234,10 @@ const isSeniorityQualified = (
   const requiredRank = seniorityRank[normalizeText(requiredSeniority)]
   const candidateSeniority = inferCandidateSeniority(resumeText, role)
 
+  if (candidateSeniority === null && requiredRank === seniorityRank.trainee) {
+    return true
+  }
+
   return (
     requiredRank !== undefined &&
     candidateSeniority !== null &&
@@ -240,6 +257,10 @@ const getSenioritySummary = (
     ? seniorityLabels[candidateSeniority]
     : null
   if (!candidateSeniority) {
+    if (seniorityRank[normalizeText(requirements.seniority)] === seniorityRank.trainee) {
+      return `Seniority coincidente: ${seniorityLabels.trainee}`
+    }
+
     return `Seniority no acreditado: ${requirements.seniority.trim()}`
   }
 
