@@ -12,6 +12,16 @@ interface AzureOpenAIResponse {
   }>
 }
 
+export const SENIORITY_RANGES = [
+  'Trainee: hasta 1 año',
+  'Junior: más de 1 y hasta 3 años',
+  'Semi Senior: más de 3 y hasta 5 años',
+  'Senior: más de 5 y hasta 8 años',
+  'Lead: más de 8 años',
+] as const
+
+export const APPROVAL_THRESHOLD_PERCENTAGE = 70
+
 const normalizeText = (value: string): string =>
   value
     .trim()
@@ -19,16 +29,204 @@ const normalizeText = (value: string): string =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
 
-const normalizeStrength = (value: string, role: string, seniority: string): string => {
+const seniorityRank: Record<string, number> = {
+  trainee: 0,
+  junior: 1,
+  'semi senior': 2,
+  senior: 3,
+  lead: 4,
+}
+
+const seniorityLabels: Record<string, string> = {
+  trainee: 'Trainee',
+  junior: 'Junior',
+  'semi senior': 'Semi Senior',
+  senior: 'Senior',
+  lead: 'Lead',
+}
+
+const monthNumbers: Record<string, number> = {
+  jan: 0,
+  january: 0,
+  feb: 1,
+  february: 1,
+  mar: 2,
+  march: 2,
+  apr: 3,
+  april: 3,
+  may: 4,
+  jun: 5,
+  june: 5,
+  jul: 6,
+  july: 6,
+  aug: 7,
+  august: 7,
+  sep: 8,
+  sept: 8,
+  september: 8,
+  oct: 9,
+  october: 9,
+  nov: 10,
+  november: 10,
+  dec: 11,
+  december: 11,
+}
+
+const getExperienceYearsFromDates = (
+  resumeText: string,
+  role: string,
+): number | null => {
+  const experienceSection =
+    resumeText.split('professional experience')[1]?.split('education')[0] ??
+    resumeText
+  const rolePattern = normalizeText(role)
+    .split(/\s+/)
+    .filter((word) => word.length > 2)
+    .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('\\s+')
+  if (!rolePattern) return null
+
+  const datePattern =
+    /([a-z]+)\s+(20\d{2})\s*[\u2013-]\s*(present|[a-z]+\s+20\d{2})/i
+  const roleDatePattern = new RegExp(
+    `${rolePattern}[\\s\\S]{0,100}?${datePattern.source}`,
+    'gi',
+  )
+  const parsedRanges = Array.from(experienceSection.matchAll(roleDatePattern), (match) => {
+    const dateMatch = match[0].match(datePattern)
+    if (!dateMatch) return null
+
+    const startMonth = monthNumbers[dateMatch[1].toLowerCase()]
+    const startYear = Number(dateMatch[2])
+    const endParts = dateMatch[3].toLowerCase().split(' ')
+    const endMonth = endParts[0] === 'present' ? new Date().getMonth() : monthNumbers[endParts[0]]
+    const endYear = endParts[0] === 'present' ? new Date().getFullYear() : Number(endParts[1])
+
+    if (
+      startMonth === undefined ||
+      endMonth === undefined ||
+      Number.isNaN(startYear) ||
+      Number.isNaN(endYear)
+    ) {
+      return []
+    }
+
+    return { startMonth, startYear, endMonth, endYear }
+  }).filter(
+    (range): range is { startMonth: number; startYear: number; endMonth: number; endYear: number } =>
+      range !== null,
+  )
+
+  if (!parsedRanges.length) return null
+
+  const firstStart = parsedRanges.reduce((earliest, range) =>
+    range.startYear < earliest.startYear ||
+    (range.startYear === earliest.startYear && range.startMonth < earliest.startMonth)
+      ? range
+      : earliest,
+  )
+  const lastEnd = parsedRanges.reduce((latest, range) =>
+    range.endYear > latest.endYear ||
+    (range.endYear === latest.endYear && range.endMonth > latest.endMonth)
+      ? range
+      : latest,
+  )
+  const months =
+    (lastEnd.endYear - firstStart.startYear) * 12 +
+    lastEnd.endMonth -
+    firstStart.startMonth
+
+  return months >= 0 ? months / 12 : null
+}
+
+const seniorityFromYears = (resumeText: string, role: string): string | null => {
+  const roleWords = normalizeText(role)
+    .split(/\s+/)
+    .filter((word) => word.length > 2)
+  const roleLine = resumeText
+    .split('\n')
+    .find((line) => {
+      const normalizedLine = normalizeText(line)
+      return roleWords.every((word) => normalizedLine.includes(word))
+    })
+  const matches = roleLine?.match(/(\d+(?:[.,]\d+)?)\s*(?:anos?|years?)/gi)
+  const years = matches
+    ? Math.max(...matches.map((match) => Number.parseFloat(match.replace(',', '.'))))
+    : getExperienceYearsFromDates(resumeText, role)
+
+  if (years === null) return null
+
+  if (years > 8) return 'lead'
+  if (years > 5) return 'senior'
+  if (years > 3) return 'semi senior'
+  if (years > 1) return 'junior'
+  return 'trainee'
+}
+
+const inferCandidateSeniority = (resumeText: string, role = ''): string | null => {
+  const seniorityByYears = seniorityFromYears(resumeText, role)
+  if (seniorityByYears) return seniorityByYears
+
+  const seniorityLabels = Object.keys(seniorityRank).sort(
+    (first, second) => second.length - first.length,
+  )
+
+  return seniorityLabels.find((label) => resumeText.includes(label)) ?? null
+}
+
+const isSeniorityQualified = (
+  resumeText: string,
+  requiredSeniority: string,
+  role = '',
+): boolean => {
+  const requiredRank = seniorityRank[normalizeText(requiredSeniority)]
+  const candidateSeniority = inferCandidateSeniority(resumeText, role)
+
+  return (
+    requiredRank !== undefined &&
+    candidateSeniority !== null &&
+    seniorityRank[candidateSeniority] >= requiredRank
+  )
+}
+
+const getSenioritySummary = (
+  resumeText: string,
+  requirements: JobRequirements,
+): string => {
+  const candidateSeniority = inferCandidateSeniority(
+    resumeText,
+    requirements.role,
+  )
+  const candidateLabel = candidateSeniority
+    ? seniorityLabels[candidateSeniority]
+    : null
+  if (!candidateSeniority) {
+    return `Seniority no acreditado: ${requirements.seniority.trim()}`
+  }
+
+  return isSeniorityQualified(
+    resumeText,
+    requirements.seniority,
+    requirements.role,
+  )
+    ? `Seniority coincidente: ${candidateLabel}`
+    : `Seniority detectado: ${candidateLabel} (requerido: ${requirements.seniority.trim()})`
+}
+
+const normalizeStrength = (
+  value: string,
+  role: string,
+  senioritySummary: string,
+  skillNames: string[],
+): string => {
   const normalized = value.trim()
   const lowerValue = normalized.toLowerCase()
 
-  if (lowerValue.includes('react')) {
-    return 'Experiencia con React'
-  }
-
-  if (lowerValue.includes('typescript')) {
-    return 'Experiencia con TypeScript'
+  const matchedSkill = skillNames.find((skillName) =>
+    lowerValue.includes(normalizeText(skillName)),
+  )
+  if (matchedSkill) {
+    return `Experiencia con ${matchedSkill}`
   }
 
   if (lowerValue.includes('perfil') || lowerValue.includes('alineado') || lowerValue.includes('rol')) {
@@ -36,7 +234,7 @@ const normalizeStrength = (value: string, role: string, seniority: string): stri
   }
 
   if (lowerValue.includes('seniority') || lowerValue.includes('semi senior')) {
-    return `Seniority coincidente: ${seniority}`
+    return senioritySummary
   }
 
   return normalized
@@ -46,16 +244,21 @@ const normalizeStrengths = (
   strengths: string[],
   role: string,
   seniority: string,
+  senioritySummary = `Seniority coincidente: ${seniority}`,
+  skillNames: string[] = [],
 ): string[] => {
   const normalized = strengths.map((item) =>
-    normalizeStrength(item, role, seniority),
+    normalizeStrength(item, role, senioritySummary, skillNames),
   )
 
   const ordered = [
-    normalized.find((item) => item === 'Experiencia con React') ?? 'Experiencia con React',
-    normalized.find((item) => item === 'Experiencia con TypeScript') ?? 'Experiencia con TypeScript',
+    ...skillNames.slice(0, 2).map(
+      (skillName) =>
+        normalized.find((item) => item === `Experiencia con ${skillName}`) ??
+        `Experiencia con ${skillName}`,
+    ),
     normalized.find((item) => item.startsWith('Perfil alineado al rol')) ?? `Perfil alineado al rol ${role}`,
-    normalized.find((item) => item.startsWith('Seniority coincidente:')) ?? `Seniority coincidente: ${seniority}`,
+    normalized.find((item) => item.startsWith('Seniority')) ?? senioritySummary,
   ]
 
   return ordered.filter(Boolean)
@@ -74,7 +277,8 @@ const buildFallbackEvaluation = (
       resumeText.includes(normalizeText(skill.name)),
   )
   const seniorityMatches =
-    seniority.length > 0 && resumeText.includes(normalizeText(seniority))
+    seniority.length > 0 &&
+    isSeniorityQualified(resumeText, seniority, role)
   const totalPoints =
     requirements.skills.reduce((total, skill) => total + skill.points, 0) +
     (seniority.length > 0 ? requirements.seniorityPoints : 0)
@@ -120,8 +324,17 @@ const buildFallbackEvaluation = (
     candidateName: 'Candidato demo',
     earnedPoints,
     totalPoints: Math.max(totalPoints, 1),
-    verdict: earnedPoints / Math.max(totalPoints, 1) >= 0.7 ? 'Apto' : 'No Apto',
-    strengths: normalizeStrengths(strengths, role, seniority).slice(0, 4),
+    verdict:
+      earnedPoints / Math.max(totalPoints, 1) >= APPROVAL_THRESHOLD_PERCENTAGE / 100
+        ? 'Apto'
+        : 'No Apto',
+    strengths: normalizeStrengths(
+      strengths,
+      role,
+      seniority,
+      getSenioritySummary(resumeText, requirements),
+      requirements.skills.map((skill) => skill.name),
+    ).slice(0, 4),
     gaps,
   }
 }
@@ -179,7 +392,7 @@ export async function inferCandidateEvaluation(
         {
           role: 'system',
           content:
-            'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Cada habilidad de skills tiene un peso points independiente entre 1 y 10; el seniority tiene seniorityPoints. Sumá los pesos de todas las habilidades y del seniority para obtener totalPoints, sin aplicar un límite máximo al total. earnedPoints debe ser la suma de los pesos de los requisitos cumplidos. Respondé Apto si la proporción de puntos obtenidos es igual o mayor al 70%, y No Apto si es menor. Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
+            'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Cada habilidad de skills tiene un peso points independiente entre 1 y 10; el seniority tiene seniorityPoints. Para seniority, analizá únicamente las experiencias laborales cuyo título corresponda al role solicitado; no uses la experiencia total de otros roles, educación ni certificaciones. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Si el CV declara un seniority pero no informa años de experiencia relacionada con el role, usá ese nivel. Un candidato con un nivel superior al requerido está calificado igualmente y debe sumar los seniorityPoints; no lo penalices por sobrecalificación. Un candidato con un nivel inferior no cumple el seniority. Sumá los pesos de todas las habilidades y del seniority para obtener totalPoints, sin aplicar un límite máximo al total. earnedPoints debe ser la suma de los pesos de los requisitos cumplidos. Respondé Apto si la proporción de puntos obtenidos es igual o mayor al 70%, y No Apto si es menor. Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
         },
         {
           role: 'user',
@@ -231,6 +444,8 @@ export async function inferCandidateEvaluation(
         ],
     requirements.role.trim(),
     requirements.seniority.trim(),
+    getSenioritySummary(normalizeText(resume.text), requirements),
+    requirements.skills.map((skill) => skill.name),
   )
 
   return {

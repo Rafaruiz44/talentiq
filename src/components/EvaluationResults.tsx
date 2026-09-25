@@ -1,4 +1,5 @@
 import type { CandidateEvaluation } from '../types'
+import { APPROVAL_THRESHOLD_PERCENTAGE } from '../services/inferCandidateEvaluation'
 
 interface EvaluationResultsProps {
   evaluation: CandidateEvaluation
@@ -15,6 +16,9 @@ export function EvaluationResults({ evaluation }: EvaluationResultsProps) {
 
       <p data-testid="match-score">
         Puntaje obtenido: <strong>{scorePercentage}%</strong>
+      </p>
+      <p data-testid="approval-threshold">
+        Porcentaje mínimo para aprobar: <strong>{APPROVAL_THRESHOLD_PERCENTAGE}%</strong>
       </p>
       <p data-testid="evaluation-verdict">
         Veredicto:{' '}

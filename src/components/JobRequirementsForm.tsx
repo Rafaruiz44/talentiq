@@ -1,5 +1,6 @@
 import { useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react'
 import type { JobRequirements, SkillRequirement } from '../types'
+import { SENIORITY_RANGES } from '../services/inferCandidateEvaluation'
 
 interface JobRequirementsFormProps {
   value: JobRequirements
@@ -108,6 +109,9 @@ export function JobRequirementsForm({ value, onChange }: JobRequirementsFormProp
         <label htmlFor="job-seniority-points">Peso <strong className="range-value">{value.seniorityPoints}</strong></label>
         <input id="job-seniority-points" name="seniority-points" type="range" min="1" max="10" value={value.seniorityPoints} onChange={(event) => handleSeniorityPointsChange(event.target.value)} style={getRangeProgress(value.seniorityPoints)} data-testid="job-seniority-points" />
       </div>
+      <p className="field-help" data-testid="seniority-ranges">
+        Criterios actuales: {SENIORITY_RANGES.join(' | ')}
+      </p>
 
       {isInvalid && <p role="status">Completá todos los campos obligatorios.</p>}
     </form>
