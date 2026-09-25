@@ -29,6 +29,45 @@ const normalizeText = (value: string): string =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
 
+const skillAliasGroups = [
+  ['apex', 'salesforce apex'],
+  ['aws', 'amazon web services'],
+  ['azure', 'microsoft azure'],
+  ['css', 'css3'],
+  ['gcp', 'google cloud platform'],
+  ['html', 'html5'],
+  ['javascript', 'js', 'ecmascript'],
+  ['k8s', 'kubernetes'],
+  ['lwc', 'lightning web components'],
+  ['mongodb', 'mongo'],
+  ['node', 'node.js', 'nodejs'],
+  ['postgres', 'postgresql'],
+  ['react', 'react.js', 'reactjs'],
+  ['rest', 'rest api', 'restful api'],
+  ['salesforce', 'sf'],
+  ['typescript', 'ts'],
+  ['vue', 'vue.js', 'vuejs'],
+]
+
+const getSkillVariants = (value: string): string[] => {
+  const normalized = normalizeText(value)
+  const variants = new Set([normalized])
+  const parentheticalAliases = normalized.match(/\(([^)]+)\)/g) ?? []
+
+  parentheticalAliases.forEach((alias) => variants.add(alias.slice(1, -1).trim()))
+  variants.add(normalized.replace(/\s*\([^)]*\)/g, '').trim())
+
+  const aliasGroup = skillAliasGroups.find((group) =>
+    group.some((alias) => variants.has(alias)),
+  )
+  aliasGroup?.forEach((alias) => variants.add(alias))
+
+  return [...variants].filter(Boolean)
+}
+
+const skillMatchesText = (skillName: string, text: string): boolean =>
+  getSkillVariants(skillName).some((variant) => normalizeText(text).includes(variant))
+
 const seniorityRank: Record<string, number> = {
   trainee: 0,
   junior: 1,
@@ -223,10 +262,13 @@ const normalizeStrength = (
   const lowerValue = normalized.toLowerCase()
 
   const matchedSkill = skillNames.find((skillName) =>
-    lowerValue.includes(normalizeText(skillName)),
+    skillMatchesText(skillName, lowerValue),
   )
   if (matchedSkill) {
-    return `Experiencia con ${matchedSkill}`
+    const genericStrength = `Experiencia con ${matchedSkill}`
+    return normalized.length > genericStrength.length + 10
+      ? normalized
+      : genericStrength
   }
 
   if (lowerValue.includes('perfil') || lowerValue.includes('alineado') || lowerValue.includes('rol')) {
@@ -254,7 +296,11 @@ const normalizeStrengths = (
   const ordered = [
     ...skillNames.slice(0, 2).map(
       (skillName) =>
-        normalized.find((item) => item === `Experiencia con ${skillName}`) ??
+        normalized.find(
+          (item) =>
+            item === `Experiencia con ${skillName}` ||
+            skillMatchesText(skillName, item),
+        ) ??
         `Experiencia con ${skillName}`,
     ),
     normalized.find((item) => item.startsWith('Perfil alineado al rol')) ?? `Perfil alineado al rol ${role}`,
@@ -274,7 +320,7 @@ const buildFallbackEvaluation = (
   const skillMatches = requirements.skills.filter(
     (skill) =>
       skill.name.trim().length > 0 &&
-      resumeText.includes(normalizeText(skill.name)),
+      skillMatchesText(skill.name, resumeText),
   )
   const seniorityMatches =
     seniority.length > 0 &&
@@ -289,13 +335,13 @@ const buildFallbackEvaluation = (
   const strengths: string[] = []
 
   if (skillMatches.some((skill) => normalizeText(skill.name) === 'react')) {
-    strengths.push('Experiencia con React')
+    strengths.push('Experiencia con React: el CV menciona experiencia práctica con esta tecnología.')
   } else if (requirements.skills.length > 0) {
     strengths.push(`Experiencia con ${requirements.skills[0].name}`)
   }
 
   if (skillMatches.some((skill) => normalizeText(skill.name) === 'typescript')) {
-    strengths.push('Experiencia con TypeScript')
+    strengths.push('Experiencia con TypeScript: el CV menciona experiencia práctica con este lenguaje.')
   } else if (requirements.skills.length > 1) {
     strengths.push(`Experiencia con ${requirements.skills[1].name}`)
   }
@@ -316,9 +362,12 @@ const buildFallbackEvaluation = (
     .filter(
       (skill) =>
         skill.name.trim().length > 0 &&
-        !resumeText.includes(normalizeText(skill.name)),
+        !skillMatchesText(skill.name, resumeText),
     )
-    .map((skill) => skill.name)
+    .map(
+      (skill) =>
+        `${skill.name}: no se encontró evidencia explícita de esta habilidad en el CV.`,
+    )
 
   return {
     candidateName: 'Candidato demo',
@@ -392,7 +441,7 @@ export async function inferCandidateEvaluation(
         {
           role: 'system',
           content:
-            'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Cada habilidad de skills tiene un peso points independiente entre 1 y 10; el seniority tiene seniorityPoints. Para seniority, analizá únicamente las experiencias laborales cuyo título corresponda al role solicitado; no uses la experiencia total de otros roles, educación ni certificaciones. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Si el CV declara un seniority pero no informa años de experiencia relacionada con el role, usá ese nivel. Un candidato con un nivel superior al requerido está calificado igualmente y debe sumar los seniorityPoints; no lo penalices por sobrecalificación. Un candidato con un nivel inferior no cumple el seniority. Sumá los pesos de todas las habilidades y del seniority para obtener totalPoints, sin aplicar un límite máximo al total. earnedPoints debe ser la suma de los pesos de los requisitos cumplidos. Respondé Apto si la proporción de puntos obtenidos es igual o mayor al 70%, y No Apto si es menor. Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
+            'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Cada habilidad de skills tiene un peso points independiente entre 1 y 10; el seniority tiene seniorityPoints. Para seniority, analizá únicamente las experiencias laborales cuyo título corresponda al role solicitado; no uses la experiencia total de otros roles, educación ni certificaciones. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Si el CV declara un seniority pero no informa años de experiencia relacionada con el role, usá ese nivel. Un candidato con un nivel superior al requerido está calificado igualmente y debe sumar los seniorityPoints; no lo penalices por sobrecalificación. Un candidato con un nivel inferior no cumple el seniority. Sumá los pesos de todas las habilidades y del seniority para obtener totalPoints, sin aplicar un límite máximo al total. earnedPoints debe ser la suma de los pesos de los requisitos cumplidos. Respondé Apto si la proporción de puntos obtenidos es igual o mayor al 70%, y No Apto si es menor. Para cada fortaleza, indicá la habilidad, el nivel o tipo de experiencia y la evidencia concreta encontrada en el CV; no escribas únicamente el nombre de la habilidad. Para cada brecha, indicá la habilidad faltante y explicá qué evidencia no aparece o qué requisito no queda acreditado. No inventes años, proyectos, responsabilidades ni tecnologías. Evitá duplicar una misma habilidad entre fortalezas y brechas. Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
         },
         {
           role: 'user',
@@ -447,11 +496,39 @@ export async function inferCandidateEvaluation(
     getSenioritySummary(normalizeText(resume.text), requirements),
     requirements.skills.map((skill) => skill.name),
   )
+  const verifiedStrengths = normalizedStrengths.filter(
+    (strength) =>
+      !requirements.skills.some(
+        (skill) =>
+          skillMatchesText(skill.name, strength) &&
+          !skillMatchesText(skill.name, resume.text),
+      ),
+  )
+  const normalizedGaps = parsed.gaps.filter(
+    (gap) =>
+      !requirements.skills.some(
+        (skill) =>
+          skillMatchesText(skill.name, gap) &&
+          verifiedStrengths.some((strength) =>
+            skillMatchesText(skill.name, strength),
+          ),
+      ),
+  )
+  const missingSkillGaps = requirements.skills
+    .filter((skill) => !skillMatchesText(skill.name, resume.text))
+    .filter(
+      (skill) =>
+        !normalizedGaps.some((gap) => skillMatchesText(skill.name, gap)),
+    )
+    .map(
+      (skill) =>
+        `${skill.name}: no se encontró evidencia explícita de esta habilidad en el CV.`,
+    )
 
   return {
     ...parsed,
-    strengths: normalizedStrengths.slice(0, 4),
-    gaps: parsed.gaps ?? [],
+    strengths: verifiedStrengths.slice(0, 4),
+    gaps: [...normalizedGaps, ...missingSkillGaps],
     verdict:
       parsed.verdict === 'Apto' || parsed.verdict === 'No Apto'
         ? parsed.verdict
