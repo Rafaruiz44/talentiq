@@ -1,32 +1,82 @@
-# React + TypeScript + Vite
+# Talentiq
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Talentiq es una aplicación web de apoyo para reclutadores. Permite definir los requisitos de una posición, cargar un CV y obtener un análisis de compatibilidad con un veredicto y un desglose de fortalezas y brechas. El resultado sirve como apoyo a la evaluación; la decisión de selección corresponde a las personas responsables del proceso.
 
-Currently, two official plugins are available:
+## Funcionalidades de esta versión
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Definir el puesto, las habilidades requeridas y su peso individual.
+- Seleccionar un nivel de seniority requerido y asignarle un peso.
+- Cargar un CV en PDF de hasta 5 MB y extraer su texto para analizarlo.
+- Calcular los puntos obtenidos sobre el total de puntos posibles.
+- Mostrar el veredicto `Apto` o `No Apto`, usando un umbral de aprobación del 70%, junto con fortalezas y brechas.
+- Cambiar entre tema claro y oscuro; la preferencia se conserva durante la sesión del navegador.
 
-## React Compiler
+La evaluación usa Azure OpenAI cuando está configurado. Sin esa configuración, se ejecuta una evaluación local de respaldo para poder probar el flujo de la aplicación.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Alcance y limitaciones
 
-## Expanding the Oxlint configuration
+Esta versión es un MVP: los datos del puesto, el CV y el resultado se mantienen en memoria mientras se usa la aplicación. No incluye una base de datos persistente, un banco reutilizable de candidatos, carga masiva de CVs ni seguimiento de candidatos en entrevistas.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+El CV se procesa para extraer texto; esta versión no persiste perfiles de candidatos. La carga de archivos admite PDF, con un límite de 5 MB.
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+## Tecnologías
+
+- React 19 y TypeScript.
+- Vite para desarrollo y compilación.
+- PDF.js para extraer texto de archivos PDF.
+- Azure OpenAI para el análisis inteligente cuando se configura.
+- Playwright para pruebas end-to-end.
+- Oxlint para análisis estático del código.
+
+## Requisitos
+
+- Node.js 22 o una versión compatible con Vite 8.
+- npm.
+
+## Instalación y ejecución
+
+Desde la carpeta raíz del proyecto:
+
+```powershell
+npm ci
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Vite mostrará en la terminal la dirección local para abrir la aplicación, normalmente `http://localhost:5173`.
+
+## Configuración de Azure OpenAI
+
+La evaluación puede ejecutarse en modo local sin configurar Azure OpenAI. Para usar el servicio de Azure, la aplicación reconoce estas variables:
+
+```text
+VITE_AZURE_OPENAI_ENDPOINT=
+VITE_AZURE_OPENAI_KEY=
+VITE_AZURE_OPENAI_DEPLOYMENT=
+VITE_AZURE_OPENAI_API_VERSION=
+```
+
+## Pruebas y validaciones
+
+```powershell
+npm run lint
+npm run build
+npx playwright test
+```
+
+Las pruebas end-to-end cubren la definición de requisitos del puesto y el flujo de análisis del CV. Playwright inicia el servidor de desarrollo de Vite según `playwright.config.ts`.
+
+## Estructura del proyecto
+
+```text
+src/
+  components/   Componentes de la interfaz
+  services/     Lógica de evaluación e importación de requisitos
+  App.tsx       Flujo principal de la aplicación
+  types.ts      Tipos compartidos
+server/
+  server.mjs    API auxiliar para importar requisitos de ofertas públicas
+tests/          Pruebas end-to-end de Playwright
+public/         Recursos estáticos
+```
+
+El servidor auxiliar se ejecuta por separado con `node server/server.mjs` y escucha en el puerto 3001 por defecto. Requiere configurar las variables de Azure OpenAI en el entorno del proceso. El flujo principal del MVP se puede probar con `npm run dev`.

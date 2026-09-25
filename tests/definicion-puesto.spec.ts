@@ -1,16 +1,18 @@
 import { expect, test } from '@playwright/test'
 
-test('valida los campos requeridos del puesto y las habilidades', async ({ page }) => {
+test('mantiene deshabilitado el análisis hasta completar los datos requeridos', async ({ page }) => {
   await page.goto('/')
 
-  await page.getByRole('button', { name: 'Procesar análisis' }).click()
+  const analyzeButton = page.getByRole('button', { name: 'Procesar análisis' })
+  await expect(analyzeButton).toBeDisabled()
 
-  const alerts = page.getByRole('alert')
-  await expect(alerts).toHaveCount(2)
-  await expect(alerts).toContainText([
-    'Ingresá el rol del puesto.',
-    'Agregá al menos una habilidad.',
-  ])
+  await page.getByRole('textbox', { name: 'Nombre del puesto' }).fill('Desarrollador Backend')
+  await expect(analyzeButton).toBeDisabled()
+
+  await page.getByRole('textbox', { name: 'Habilidad' }).fill('SQL')
+  await page.getByRole('button', { name: '+ Agregar' }).click()
+  await page.getByRole('combobox', { name: 'Nivel' }).selectOption({ label: 'Semi Senior' })
+  await expect(analyzeButton).toBeDisabled()
 })
 
 test('agrega una habilidad con su peso individual', async ({ page }) => {
