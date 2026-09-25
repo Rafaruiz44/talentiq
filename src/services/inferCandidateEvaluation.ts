@@ -288,10 +288,11 @@ const normalizeStrengths = (
   seniority: string,
   senioritySummary = `Seniority coincidente: ${seniority}`,
   skillNames: string[] = [],
+  seniorityQualified = true,
 ): string[] => {
   const normalized = strengths.map((item) =>
     normalizeStrength(item, role, senioritySummary, skillNames),
-  )
+  ).filter((item) => seniorityQualified || !item.toLowerCase().includes('seniority'))
 
   const ordered = [
     ...skillNames.slice(0, 2).map(
@@ -304,10 +305,12 @@ const normalizeStrengths = (
         `Experiencia con ${skillName}`,
     ),
     normalized.find((item) => item.startsWith('Perfil alineado al rol')) ?? `Perfil alineado al rol ${role}`,
-    normalized.find((item) => item.startsWith('Seniority')) ?? senioritySummary,
+    seniorityQualified
+      ? normalized.find((item) => item.startsWith('Seniority')) ?? senioritySummary
+      : undefined,
   ]
 
-  return ordered.filter(Boolean)
+  return ordered.filter((item): item is string => Boolean(item))
 }
 
 const buildFallbackEvaluation = (
@@ -350,7 +353,7 @@ const buildFallbackEvaluation = (
     strengths.push(`Perfil alineado al rol ${role}`)
   }
 
-  if (seniority.length > 0) {
+  if (seniority.length > 0 && seniorityMatches) {
     strengths.push(`Seniority coincidente: ${seniority}`)
   }
 
@@ -368,6 +371,9 @@ const buildFallbackEvaluation = (
       (skill) =>
         `${skill.name}: no se encontró evidencia explícita de esta habilidad en el CV.`,
     )
+  if (seniority.length > 0 && !seniorityMatches) {
+    gaps.push(getSenioritySummary(resumeText, requirements))
+  }
 
   return {
     candidateName: 'Candidato demo',
@@ -383,6 +389,7 @@ const buildFallbackEvaluation = (
       seniority,
       getSenioritySummary(resumeText, requirements),
       requirements.skills.map((skill) => skill.name),
+      seniorityMatches,
     ).slice(0, 4),
     gaps,
   }
@@ -481,6 +488,12 @@ export async function inferCandidateEvaluation(
     return buildFallbackEvaluation(requirements, resume)
   }
 
+  const senioritySummary = getSenioritySummary(normalizeText(resume.text), requirements)
+  const seniorityMatches = isSeniorityQualified(
+    normalizeText(resume.text),
+    requirements.seniority,
+    requirements.role,
+  )
   const normalizedStrengths = normalizeStrengths(
     parsed.strengths.length >= 4
       ? parsed.strengths.slice(0, 4)
@@ -493,8 +506,9 @@ export async function inferCandidateEvaluation(
         ],
     requirements.role.trim(),
     requirements.seniority.trim(),
-    getSenioritySummary(normalizeText(resume.text), requirements),
+        senioritySummary,
     requirements.skills.map((skill) => skill.name),
+        seniorityMatches,
   )
   const verifiedStrengths = normalizedStrengths.filter(
     (strength) =>
@@ -514,6 +528,9 @@ export async function inferCandidateEvaluation(
           ),
       ),
   )
+  const nonSeniorityGaps = normalizedGaps.filter(
+    (gap) => !gap.toLowerCase().includes('seniority'),
+  )
   const missingSkillGaps = requirements.skills
     .filter((skill) => !skillMatchesText(skill.name, resume.text))
     .filter(
@@ -528,7 +545,13 @@ export async function inferCandidateEvaluation(
   return {
     ...parsed,
     strengths: verifiedStrengths.slice(0, 4),
-    gaps: [...normalizedGaps, ...missingSkillGaps],
+    gaps: [
+      ...nonSeniorityGaps,
+      ...(seniorityMatches
+        ? []
+        : [senioritySummary]),
+      ...missingSkillGaps,
+    ],
     verdict:
       parsed.verdict === 'Apto' || parsed.verdict === 'No Apto'
         ? parsed.verdict
