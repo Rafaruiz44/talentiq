@@ -258,7 +258,7 @@ const getSenioritySummary = (
     : null
   if (!candidateSeniority) {
     if (seniorityRank[normalizeText(requirements.seniority)] === seniorityRank.trainee) {
-      return `Seniority coincidente: ${seniorityLabels.trainee}`
+      return 'Seniority coincidente'
     }
 
     return `Seniority no acreditado: ${requirements.seniority.trim()}`
@@ -269,7 +269,7 @@ const getSenioritySummary = (
     requirements.seniority,
     requirements.role,
   )
-    ? `Seniority coincidente: ${candidateLabel}`
+    ? 'Seniority coincidente'
     : `Seniority detectado: ${candidateLabel} (requerido: ${requirements.seniority.trim()})`
 }
 
@@ -306,8 +306,7 @@ const normalizeStrength = (
 const normalizeStrengths = (
   strengths: string[],
   role: string,
-  seniority: string,
-  senioritySummary = `Seniority coincidente: ${seniority}`,
+  senioritySummary = 'Seniority coincidente',
   skillNames: string[] = [],
   seniorityQualified = true,
 ): string[] => {
@@ -375,7 +374,7 @@ const buildFallbackEvaluation = (
   }
 
   if (seniority.length > 0 && seniorityMatches) {
-    strengths.push(`Seniority coincidente: ${seniority}`)
+    strengths.push('Seniority coincidente')
   }
 
   while (strengths.length < 4) {
@@ -407,7 +406,6 @@ const buildFallbackEvaluation = (
     strengths: normalizeStrengths(
       strengths,
       role,
-      seniority,
       getSenioritySummary(resumeText, requirements),
       requirements.skills.map((skill) => skill.name),
       seniorityMatches,
@@ -526,8 +524,7 @@ export async function inferCandidateEvaluation(
           ),
         ],
     requirements.role.trim(),
-    requirements.seniority.trim(),
-        senioritySummary,
+    senioritySummary,
     requirements.skills.map((skill) => skill.name),
         seniorityMatches,
   )
