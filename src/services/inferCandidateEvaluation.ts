@@ -28,6 +28,7 @@ const normalizeText = (value: string): string =>
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
 
 const skillAliasGroups = [
   ['apex', 'salesforce apex'],
@@ -56,6 +57,23 @@ const getSkillVariants = (value: string): string[] => {
 
   parentheticalAliases.forEach((alias) => variants.add(alias.slice(1, -1).trim()))
   variants.add(normalized.replace(/\s*\([^)]*\)/g, '').trim())
+
+  const alternatives = normalized.split(/\s+o\s+/)
+  if (alternatives.length > 1) {
+    alternatives.forEach((alternative, index) => {
+      const trimmedAlternative = alternative.trim()
+      variants.add(trimmedAlternative)
+
+      if (index > 0) {
+        const firstAlternative = alternatives[0]
+        const lastDeIndex = firstAlternative.lastIndexOf(' de ')
+        if (lastDeIndex >= 0) {
+          const sharedPrefix = firstAlternative.slice(0, lastDeIndex + 4)
+          variants.add(`${sharedPrefix}${trimmedAlternative}`)
+        }
+      }
+    })
+  }
 
   const aliasGroup = skillAliasGroups.find((group) =>
     group.some((alias) => variants.has(alias)),
@@ -252,65 +270,79 @@ const getSenioritySummary = (
     : `Seniority detectado: ${candidateLabel} (requerido: ${requirements.seniority.trim()})`
 }
 
-const normalizeStrength = (
-  value: string,
-  role: string,
-  senioritySummary: string,
-  skillNames: string[],
-): string => {
-  const normalized = value.trim()
-  const lowerValue = normalized.toLowerCase()
+const isRoleMentioned = (resumeText: string, role: string): boolean => {
+  const normalizedRole = normalizeText(role)
+  if (!normalizedRole) return false
 
-  const matchedSkill = skillNames.find((skillName) =>
-    skillMatchesText(skillName, lowerValue),
-  )
-  if (matchedSkill) {
-    const genericStrength = `Experiencia con ${matchedSkill}`
-    return normalized.length > genericStrength.length + 10
-      ? normalized
-      : genericStrength
-  }
+  const roleWords = normalizedRole
+    .split(/\s+/)
+    .filter((word) => word.length > 1)
 
-  if (lowerValue.includes('perfil') || lowerValue.includes('alineado') || lowerValue.includes('rol')) {
-    return `Perfil alineado al rol ${role}`
-  }
-
-  if (lowerValue.includes('seniority') || lowerValue.includes('semi senior')) {
-    return senioritySummary
-  }
-
-  return normalized
+  return roleWords.length > 0 && roleWords.every((word) => resumeText.includes(word))
 }
 
-const normalizeStrengths = (
-  strengths: string[],
+const buildEvidenceStrengths = (
+  matchedSkills: string[],
   role: string,
-  seniority: string,
-  senioritySummary = `Seniority coincidente: ${seniority}`,
-  skillNames: string[] = [],
-  seniorityQualified = true,
+  senioritySummary: string,
+  resumeText: string,
 ): string[] => {
-  const normalized = strengths.map((item) =>
-    normalizeStrength(item, role, senioritySummary, skillNames),
-  ).filter((item) => seniorityQualified || !item.toLowerCase().includes('seniority'))
+  const evidence: string[] = matchedSkills.map((skill) => `Experiencia con ${skill}`)
+  const hasSkillEvidence = matchedSkills.length > 0
+  const hasRoleEvidence =
+    hasSkillEvidence && role.trim().length > 0 && isRoleMentioned(resumeText, role)
+  const hasSeniorityEvidence =
+    senioritySummary.startsWith('Seniority coincidente:') ||
+    senioritySummary.startsWith('Seniority detectado:')
 
-  const ordered = [
-    ...skillNames.slice(0, 2).map(
-      (skillName) =>
-        normalized.find(
-          (item) =>
-            item === `Experiencia con ${skillName}` ||
-            skillMatchesText(skillName, item),
-        ) ??
-        `Experiencia con ${skillName}`,
-    ),
-    normalized.find((item) => item.startsWith('Perfil alineado al rol')) ?? `Perfil alineado al rol ${role}`,
-    seniorityQualified
-      ? normalized.find((item) => item.startsWith('Seniority')) ?? senioritySummary
-      : undefined,
-  ]
+  if (hasRoleEvidence) {
+    evidence.push(`Perfil alineado al rol ${role}`)
+  }
 
-  return ordered.filter((item): item is string => Boolean(item))
+  if (hasSeniorityEvidence) {
+    evidence.push(senioritySummary)
+  }
+
+  return evidence
+}
+
+const dedupeStrings = (values: string[]): string[] => [...new Set(values.filter(Boolean))]
+
+const sanitizeStrengths = (
+  strengths: string[],
+  requirements: JobRequirements,
+  resumeText: string,
+): string[] => {
+  const matchedSkillNames = requirements.skills
+    .filter((skill) => skillMatchesText(skill.name, resumeText))
+    .map((skill) => skill.name)
+  const senioritySummary = getSenioritySummary(resumeText, requirements)
+  const evidence = buildEvidenceStrengths(
+    matchedSkillNames,
+    requirements.role.trim(),
+    senioritySummary,
+    resumeText,
+  )
+
+  const filtered = strengths.filter((strength) => {
+    const lower = strength.toLowerCase()
+
+    if (lower.includes('perfil compatible con el puesto') || lower.includes('perfil compatible')) {
+      return false
+    }
+
+    if (lower.includes('perfil alineado al rol') && matchedSkillNames.length === 0) {
+      return false
+    }
+
+    if (lower.includes('seniority') && lower.includes('no acreditado')) {
+      return false
+    }
+
+    return true
+  })
+
+  return dedupeStrings([...evidence, ...filtered]).slice(0, 4)
 }
 
 const buildFallbackEvaluation = (
@@ -335,31 +367,12 @@ const buildFallbackEvaluation = (
     skillMatches.reduce((total, skill) => total + skill.points, 0) +
     (seniorityMatches ? requirements.seniorityPoints : 0)
 
-  const strengths: string[] = []
-
-  if (skillMatches.some((skill) => normalizeText(skill.name) === 'react')) {
-    strengths.push('Experiencia con React: el CV menciona experiencia práctica con esta tecnología.')
-  } else if (requirements.skills.length > 0) {
-    strengths.push(`Experiencia con ${requirements.skills[0].name}`)
-  }
-
-  if (skillMatches.some((skill) => normalizeText(skill.name) === 'typescript')) {
-    strengths.push('Experiencia con TypeScript: el CV menciona experiencia práctica con este lenguaje.')
-  } else if (requirements.skills.length > 1) {
-    strengths.push(`Experiencia con ${requirements.skills[1].name}`)
-  }
-
-  if (role.length > 0) {
-    strengths.push(`Perfil alineado al rol ${role}`)
-  }
-
-  if (seniority.length > 0 && seniorityMatches) {
-    strengths.push(`Seniority coincidente: ${seniority}`)
-  }
-
-  while (strengths.length < 4) {
-    strengths.push('Perfil compatible con el puesto')
-  }
+  const strengths = buildEvidenceStrengths(
+    skillMatches.map((skill) => skill.name),
+    role,
+    getSenioritySummary(resumeText, requirements),
+    resumeText,
+  )
 
   const gaps = requirements.skills
     .filter(
@@ -383,14 +396,7 @@ const buildFallbackEvaluation = (
       earnedPoints / Math.max(totalPoints, 1) >= APPROVAL_THRESHOLD_PERCENTAGE / 100
         ? 'Apto'
         : 'No Apto',
-    strengths: normalizeStrengths(
-      strengths,
-      role,
-      seniority,
-      getSenioritySummary(resumeText, requirements),
-      requirements.skills.map((skill) => skill.name),
-      seniorityMatches,
-    ).slice(0, 4),
+    strengths: strengths.slice(0, 4),
     gaps,
   }
 }
@@ -488,36 +494,14 @@ export async function inferCandidateEvaluation(
     return buildFallbackEvaluation(requirements, resume)
   }
 
-  const senioritySummary = getSenioritySummary(normalizeText(resume.text), requirements)
+  const normalizedResume = normalizeText(resume.text)
+  const senioritySummary = getSenioritySummary(normalizedResume, requirements)
   const seniorityMatches = isSeniorityQualified(
-    normalizeText(resume.text),
+    normalizedResume,
     requirements.seniority,
     requirements.role,
   )
-  const normalizedStrengths = normalizeStrengths(
-    parsed.strengths.length >= 4
-      ? parsed.strengths.slice(0, 4)
-      : [
-          ...parsed.strengths,
-          ...Array.from(
-            { length: 4 - parsed.strengths.length },
-            () => 'Perfil compatible con el puesto',
-          ),
-        ],
-    requirements.role.trim(),
-    requirements.seniority.trim(),
-        senioritySummary,
-    requirements.skills.map((skill) => skill.name),
-        seniorityMatches,
-  )
-  const verifiedStrengths = normalizedStrengths.filter(
-    (strength) =>
-      !requirements.skills.some(
-        (skill) =>
-          skillMatchesText(skill.name, strength) &&
-          !skillMatchesText(skill.name, resume.text),
-      ),
-  )
+  const verifiedStrengths = sanitizeStrengths(parsed.strengths, requirements, normalizedResume)
   const normalizedGaps = parsed.gaps.filter(
     (gap) =>
       !requirements.skills.some(
@@ -542,16 +526,26 @@ export async function inferCandidateEvaluation(
         `${skill.name}: no se encontró evidencia explícita de esta habilidad en el CV.`,
     )
 
+  const finalStrengths = dedupeStrings(verifiedStrengths).slice(0, 4)
+  const finalGaps = dedupeStrings([
+    ...nonSeniorityGaps,
+    ...(seniorityMatches ? [] : [senioritySummary]),
+    ...missingSkillGaps,
+  ]).filter(
+    (gap) =>
+      !finalStrengths.some((strength) =>
+        requirements.skills.some(
+          (skill) =>
+            skillMatchesText(skill.name, gap) &&
+            skillMatchesText(skill.name, strength),
+        ),
+      ),
+  )
+
   return {
     ...parsed,
-    strengths: verifiedStrengths.slice(0, 4),
-    gaps: [
-      ...nonSeniorityGaps,
-      ...(seniorityMatches
-        ? []
-        : [senioritySummary]),
-      ...missingSkillGaps,
-    ],
+    strengths: finalStrengths,
+    gaps: finalGaps,
     verdict:
       parsed.verdict === 'Apto' || parsed.verdict === 'No Apto'
         ? parsed.verdict
