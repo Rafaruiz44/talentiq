@@ -1,105 +1,78 @@
 # Talentiq — Contexto del proyecto
 
-## 1. Objetivo del MVP
-Talentiq es un analizador inteligente de CV para reclutadores, orientado a una demo de clase. La app permite:
-- definir los requisitos del puesto,
-- cargar un CV,
-- ejecutar análisis de compatibilidad,
-- visualizar un resultado con match, veredicto y desglose justificado.
+## 1. Objetivo de la entrega final
 
-## 2. Alcance y límites del proyecto
-- Stack: Vite + React 18 + TypeScript en modo strict.
-- Estado local en memoria con useState.
-- CSS simple o utilitario.
-- IA simulada o conectada mediante endpoint serverless/API básica.
-- Pruebas E2E con Playwright en TypeScript.
-- Scope cerrado: solo dos features:
-  1. Carga y definición de vacante.
-  2. Análisis y visualización de compatibilidad.
-- Deben implementarse exactamente 4 user stories relacionadas con esas features.
-- No se debe agregar autenticación, bases de datos persistentes ni procesamiento masivo por lotes.
+Talentiq es una aplicación de apoyo para reclutadores. La entrega final amplía el MVP para que cada empresa tenga un espacio privado compartido por sus reclutadores, con posiciones persistentes, un banco reutilizable de CVs, evaluaciones candidato–posición, seguimiento de etapas y preparación de entrevistas.
 
-## 3. Reglas de implementación
-- Nunca usar any.
-- Un componente por archivo, siempre con export nombrado.
-- Usar elementos HTML nativos (button, input, label, textarea); nunca un div con onClick.
-- Agregar data-testid en kebab-case a todo elemento que una prueba necesite.
-- No instalar dependencias sin preguntar primero.
-- Mantener cambios dentro del alcance del MVP.
+La evaluación asistida por IA apoya el análisis; no sustituye la decisión del equipo reclutador.
 
-## 4. Estructura principal
-- src/App.tsx: flujo principal de la aplicación.
-- src/types.ts: contratos de datos principales (JobRequirements, CandidateResume, CandidateEvaluation).
-- src/components/JobRequirementsForm.tsx: formulario de requisitos del puesto.
-- src/components/CvUpload.tsx: carga de texto/archivo PDF o TXT del CV.
-- src/components/AnalysisControls.tsx: botón para disparar análisis.
-- src/components/EvaluationResults.tsx: visualización del resultado con score, veredicto y lista de fortalezas/brechas.
-- src/services/inferCandidateEvaluation.ts: lógica de análisis con Azure OpenAI.
-- tests/definicion-puesto.spec.ts: pruebas del alta/validación de requisitos del puesto.
-- tests/analisis-cv.spec.ts: pruebas del flujo de carga CV + análisis.
+## 2. Alcance acordado para la entrega
 
-## 5. Flujo funcional
-1. El reclutador completa rol, skills y seniority.
-2. Carga un CV desde texto o archivo PDF/TXT.
-3. Presiona el botón de análisis.
-4. La app valida que el formulario tenga datos completos.
-5. Se invoca inferCandidateEvaluation.
-6. El servicio llama a Azure OpenAI con el prompt del puesto y el texto del CV.
-7. La respuesta debe cumplir el contrato CandidateEvaluation:
-   - candidateName: string
-   - matchScore: number (0-100)
-   - verdict: 'Apto' | 'No Apto'
-   - strengths: string[]
-   - gaps: string[]
-8. Se renderiza el resultado en pantalla con porcentaje, veredicto, fortalezas y brechas.
+- Los reclutadores deben registrarse e iniciar sesión con Google, sujeto a seleccionar un proveedor de autenticación compatible.
+- El primer reclutador crea una empresa y puede invitar a sus compañeros.
+- Cada empresa tiene un banco privado compartido entre los reclutadores que pertenecen a ella; los datos y archivos de empresas distintas deben permanecer aislados.
+- Las posiciones se persisten con requisitos, ponderaciones y estado independiente: `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
+- Los candidatos y los metadatos, texto extraído y referencia al archivo de CV se persisten; los documentos se guardan en un bucket privado.
+- Se pueden cargar varios CVs, procesándolos individualmente y mostrando progreso y errores por archivo.
+- Un candidato puede evaluarse frente a varias posiciones abiertas. Cada cruce conserva un resultado independiente.
+- La etapa pertenece al cruce candidato–posición y usa `Evaluado`, `En entrevista` o `Descartado`; no es el estado de la posición.
+- Se generan preguntas de entrevista utilizando los requisitos de la posición y las fortalezas o brechas del candidato en ese cruce.
+- Las llamadas principales a Azure OpenAI deben ejecutarse desde el backend; las credenciales no deben exponerse en el frontend.
+- El despliegue accesible es un objetivo de entrega y requiere verificar un flujo funcional integrado.
 
-## 6. Contratos de datos clave
-### JobRequirements
-- role: string
-- skills: string[]
-- seniority: string
+El alcance y las historias propuestas están en [documentacion/alcance-entrega-final-y-historias.md](documentacion/alcance-entrega-final-y-historias.md).
 
-### CandidateResume
-- text: string
-- fileName: string | null
+## 3. Estado actual implementado (no confundir con el alcance acordado)
 
-### CandidateEvaluation
-- candidateName: string
-- matchScore: number
-- verdict: 'Apto' | 'No Apto'
-- strengths: string[]
-- gaps: string[]
+- Stack en el repositorio: Vite, React 19 y TypeScript.
+- `src/App.tsx` conserva los requisitos de una posición, un CV y el resultado en estado React en memoria.
+- `src/components/JobRequirementsForm.tsx` permite definir el rol, habilidades ponderadas y seniority.
+- `src/components/CvUpload.tsx` carga un PDF de hasta 5 MB y extrae texto en el navegador con PDF.js.
+- `src/services/inferCandidateEvaluation.ts` contiene lógica de evaluación local y llama a Azure OpenAI directamente desde el navegador cuando están configuradas variables `VITE_*`.
+- `server/server.mjs` expone una API auxiliar para importar requisitos de ofertas; no implementa persistencia, autenticación, carga de CVs ni el endpoint backend de evaluación del flujo principal.
+- Las pruebas Playwright existentes cubren definición del puesto, carga y análisis de un CV y cambio de tema. No cubren las historias ampliadas.
+- La documentación existente indica que no hay demo pública desplegada.
 
-## 7. Variables de entorno esperadas
-El servicio Azure OpenAI usa estas variables:
-- VITE_AZURE_OPENAI_ENDPOINT
-- VITE_AZURE_OPENAI_KEY
-- VITE_AZURE_OPENAI_DEPLOYMENT
-- VITE_AZURE_OPENAI_API_VERSION
+Por tanto, persistencia, autenticación, aislamiento por empresa, almacenamiento de CVs, carga masiva, cruces reutilizables, seguimiento de etapas, generación de preguntas y despliegue integrado son objetivos pendientes; no deben presentarse como funcionalidades ya implementadas.
 
-Si faltan, la app debe mostrar error de configuración clara.
+## 4. Modelo funcional de referencia
 
-## 8. Cómo orientar una tarea sin leer todo el código
-Cuando un agente necesite entender el proyecto, debe partir por este orden:
-1. Leer este archivo.
-2. Revisar App.tsx para ver el flujo principal.
-3. Ir a los componentes específicos involucrados.
-4. Revisar solo el servicio o la prueba que corresponda.
-5. Evitar abrir archivos ajenos a la funcionalidad pedida.
+- **Empresa:** espacio privado al que pertenecen posiciones y candidatos.
+- **Reclutador:** persona autenticada mediante Google.
+- **Membresía:** relación de acceso entre reclutador y empresa.
+- **Posición:** requisitos, ponderaciones y estado de la vacante.
+- **Candidato:** perfil del banco privado de una empresa, con metadatos del CV, texto extraído y referencia al archivo privado.
+- **Evaluación candidato–posición:** resultado, puntaje, fortalezas, brechas y etapa correspondientes a un candidato y una posición específicos.
+- **Preguntas de entrevista:** asociadas al cruce candidato–posición que las contextualiza.
 
-## 9. Backlog base esperado
-El MVP debe alinearse con estas 2 Features y 4 User Stories:
-- Feature 1: Carga y definición del puesto
-  - Ingresar requerimientos del puesto.
-  - Cargar un CV.
-- Feature 2: Análisis y resultados
-  - Ejecutar análisis inteligente con match y veredicto Apto/No Apto.
-  - Ver el desglose justificado con fortalezas y brechas.
+Una persona puede estar en varias posiciones y tener distintos resultados y etapas para cada una. El estado de la posición no modifica automáticamente las etapas de sus candidatos.
 
-## 10. Punto de entrada recomendado para agentes
-- Necesitar contexto general: leer este documento.
-- Necesitar revisar flujo principal: App.tsx.
-- Necesitar validar comportamiento de UI: tests/.
-- Necesitar revisar lógica del análisis: src/services/inferCandidateEvaluation.ts.
+## 5. Reglas y criterios técnicos del proyecto
 
-Este archivo es la referencia corta del proyecto y debe usarse como mapa de navegación antes de explorar el código.
+- No usar `any`.
+- Mantener TypeScript estricto y seguir los patrones de componentes y exports existentes.
+- Usar controles HTML nativos y `data-testid` kebab-case donde las pruebas lo requieran.
+- Validar autorización en el backend para las operaciones sobre empresas, posiciones, candidatos, evaluaciones y archivos.
+- No confiar en ocultar información en la interfaz como mecanismo de aislamiento entre empresas.
+- Mantener claves y credenciales de servicios solo en el backend; no añadir secretos al bundle frontend ni a variables `VITE_*`.
+- Los fallos de persistencia, almacenamiento y servicios de IA deben comunicarse explícitamente; no deben producir resultados con apariencia de éxito.
+- Mantener o ampliar las pruebas E2E y agregar cobertura para aislamiento, persistencia, estados, procesamiento masivo y fallos parciales.
+
+## 6. Decisiones pendientes
+
+Antes de implementar el alcance deben definirse el proveedor de autenticación, base de datos, bucket y hosting; los roles y permisos dentro de una empresa; si una cuenta puede pertenecer a varias empresas; las invitaciones y su vencimiento; la detección de candidatos duplicados; la conservación de resultados al reanalizar; los límites y formatos de CV; y las reglas de consentimiento, retención y eliminación de datos personales.
+
+No asumir decisiones sobre estas cuestiones sin confirmarlas.
+
+## 7. Guía de navegación
+
+- Flujo actual: `src/App.tsx`.
+- Contratos actuales: `src/types.ts`.
+- Requisitos de posición: `src/components/JobRequirementsForm.tsx`.
+- Carga y extracción de CV: `src/components/CvUpload.tsx`.
+- Evaluación actual: `src/services/inferCandidateEvaluation.ts`.
+- API auxiliar actual: `server/server.mjs`.
+- Pruebas actuales: `tests/`.
+- Alcance y backlog propuestos: `documentacion/alcance-entrega-final-y-historias.md`.
+
+Este archivo describe tanto el alcance acordado como las diferencias con la implementación presente. Actualizar la sección de estado actual cuando las capacidades pendientes se incorporen realmente.

@@ -12,8 +12,11 @@ Actúa como Product Owner y analista funcional. Redacta una única historia de u
 - Identifica el rol, la capacidad solicitada y el valor de negocio.
 - Mantén la intención original y no inventes decisiones, reglas, pantallas ni integraciones.
 - Separa el comportamiento del usuario, el resultado observable y las reglas de negocio.
-- Mantén la historia dentro del MVP: definir vacantes, cargar ofertas, cargar CVs y visualizar compatibilidad.
-- Si el requerimiento queda fuera del MVP, indícalo como riesgo de alcance.
+- Alinea la historia con el alcance acordado para la entrega final: cuentas de reclutadores con Google, espacios privados por empresa, posiciones y candidatos persistidos, carga masiva, evaluaciones candidato–posición, seguimiento de etapas, preparación de entrevistas y despliegue.
+- No trates autenticación, persistencia, bancos privados ni procesamiento masivo como fuera de alcance. Si el requerimiento no pertenece a las capacidades acordadas, indícalo como riesgo o necesidad de decisión de alcance.
+- Distingue explícitamente el comportamiento objetivo de lo que ya está implementado; no presentes capacidades planificadas como existentes.
+- Respeta el aislamiento entre empresas, la separación del estado de la posición de la etapa del candidato por cruce y la protección de los CVs.
+- Mantén cada historia enfocada en una capacidad comprobable; no agregues detalles técnicos ni elijas proveedores de autenticación, base de datos, almacenamiento o hosting que no hayan sido definidos.
 - Declara supuestos y formula solo las preguntas abiertas imprescindibles.
 - No describas implementación técnica, tareas de desarrollo ni estimaciones.
 - No crees ni modifiques work items de Azure DevOps. Este prompt solo genera el borrador; la skill `azure-hu` se utilizará después para validar duplicados, mostrar la vista previa y cargarlo con confirmación explícita.

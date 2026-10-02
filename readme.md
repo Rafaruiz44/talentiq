@@ -1,39 +1,56 @@
 # Talentiq
 
-Talentiq es una aplicación web de apoyo para reclutadores. Permite definir los requisitos de una posición, cargar un CV y obtener un análisis de compatibilidad con un veredicto y un desglose de fortalezas y brechas. El resultado sirve como apoyo a la evaluación; la decisión de selección corresponde a las personas responsables del proceso.
+Talentiq es una aplicación de apoyo a reclutadores para comparar requisitos de una posición con la información de un CV y revisar un puntaje, un veredicto y un desglose de fortalezas y brechas. La evaluación ayuda al análisis inicial; no reemplaza la decisión humana de selección.
 
-## Funcionalidades de esta versión
+## Estado del proyecto
 
-- Definir el puesto, las habilidades requeridas y su peso individual.
-- Seleccionar un nivel de seniority requerido y asignarle un peso.
-- Cargar un CV en PDF de hasta 5 MB y extraer su texto para analizarlo.
-- Calcular los puntos obtenidos sobre el total de puntos posibles.
-- Mostrar el veredicto `Apto` o `No Apto`, usando un umbral de aprobación del 70%, junto con fortalezas y brechas.
-- Cambiar entre tema claro y oscuro; la preferencia se conserva durante la sesión del navegador.
+El repositorio contiene el MVP ejecutable localmente. El alcance acordado para la entrega final amplía ese MVP con cuentas de reclutadores mediante Google, espacios privados por empresa, posiciones y candidatos persistentes, carga masiva, evaluaciones candidato–posición, seguimiento de etapas, preguntas de entrevista y despliegue accesible.
 
-La evaluación usa Azure OpenAI cuando está configurado. Sin esa configuración, se ejecuta una evaluación local de respaldo para poder probar el flujo de la aplicación.
+Esas capacidades ampliadas están planificadas y no deben considerarse implementadas solo por estar documentadas. La arquitectura objetivo, el estado actual y las decisiones pendientes se describen en [documentacion/arquitectura-y-alcance.md](documentacion/arquitectura-y-alcance.md); las historias y sus criterios de aceptación están en [documentacion/alcance-entrega-final-y-historias.md](documentacion/alcance-entrega-final-y-historias.md).
 
-## Alcance y limitaciones
+## Funcionalidades actuales del MVP
 
-Esta versión es un MVP: los datos del puesto, el CV y el resultado se mantienen en memoria mientras se usa la aplicación. No incluye una base de datos persistente, un banco reutilizable de candidatos, carga masiva de CVs ni seguimiento de candidatos en entrevistas.
+- Definir el nombre del puesto, habilidades con peso individual y seniority requerido con su peso.
+- Cargar un CV PDF individual de hasta 5 MB y extraer su texto con PDF.js en el navegador.
+- Ejecutar un análisis de compatibilidad y mostrar puntaje, veredicto `Apto` o `No Apto`, fortalezas y brechas.
+- Cambiar entre tema claro y oscuro; la preferencia se conserva en `sessionStorage`.
 
-El CV se procesa para extraer texto; esta versión no persiste perfiles de candidatos. La carga de archivos admite PDF, con un límite de 5 MB.
+El umbral actual de aprobación está fijado en 70 %. La posición, el CV y el resultado se mantienen en memoria; no existe persistencia de esos datos. Si Azure OpenAI no está configurado, el MVP usa una evaluación local de respaldo.
 
-## Tecnologías
+## Alcance acordado para la entrega final
+
+- Registro e inicio de sesión de reclutadores con Google.
+- Creación de una empresa e invitación de compañeros al espacio privado compartido de la empresa.
+- Aislamiento de los bancos de CVs entre empresas.
+- Posiciones persistentes con estado `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
+- Banco privado de candidatos: persistencia de datos y texto extraído, y almacenamiento del archivo original en un bucket privado.
+- Carga masiva de CVs con progreso y errores por archivo.
+- Evaluaciones persistentes de un candidato frente a una o varias posiciones abiertas, con resultado separado por cada cruce.
+- Etapas independientes por relación candidato–posición: `Evaluado`, `En entrevista` o `Descartado`.
+- Preguntas de entrevista basadas en los requisitos, fortalezas y brechas del cruce elegido.
+- Evaluación y generación de preguntas de Azure OpenAI desde un backend, sin claves secretas en el frontend.
+- Despliegue accesible con verificación de un flujo integrado.
+
+La elección de proveedor de autenticación, base de datos, almacenamiento privado y hosting sigue pendiente. También resta definir permisos de miembros, duplicados, límites de archivo, retención y eliminación de datos personales. No hay una demo pública desplegada a la fecha de esta documentación.
+
+## Tecnologías presentes
 
 - React 19 y TypeScript.
-- Vite para desarrollo y compilación.
-- PDF.js para extraer texto de archivos PDF.
-- Azure OpenAI para el análisis inteligente cuando se configura.
+- Vite.
+- PDF.js (`pdfjs-dist`) para extraer texto de PDFs en el navegador.
+- Azure OpenAI en el flujo actual de evaluación, si está configurado.
+- Node.js nativo para una API auxiliar de importación de requisitos desde ofertas públicas.
 - Playwright para pruebas end-to-end.
-- Oxlint para análisis estático del código.
+- Oxlint para análisis estático.
+
+La base de datos, el proveedor de autenticación, el bucket privado y el hosting de la arquitectura final todavía no están incorporados al proyecto.
 
 ## Requisitos
 
 - Node.js 22 o una versión compatible con Vite 8.
 - npm.
 
-## Instalación y ejecución
+## Instalación y ejecución local
 
 Desde la carpeta raíz del proyecto:
 
@@ -42,18 +59,21 @@ npm ci
 npm run dev
 ```
 
-Vite mostrará en la terminal la dirección local para abrir la aplicación, normalmente `http://localhost:5173`.
+Vite mostrará la URL local, normalmente `http://localhost:5173`.
 
-## Configuración de Azure OpenAI
+El servidor auxiliar de importación se ejecuta por separado:
 
-La evaluación puede ejecutarse en modo local sin configurar Azure OpenAI. Para usar el servicio de Azure, la aplicación reconoce estas variables:
-
-```text
-VITE_AZURE_OPENAI_ENDPOINT=
-VITE_AZURE_OPENAI_KEY=
-VITE_AZURE_OPENAI_DEPLOYMENT=
-VITE_AZURE_OPENAI_API_VERSION=
+```powershell
+node server/server.mjs
 ```
+
+Escucha en el puerto 3001 por defecto y requiere configurar las variables de Azure OpenAI en el entorno del proceso para usar la importación asistida. Este endpoint auxiliar no forma parte del flujo principal de evaluación del MVP.
+
+## Configuración de IA
+
+El código actual reconoce las variables `VITE_AZURE_OPENAI_ENDPOINT`, `VITE_AZURE_OPENAI_KEY`, `VITE_AZURE_OPENAI_DEPLOYMENT` y `VITE_AZURE_OPENAI_API_VERSION` para su evaluación desde el navegador. Por el prefijo `VITE_`, los valores pueden quedar incluidos en el bundle público: **no configurar una clave real de Azure de esta manera en un despliegue accesible**.
+
+Para la entrega final, las llamadas de evaluación y generación de preguntas deben pasar por el backend y las credenciales deben configurarse únicamente en el entorno seguro del servidor. La integración real con Azure no queda verificada por las pruebas actuales.
 
 ## Pruebas y validaciones
 
@@ -63,20 +83,20 @@ npm run build
 npx playwright test
 ```
 
-Las pruebas end-to-end cubren la definición de requisitos del puesto y el flujo de análisis del CV. Playwright inicia el servidor de desarrollo de Vite según `playwright.config.ts`.
+Las pruebas E2E existentes cubren definición de requisitos, carga y análisis de un CV, y cambio de tema. Las pruebas del alcance ampliado —autenticación, aislamiento entre empresas, persistencia, lotes, cruces, etapas, generación de preguntas y despliegue— todavía deben incorporarse.
 
-## Estructura del proyecto
+## Estructura principal
 
 ```text
 src/
   components/   Componentes de la interfaz
-  services/     Lógica de evaluación e importación de requisitos
-  App.tsx       Flujo principal de la aplicación
-  types.ts      Tipos compartidos
+  services/     Evaluación e importación de requisitos del MVP
+  App.tsx       Flujo principal actual
+  types.ts      Contratos actuales
 server/
-  server.mjs    API auxiliar para importar requisitos de ofertas públicas
-tests/          Pruebas end-to-end de Playwright
-public/         Recursos estáticos
+  server.mjs    API auxiliar para importar requisitos de ofertas
+tests/          Pruebas end-to-end del MVP
+documentacion/
+  arquitectura-y-alcance.md
+  alcance-entrega-final-y-historias.md
 ```
-
-El servidor auxiliar se ejecuta por separado con `node server/server.mjs` y escucha en el puerto 3001 por defecto. Requiere configurar las variables de Azure OpenAI en el entorno del proceso. El flujo principal del MVP se puede probar con `npm run dev`.
