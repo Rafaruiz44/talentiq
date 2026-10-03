@@ -38,7 +38,7 @@ test('inicia el flujo OAuth con Google', async ({ page }) => {
 
   expect(authorizeUrl.searchParams.get('provider')).toBe('google')
   expect(authorizeUrl.searchParams.get('redirect_to')).toBe(
-    'http://localhost:5173',
+    'http://localhost:5174',
   )
 })
 

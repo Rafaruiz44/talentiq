@@ -4,7 +4,15 @@ import { CvUpload } from './components/CvUpload'
 import { EvaluationResults } from './components/EvaluationResults'
 import { JobRequirementsForm } from './components/JobRequirementsForm'
 import { inferCandidateEvaluation } from './services/inferCandidateEvaluation'
-import { supabaseClient, supabaseConfigurationError } from './services/supabaseClient'
+import {
+  getCurrentSession,
+  getSupabaseAuthErrorMessage,
+  isSupabaseConfigured,
+  signInWithGoogle,
+  signOutCurrentUser,
+  subscribeToAuthChanges,
+} from './services/authSession'
+import { supabaseConfigurationError } from './services/supabaseClient'
 import { AuthScreen } from './components/AuthScreen'
 import type { Session } from '@supabase/supabase-js'
 import type {
@@ -21,7 +29,7 @@ const getInitialTheme = (): 'light' | 'dark' => {
 export function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme)
   const [session, setSession] = useState<Session | null>(null)
-  const [authLoading, setAuthLoading] = useState(supabaseClient !== null)
+  const [authLoading, setAuthLoading] = useState(isSupabaseConfigured)
   const [authError, setAuthError] = useState<string | null>(null)
   const [signingIn, setSigningIn] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
@@ -65,39 +73,29 @@ export function App() {
   }
 
   useEffect(() => {
-    if (!supabaseClient) {
-      return
-    }
-
     let isActive = true
-    const {
-      data: { subscription },
-    } = supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
+    const unsubscribe = subscribeToAuthChanges((_event, nextSession) => {
       if (isActive) {
         updateSession(nextSession)
       }
     })
 
-    void supabaseClient.auth
-      .getSession()
-      .then(({ data, error: sessionError }) => {
+    void getCurrentSession()
+      .then((nextSession) => {
         if (!isActive) {
           return
         }
-        if (sessionError) {
-          setAuthError(sessionError.message)
-          setSession(null)
-          return
-        }
-        updateSession(data.session)
+        updateSession(nextSession)
       })
       .catch((sessionError: unknown) => {
         if (isActive) {
           setAuthError(
-            sessionError instanceof Error
-              ? sessionError.message
-              : 'No se pudo verificar la sesión.',
+            getSupabaseAuthErrorMessage(
+              sessionError,
+              'No se pudo verificar la sesión.',
+            ),
           )
+          setSession(null)
         }
       })
       .finally(() => {
@@ -108,7 +106,7 @@ export function App() {
 
     return () => {
       isActive = false
-      subscription.unsubscribe()
+      unsubscribe()
     }
   }, [])
 
@@ -117,50 +115,34 @@ export function App() {
   }
 
   const handleSignIn = async () => {
-    if (!supabaseClient) {
-      return
-    }
     setSigningIn(true)
     setAuthError(null)
 
     try {
-      const { error: signInError } =
-        await supabaseClient.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: window.location.origin,
-          },
-        })
-      if (signInError) {
-        throw signInError
-      }
+      await signInWithGoogle()
     } catch (signInError) {
       setAuthError(
-        signInError instanceof Error
-          ? signInError.message
-          : 'No se pudo iniciar sesión con Google.',
+        getSupabaseAuthErrorMessage(
+          signInError,
+          'No se pudo iniciar sesión con Google.',
+        ),
       )
       setSigningIn(false)
     }
   }
 
   const handleSignOut = async () => {
-    if (!supabaseClient) {
-      return
-    }
     setSigningOut(true)
     setAuthError(null)
 
     try {
-      const { error: signOutError } = await supabaseClient.auth.signOut()
-      if (signOutError) {
-        throw signOutError
-      }
+      await signOutCurrentUser()
     } catch (signOutError) {
       setAuthError(
-        signOutError instanceof Error
-          ? signOutError.message
-          : 'No se pudo cerrar la sesión.',
+        getSupabaseAuthErrorMessage(
+          signOutError,
+          'No se pudo cerrar la sesión.',
+        ),
       )
     } finally {
       setSigningOut(false)

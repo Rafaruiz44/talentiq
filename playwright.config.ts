@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './tests',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:5174',
   },
   projects: [
     {
@@ -12,9 +12,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: true,
+    command: 'npm run dev -- --port 5174 --strictPort',
+    url: 'http://localhost:5174',
+    reuseExistingServer: false,
     env: {
       VITE_SUPABASE_URL: 'https://test-project.supabase.co',
       VITE_SUPABASE_ANON_KEY: 'test-publishable-key',

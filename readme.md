@@ -30,7 +30,7 @@ El umbral actual de aprobación está fijado en 70 %. La posición, el CV y el r
 - Evaluación y generación de preguntas de Azure OpenAI desde un backend, sin claves secretas en el frontend.
 - Despliegue accesible con verificación de un flujo integrado.
 
-La elección de proveedor de autenticación, base de datos, almacenamiento privado y hosting sigue pendiente. También resta definir duplicados, límites de archivo, retención y eliminación de datos personales. No hay una demo pública desplegada a la fecha de esta documentación. El trabajo colaborativo entre reclutadores y los bancos compartidos por empresa quedan como evolución futura.
+Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. El usuario confirmó que las tablas de la migración están creadas en su proyecto; falta verificar allí las políticas RLS, el bucket y Google OAuth. El hosting sigue pendiente. También resta definir duplicados, límites de archivo, retención y eliminación de datos personales. No hay una demo pública desplegada a la fecha de esta documentación. El trabajo colaborativo entre reclutadores y los bancos compartidos por empresa quedan como evolución futura.
 
 ## Tecnologías presentes
 
@@ -42,7 +42,7 @@ La elección de proveedor de autenticación, base de datos, almacenamiento priva
 - Playwright para pruebas end-to-end.
 - Oxlint para análisis estático.
 
-Hay una migración SQL inicial en `supabase/migrations/` con el esquema, las políticas RLS y el bucket privado. El usuario reportó haberla aplicado en su proyecto de prueba de Supabase; esta aplicación todavía no usa la base de datos ni el bucket para persistir datos.
+Hay una migración SQL inicial en `supabase/migrations/` con el esquema, las políticas RLS y el bucket privado. El usuario confirmó que la aplicó; la captura del Table Editor muestra las tablas esperadas. Esta aplicación todavía no usa la base de datos ni el bucket para persistir datos, y las políticas RLS y el bucket aún no se han comprobado desde el dashboard.
 
 ## Requisitos
 
@@ -69,6 +69,19 @@ node server/server.mjs
 ```
 
 Escucha en el puerto 3001 por defecto y requiere configurar las variables de Azure OpenAI en el entorno del proceso para usar la importación asistida. Este endpoint auxiliar no forma parte del flujo principal de evaluación del MVP.
+
+## Configuración de Supabase y Google Auth
+
+Antes de avanzar con persistencia, almacenamiento privado y flujo de reclutador, debe configurarse la autenticación real con Supabase + Google.
+
+Los pasos concretos están en [documentacion/configuracion-supabase-google-auth.md](documentacion/configuracion-supabase-google-auth.md). En resumen:
+
+1. Confirmar que Google OAuth está habilitado en Supabase Authentication > Providers.
+2. Configurar Google OAuth con Client ID y Client Secret si aún no está habilitado.
+3. Permitir las origins del frontend (por ejemplo `http://localhost:5173`).
+4. Verificar las políticas RLS y el bucket privado creados por la migración ya aplicada.
+5. Mantener `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en `.env` únicamente.
+6. Nunca exponer `service_role` ni claves privadas en el bundle.
 
 ## Configuración de IA
 

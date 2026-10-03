@@ -8,7 +8,7 @@ La evaluación asistida por IA apoya el análisis; no sustituye la decisión del
 
 ## 2. Alcance acordado para la entrega
 
-- Los reclutadores deben registrarse e iniciar sesión con Google, mediante un proveedor de autenticación por confirmar.
+- Los reclutadores deben registrarse e iniciar sesión con Google mediante Supabase Auth.
 - En esta primera etapa cada reclutador es dueño de sus posiciones, solicitudes, candidatos y banco privado; no hay empresas, invitaciones ni colaboración entre cuentas.
 - Las posiciones se persisten con requisitos, ponderaciones y estado independiente: `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
 - Los candidatos y los metadatos, texto extraído y referencia al archivo de CV se persisten; los documentos se guardan en un bucket privado y cada reclutador solo accede a los suyos.
@@ -30,11 +30,13 @@ El alcance y las historias propuestas están en [documentacion/alcance-entrega-f
 - `src/components/CvUpload.tsx` carga un PDF de hasta 5 MB y extrae texto en el navegador con PDF.js.
 - `src/services/inferCandidateEvaluation.ts` contiene lógica de evaluación local y llama a Azure OpenAI directamente desde el navegador cuando están configuradas variables `VITE_*`.
 - `server/server.mjs` expone una API auxiliar para importar requisitos de ofertas; no implementa persistencia, autenticación, carga de CVs ni el endpoint backend de evaluación del flujo principal.
-- `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql` contiene una propuesta inicial de esquema y políticas RLS; todavía no se aplicó a un proyecto Supabase ni se validó contra una instancia.
+- El usuario confirmó que aplicó la migración `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql` en su proyecto Supabase; una captura del Table Editor muestra las tablas `applications`, `candidate_documents`, `candidates`, `evaluation_runs`, `interview_questions`, `position_skills`, `positions` y `profiles`.
+- El usuario confirmó que Google está habilitado y que el inicio de sesión OAuth termina con la sesión activa en Talentiq. Al cerrar sesión vuelve a la pantalla de acceso; al iniciar otra vez, Google reutiliza la sesión del navegador y no solicita la contraseña. Se conserva este comportamiento SSO.
+- No se han verificado independientemente las políticas RLS ni el bucket privado en el dashboard.
 - Las pruebas Playwright existentes cubren definición del puesto, carga y análisis de un CV y cambio de tema. No cubren las historias ampliadas.
 - La documentación existente indica que no hay demo pública desplegada.
 
-Por tanto, persistencia, autenticación, aislamiento entre reclutadores, almacenamiento de CVs, carga masiva, solicitudes reutilizables, seguimiento de etapas, historial de evaluaciones, generación de preguntas y despliegue integrado son objetivos pendientes; no deben presentarse como funcionalidades ya implementadas.
+Por tanto, aunque el login/logout de Google ya funciona, la persistencia de datos, autorización/aislamiento comprobados entre reclutadores, almacenamiento de CVs, carga masiva, solicitudes reutilizables, seguimiento de etapas, historial de evaluaciones, generación de preguntas y despliegue integrado siguen pendientes; no deben presentarse como funcionalidades ya implementadas.
 
 ## 4. Modelo funcional de referencia
 
@@ -60,7 +62,7 @@ Un candidato puede estar en varias posiciones y tener distintas solicitudes, res
 
 ## 6. Decisiones pendientes
 
-Antes de implementar el alcance deben definirse el proveedor de autenticación, base de datos, bucket y hosting; la detección de candidatos duplicados; los límites y formatos de CV; y las reglas de consentimiento, retención y eliminación de datos personales. La colaboración mediante espacios compartidos por empresas queda para una posible etapa posterior.
+Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. Aún deben verificarse en el dashboard las políticas RLS, el bucket privado y la configuración de Google OAuth. También quedan por definir el hosting, la detección de candidatos duplicados, los límites y formatos de CV, y las reglas de consentimiento, retención y eliminación de datos personales. La colaboración mediante espacios compartidos por empresas queda para una posible etapa posterior.
 
 No asumir decisiones sobre estas cuestiones sin confirmarlas.
 
