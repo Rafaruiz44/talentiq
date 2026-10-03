@@ -1,4 +1,9 @@
-import { expect, test, type Page } from '@playwright/test'
+import {
+  expect,
+  mockAuthenticatedSession,
+  test,
+  type Page,
+} from './fixtures'
 
 const resumeText =
   'Desarrollador Frontend con experiencia en React, TypeScript y Semi Senior'
@@ -80,6 +85,10 @@ const prepareAnalysis = async (page: Page) => {
     buffer: createResumePdf(),
   })
 }
+
+test.beforeEach(async ({ page }) => {
+  await mockAuthenticatedSession(page)
+})
 
 test('calcula y muestra la compatibilidad y el veredicto', async ({ page }) => {
   await prepareAnalysis(page)

@@ -12,10 +12,10 @@ Actúa como Product Owner y analista funcional. Redacta una única historia de u
 - Identifica el rol, la capacidad solicitada y el valor de negocio.
 - Mantén la intención original y no inventes decisiones, reglas, pantallas ni integraciones.
 - Separa el comportamiento del usuario, el resultado observable y las reglas de negocio.
-- Alinea la historia con el alcance acordado para la entrega final: cuentas de reclutadores con Google, espacios privados por empresa, posiciones y candidatos persistidos, carga masiva, evaluaciones candidato–posición, seguimiento de etapas, preparación de entrevistas y despliegue.
-- No trates autenticación, persistencia, bancos privados ni procesamiento masivo como fuera de alcance. Si el requerimiento no pertenece a las capacidades acordadas, indícalo como riesgo o necesidad de decisión de alcance.
+- Alinea la historia con el alcance acordado para la entrega final: cuentas de reclutadores con Google, espacios privados por reclutador, posiciones y candidatos persistidos, carga masiva, solicitudes candidato–posición, historial de evaluaciones, seguimiento de etapas, preparación de entrevistas y despliegue.
+- No trates autenticación, persistencia, bancos privados ni procesamiento masivo como fuera de alcance. En esta etapa los datos no se comparten entre reclutadores; indica como evolución futura cualquier requerimiento de colaboración o banco compartido por empresa.
 - Distingue explícitamente el comportamiento objetivo de lo que ya está implementado; no presentes capacidades planificadas como existentes.
-- Respeta el aislamiento entre empresas, la separación del estado de la posición de la etapa del candidato por cruce y la protección de los CVs.
+- Respeta el aislamiento entre reclutadores, la separación del estado de la posición de la etapa de la solicitud candidato–posición, el historial de evaluaciones y la protección de los CVs.
 - Mantén cada historia enfocada en una capacidad comprobable; no agregues detalles técnicos ni elijas proveedores de autenticación, base de datos, almacenamiento o hosting que no hayan sido definidos.
 - Declara supuestos y formula solo las preguntas abiertas imprescindibles.
 - No describas implementación técnica, tareas de desarrollo ni estimaciones.

@@ -9,7 +9,7 @@ Actúa como Product Owner y analista funcional. Redacta una única historia de u
 
 ## Contexto fijo del producto
 
-Talentiq es una aplicación de apoyo para reclutadores. El alcance acordado para la entrega final incluye cuentas de reclutadores con Google, espacios privados por empresa, posiciones y candidatos persistidos, carga masiva, evaluaciones candidato–posición, seguimiento de etapas y preparación de entrevistas. El repositorio todavía contiene el MVP y no todas esas capacidades están implementadas.
+Talentiq es una aplicación de apoyo para reclutadores. El alcance acordado para la entrega final incluye cuentas de reclutadores con Google, espacios privados por reclutador, posiciones y candidatos persistidos, carga masiva, solicitudes candidato–posición, seguimiento de etapas y preparación de entrevistas. El repositorio todavía contiene el MVP y no todas esas capacidades están implementadas.
 
 Esta plantilla redacta una historia específica de tema visual. Mantén la historia enfocada en esa preferencia y no agregues detalles de autenticación, persistencia de candidatos, almacenamiento de CVs o procesamiento masivo salvo que el requerimiento los relacione directamente con el tema.
 

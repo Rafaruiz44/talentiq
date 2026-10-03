@@ -20,7 +20,7 @@
 
 ## Resumen
 
-Talentiq es una aplicación de apoyo a la preselección de candidatos. Para la entrega final, el alcance acordado es que cada empresa tenga un espacio privado compartido entre sus reclutadores, con posiciones persistentes, un banco reutilizable de CVs, evaluaciones independientes por cruce candidato–posición, seguimiento de etapas y preparación de entrevistas.
+Talentiq es una aplicación de apoyo a la preselección de candidatos. Para la entrega final, el alcance acordado es que cada reclutador autenticado tenga un espacio privado con posiciones persistentes, un banco reutilizable de CVs, solicitudes candidato–posición, historial de evaluaciones, seguimiento de etapas y preparación de entrevistas.
 
 La evaluación asistida por IA ayuda a organizar la información, pero no reemplaza la decisión humana de selección. Este documento diferencia las capacidades actuales del MVP de las capacidades planificadas; el nuevo alcance no implica que ya estén implementadas.
 
@@ -28,9 +28,9 @@ El detalle de historias y criterios de aceptación está en [alcance-entrega-fin
 
 ## Problema y objetivo
 
-La revisión manual de CVs para distintas búsquedas puede consumir tiempo y producir evaluaciones poco consistentes. Talentiq busca agilizar la comparación inicial mediante requisitos ponderados y análisis asistido por IA, y facilitar el seguimiento del proceso dentro del espacio privado de cada empresa.
+La revisión manual de CVs para distintas búsquedas puede consumir tiempo y producir evaluaciones poco consistentes. Talentiq busca agilizar la comparación inicial mediante requisitos ponderados y análisis asistido por IA, y facilitar el seguimiento de solicitudes dentro del espacio privado del reclutador.
 
-Los usuarios principales son reclutadores autenticados con Google. El primer reclutador crea la empresa y puede invitar a sus compañeros. Los candidatos son perfiles cuyos CVs se incorporan al banco de la empresa; no son usuarios autenticados de la aplicación en este alcance.
+Los usuarios principales son reclutadores autenticados con Google. En esta etapa cada reclutador administra sus propias vacantes y su banco privado; no se incluyen empresas, invitaciones ni colaboración entre cuentas. Los candidatos son perfiles cuyos CVs se incorporan al banco del reclutador; no son usuarios autenticados de la aplicación en este alcance.
 
 ## Estado actual del MVP
 
@@ -49,14 +49,12 @@ Los requisitos, el nombre y texto del CV y el resultado de la evaluación viven 
 ## Alcance acordado para la entrega final
 
 - Registro e inicio de sesión de reclutadores con Google, mediante un proveedor de autenticación que debe seleccionarse.
-- Creación de una empresa por el primer reclutador e invitación de sus compañeros.
-- Banco de CVs compartido entre miembros de la misma empresa y aislado frente a otras empresas.
-- Posiciones persistentes con requisitos, ponderaciones y estado propio: `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
-- Perfiles de candidatos persistentes con metadatos del CV, texto extraído y referencia al archivo.
+- Posiciones persistentes propiedad del reclutador, con requisitos, ponderaciones y estado propio: `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
+- Banco de CVs privado por reclutador, con perfiles persistentes, metadatos, texto extraído y referencia al archivo.
 - Almacenamiento de archivos en un bucket privado.
 - Carga de múltiples CVs con progreso y errores informados por candidato/archivo, sin que un error individual interrumpa el resto del lote.
-- Cruces persistentes de un candidato contra una o más posiciones abiertas, con resultado independiente para cada relación.
-- Etapa de cada candidato por posición: `Evaluado`, `En entrevista` o `Descartado`.
+- Solicitudes persistentes que vinculan candidatos y posiciones abiertas del mismo reclutador.
+- Historial de evaluaciones por solicitud y etapa independiente de cada candidato para cada posición: `Evaluado`, `En entrevista` o `Descartado`.
 - Generación de preguntas de entrevista basada en los requisitos de la posición y las fortalezas o brechas del candidato en ese cruce.
 - Llamadas a Azure OpenAI desde el backend, con secretos protegidos fuera del bundle frontend.
 - Despliegue accesible y prueba de un flujo funcional integrado como objetivo de entrega.
@@ -65,8 +63,8 @@ Los requisitos, el nombre y texto del CV y el resultado de la evaluación viven 
 
 - La posición tiene su propio estado; el candidato tiene una etapa independiente para cada posición.
 - Un candidato puede estar vinculado con distintas posiciones y tener resultados y etapas diferentes en cada una.
-- La pertenencia al banco de candidatos corresponde a una empresa; los CVs no se comparten entre empresas en el alcance acordado.
-- Una evaluación corresponde a una relación candidato–posición y conserva puntaje, veredicto, fortalezas, brechas y fecha.
+- Cada posición y candidato pertenecen a un reclutador; los CVs no se comparten entre cuentas en el alcance acordado.
+- Una solicitud corresponde a una pareja candidato–posición; cada ejecución conserva puntaje, veredicto, fortalezas, brechas y fecha.
 - Cambiar el estado de la posición no modifica automáticamente las etapas de los candidatos.
 - Las operaciones sobre datos y archivos deben validar autorización en el backend; esconder elementos en la UI no constituye aislamiento.
 - La generación de preguntas usa únicamente el cruce candidato–posición elegido.
@@ -76,15 +74,15 @@ Los requisitos, el nombre y texto del CV y el resultado de la evaluación viven 
 
 | Entidad | Responsabilidad y relaciones |
 |---|---|
-| Empresa | Espacio privado al que pertenecen los datos de posiciones y candidatos. |
-| Reclutador | Usuario autenticado mediante Google. |
-| Membresía | Relación entre una cuenta de reclutador y una empresa; representa acceso al espacio. |
-| Posición | Pertenece a una empresa y conserva requisitos, ponderaciones y estado. |
-| Candidato | Perfil del banco de una empresa, con metadatos de CV, texto extraído y referencia al objeto privado. |
-| Evaluación candidato–posición | Relaciona un candidato con una posición de la misma empresa; conserva resultado y etapa de ese cruce. |
-| Preguntas de entrevista | Se asocian a la evaluación candidato–posición que las contextualiza. |
+| Reclutador | Usuario autenticado mediante Google y propietario del espacio privado. |
+| Posición | Pertenece a un reclutador y conserva requisitos, ponderaciones y estado. |
+| Candidato | Perfil del banco privado del reclutador, con metadatos de CV, texto extraído y referencia al objeto privado. |
+| Documento de candidato | Archivo CV privado y sus metadatos, texto extraído y estado de procesamiento. |
+| Solicitud candidato–posición | Vincula un candidato y una posición del mismo reclutador; conserva la etapa del proceso. |
+| Ejecución de evaluación | Resultado histórico de una solicitud. |
+| Preguntas de entrevista | Se asocian a una ejecución concreta que aporta el contexto del candidato y de la posición. |
 
-La autenticación de Google identifica al reclutador; no se deben almacenar las credenciales de Google en Talentiq. La base de datos conserva la identidad necesaria y la membresía, mientras que el binario del CV se almacena en el bucket privado.
+La autenticación de Google identifica al reclutador; no se deben almacenar las credenciales de Google en Talentiq. Las tablas y objetos privados quedan asociados a su identidad autenticada. El binario del CV se almacena en el bucket privado.
 
 ## Arquitectura actual y objetivo
 
@@ -119,20 +117,20 @@ flowchart LR
     API --> DB[(Base de datos)]
     API --> B[(Bucket privado de CVs)]
     API --> AOAI[Azure OpenAI]
-    DB --> ORG[Empresas y membresías]
-    DB --> JOB[Posiciones]
-    DB --> CAND[Candidatos y texto extraído]
-    DB --> EVAL[Evaluaciones y etapas por cruce]
+    DB --> JOB[Posiciones del reclutador]
+    DB --> CAND[Banco privado y documentos]
+    DB --> APP[Solicitudes candidato–posición]
+    DB --> EVAL[Historial de evaluaciones y etapas]
     API --> Q[Preguntas de entrevista]
 ```
 
-Esta arquitectura es una guía de responsabilidades, no una decisión de proveedor ni una implementación ya existente. El backend debe comprobar membresía y autorización en cada acceso a la base y a los archivos. El frontend no debe comunicarse directamente con Azure OpenAI usando una clave secreta.
+Esta arquitectura es una guía de responsabilidades, no una implementación ya existente. Se propone Supabase; el proveedor y su configuración aún deben confirmarse. Las políticas deben comprobar que la identidad autenticada sea propietaria de cada posición, candidato, solicitud y archivo. El frontend no debe comunicarse directamente con Azure OpenAI usando una clave secreta.
 
 ## IA y procesamiento
 
 En el MVP actual, `inferCandidateEvaluation` envía requisitos y texto del CV a Azure OpenAI desde el cliente cuando están configuradas las variables correspondientes. El resultado se valida y normaliza; también hay una ruta de evaluación local de respaldo. La integración real con Azure no se considera garantizada por las pruebas E2E actuales.
 
-Para la entrega final, la evaluación y la generación de preguntas deben solicitarse al backend. El backend protege la clave, valida la entrada y respuesta del modelo, asocia cada resultado con la empresa y el cruce correctos, y devuelve errores explícitos si el servicio falla. No debe exponer la clave en variables `VITE_*` ni en recursos compilados para el navegador.
+Para la entrega final, la evaluación y la generación de preguntas deben solicitarse al backend. El backend protege la clave, valida la entrada y respuesta del modelo, asocia cada resultado a la solicitud del reclutador correcto y devuelve errores explícitos si el servicio falla. Cada reanálisis conserva una nueva ejecución histórica. No debe exponer la clave en variables `VITE_*` ni en recursos compilados para el navegador.
 
 La carga masiva procesa cada CV de manera individual. El sistema debe registrar e informar progreso y resultado de cada archivo, y continuar con los demás ante un fallo individual. La extracción actual en navegador solo contempla PDF y el límite actual de 5 MB; los formatos, límites y tratamiento de documentos escaneados para la entrega final están pendientes de definición.
 
@@ -148,9 +146,9 @@ La carga masiva procesa cada CV de manera individual. El sistema debe registrar 
 
 ### Requisito para la entrega final
 
-- Cada perfil, posición y evaluación debe pertenecer al espacio de una empresa y las empresas deben permanecer aisladas.
+- Cada perfil, posición y evaluación debe pertenecer a un reclutador y permanecer aislado de las demás cuentas.
 - El archivo del CV se almacena en un bucket privado; la base de datos conserva sus metadatos, el texto extraído y la referencia al archivo.
-- El backend valida que la persona autenticada sea miembro autorizado de la empresa antes de consultar, modificar o servir el CV.
+- Las políticas y el backend validan que la identidad autenticada sea propietaria del registro antes de consultar, modificar o servir el CV.
 - Las credenciales de Azure OpenAI y otros servicios se configuran como secretos del backend.
 - Deben definirse consentimiento, acceso, retención, eliminación y tratamiento de datos personales antes del despliegue.
 
@@ -166,25 +164,22 @@ La carga masiva procesa cada CV de manera individual. El sistema debe registrar 
 | Pruebas E2E | Playwright | Pruebas de la interfaz del MVP |
 | Lint | Oxlint | Análisis estático |
 
-Base de datos, proveedor de autenticación, bucket privado y hosting para la arquitectura objetivo aún no están seleccionados ni implementados.
+Hay una migración SQL inicial propuesta en `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql`; define el esquema del espacio privado por reclutador, políticas RLS y un bucket privado, pero todavía no se aplicó ni validó contra una instancia. Base de datos, autenticación, bucket y hosting aún no están configurados para la aplicación.
 
 ## Pruebas y despliegue
 
-Las pruebas actuales cubren la definición de requisitos, carga de un PDF, análisis de un CV y cambio de tema. No cubren autenticación, aislamiento de empresas, persistencia, carga masiva, cruces reutilizables, etapas por relación, generación de preguntas ni servicios desplegados.
+Las pruebas actuales cubren la definición de requisitos, carga de un PDF, análisis de un CV y cambio de tema. No cubren autenticación, aislamiento entre reclutadores, persistencia, carga masiva, solicitudes reutilizables, historial, etapas por solicitud, generación de preguntas ni servicios desplegados.
 
 Para la entrega final se deberá ampliar la cobertura con pruebas de esos flujos, incluyendo errores de acceso y fallos parciales de lote. El despliegue debe verificarse en una URL accesible mediante un flujo integrado que compruebe autenticación, backend, persistencia y acceso autorizado al CV. La documentación de pruebas debe distinguir los servicios simulados de los servicios reales.
 
 ## Decisiones pendientes
 
 - Proveedor de autenticación con Google, base de datos, bucket privado y plataforma de hosting.
-- Si una cuenta puede pertenecer a más de una empresa y cómo cambia entre espacios.
-- Roles y permisos de miembros, incluida la capacidad de invitar compañeros.
-- Método, duración y revocación de invitaciones.
-- Detección de candidatos duplicados dentro de una empresa.
-- Si un nuevo análisis reemplaza el resultado previo o conserva historial de versiones.
+- Detección de candidatos duplicados dentro del banco de un reclutador.
 - Formatos y tamaños admitidos, tratamiento de CVs escaneados y texto no extraíble.
 - Consentimiento, retención, exportación y eliminación de CVs y datos personales.
 - Requisitos de acceso para la demo pública y datos de prueba.
+- Si en una etapa futura se requerirán empresas, bancos compartidos e invitaciones entre reclutadores.
 
 ## Referencias del repositorio
 
@@ -195,6 +190,7 @@ Para la entrega final se deberá ampliar la cobertura con pruebas de esos flujos
 - `src/services/inferCandidateEvaluation.ts`: evaluación local, llamada actual a Azure y validación.
 - `src/types.ts`: contratos de datos actuales.
 - `server/server.mjs`: API auxiliar actual para importar requisitos.
+- `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql`: migración inicial propuesta, aún no aplicada.
 - `tests/`: pruebas end-to-end existentes.
 - `package.json`: dependencias y comandos disponibles.
 - [Alcance y propuestas de HU](./alcance-entrega-final-y-historias.md): decisiones acordadas, modelo funcional, historias y criterios propuestos.

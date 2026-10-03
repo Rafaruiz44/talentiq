@@ -1,4 +1,8 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, mockAuthenticatedSession } from './fixtures'
+
+test.beforeEach(async ({ page }) => {
+  await mockAuthenticatedSession(page)
+})
 
 test('mantiene deshabilitado el análisis hasta completar los datos requeridos', async ({ page }) => {
   await page.goto('/')

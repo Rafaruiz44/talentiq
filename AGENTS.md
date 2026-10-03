@@ -5,13 +5,13 @@
 Talentiq es una aplicación de apoyo a reclutadores. El alcance acordado para la entrega final incluye:
 
 - Registro e inicio de sesión de reclutadores mediante Google.
-- Creación de empresas e invitación de compañeros.
-- Un banco privado de CVs compartido entre los miembros de cada empresa y aislado de otras empresas.
+- Un espacio privado por reclutador autenticado; no se comparten posiciones ni CVs entre cuentas en esta etapa.
 - Posiciones persistentes con estado propio: `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
 - Perfiles de candidatos y archivos CV persistidos; los archivos se almacenan en un bucket privado.
 - Carga masiva con progreso y errores independientes por CV.
-- Evaluaciones persistentes por relación candidato–posición y reutilización del candidato en distintas posiciones abiertas.
-- Etapas por cada cruce candidato–posición: `Evaluado`, `En entrevista` o `Descartado`.
+- Solicitudes persistentes por relación candidato–posición y reutilización del candidato en distintas posiciones abiertas.
+- Historial de ejecuciones de evaluación por solicitud.
+- Etapas por cada solicitud candidato–posición: `Evaluado`, `En entrevista` o `Descartado`.
 - Generación de preguntas de entrevista a partir de los requisitos y el análisis del cruce.
 - Llamadas principales a Azure OpenAI desde el backend, sin exponer secretos en el frontend.
 - Despliegue accesible y verificación de un flujo funcional como objetivo de entrega.
@@ -25,19 +25,20 @@ Este es el alcance acordado, no una afirmación de que esas capacidades estén i
 - Un componente por archivo, con export nombrado, siguiendo los patrones existentes.
 - Usar elementos HTML nativos (`button`, `input`, `label`, `textarea`); no usar un `div` con `onClick`.
 - Agregar `data-testid` en kebab-case a los elementos que necesiten las pruebas.
-- Validar autenticación, membresía y autorización en el backend para cada operación sobre los datos y archivos de una empresa.
-- No usar controles de la interfaz como sustituto del aislamiento de datos en el servidor.
+- Validar autenticación y propiedad en el backend para cada operación sobre los datos y archivos privados de un reclutador.
+- No usar controles de la interfaz como sustituto del aislamiento entre cuentas en el servidor.
 - Mantener las claves de Azure OpenAI y otras credenciales exclusivamente en el backend; no incluir secretos en variables `VITE_*` ni en el bundle cliente.
 - Informar explícitamente errores de autenticación, autorización, base de datos, almacenamiento y servicios de IA. No responder con éxito simulado ante fallos.
-- Ampliar las pruebas para cubrir persistencia, aislamiento entre empresas, carga masiva, errores parciales, cruces y etapas independientes, así como flujos de autenticación.
+- Ampliar las pruebas para cubrir persistencia, aislamiento entre cuentas, carga masiva, errores parciales, solicitudes, historial de evaluaciones y etapas independientes, así como flujos de autenticación.
 - No instalar dependencias sin preguntar primero.
 
 ## Modelo de dominio a preservar
 
 - El estado de una posición no es el estado de un candidato.
 - La etapa de un candidato se guarda en su relación con una posición.
-- Una evaluación corresponde a una relación candidato–posición y no debe reemplazar el resultado de otro cruce.
-- Los datos y documentos de CV pertenecen al banco de una empresa y no se comparten con otras empresas.
+- Cada solicitud corresponde a una pareja candidato–posición y pertenece a un reclutador.
+- Cada reanálisis agrega una evaluación histórica a la solicitud sin eliminar las anteriores.
+- Los datos y documentos de CV pertenecen al banco privado de un reclutador y no se comparten con otras cuentas.
 - Las preguntas generadas deben usar el contexto del cruce candidato–posición seleccionado.
 
 Los proveedores de autenticación, base de datos, almacenamiento privado y hosting aún requieren decisión. No fijar una tecnología o política de privacidad no acordada.

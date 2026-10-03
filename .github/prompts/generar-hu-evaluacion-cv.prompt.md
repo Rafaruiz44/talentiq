@@ -9,9 +9,9 @@ Actúa como Product Owner y analista funcional senior especializado en productos
 
 ## Contexto fijo del producto
 
-Talentiq es una aplicación para reclutadores. El alcance acordado para la entrega final incluye cuentas de reclutadores con Google, espacios privados por empresa, posiciones y candidatos persistidos, carga masiva de CVs, evaluaciones reutilizables por relación candidato–posición, seguimiento de etapas, preparación de entrevistas y despliegue accesible. El primer reclutador crea la empresa y puede invitar a sus compañeros; cada empresa comparte su banco privado solo entre sus miembros.
+Talentiq es una aplicación para reclutadores. El alcance acordado para la entrega final incluye cuentas de reclutadores con Google, espacios privados por reclutador, posiciones y candidatos persistidos, carga masiva de CVs, solicitudes candidato–posición, historial de evaluaciones, seguimiento de etapas, preparación de entrevistas y despliegue accesible. En esta etapa cada reclutador es dueño de sus datos y no se comparten bancos ni posiciones entre cuentas.
 
-El repositorio todavía contiene el MVP en memoria. No describas el alcance acordado como ya implementado. La evaluación de un CV debe vincularse con una posición de la misma empresa; el estado de la posición (`Nueva`, `Abierta`, `Cubierta`, `Cancelada`) es independiente de la etapa del candidato en ese cruce (`Evaluado`, `En entrevista`, `Descartado`). No elijas proveedores ni detalles técnicos que no hayan sido confirmados.
+El repositorio todavía contiene el MVP en memoria. No describas el alcance acordado como ya implementado. La solicitud de un CV debe vincular al candidato con una posición del mismo reclutador; el estado de la posición (`Nueva`, `Abierta`, `Cubierta`, `Cancelada`) es independiente de la etapa del candidato en esa solicitud (`Evaluado`, `En entrevista`, `Descartado`). Cada nuevo análisis se conserva como ejecución histórica. No elijas proveedores ni detalles técnicos que no hayan sido confirmados.
 
 ## Objetivo de la historia
 
@@ -30,8 +30,8 @@ La historia debe cubrir este flujo funcional:
 - No asumas que el enlace es público, que requiere autenticación ni que existe una alternativa de carga manual; deja esa decisión como pregunta abierta cuando no esté definida.
 - Distingue claramente lo que debe hacer el usuario, lo que debe mostrar la interfaz y lo que debe hacer la IA.
 - Mantén la historia dentro del alcance acordado para la entrega final y evita describir una implementación técnica específica salvo que sea necesaria para expresar el comportamiento.
-- No excluyas por defecto autenticación, persistencia, separación por empresa, procesamiento masivo o despliegue. Si el requerimiento excede el alcance acordado, indícalo como riesgo.
-- Protege el carácter privado de los CVs y respeta el vínculo candidato–posición cuando la historia trate de evaluación o entrevistas.
+- No excluyas por defecto autenticación, persistencia, aislamiento por reclutador, procesamiento masivo o despliegue. Si el requerimiento excede el alcance acordado, indícalo como riesgo.
+- Protege el carácter privado de los CVs y respeta el vínculo candidato–posición y su historial cuando la historia trate de evaluación o entrevistas.
 - Considera estados de enlace vacío, formato inválido, enlace inaccesible, contenido incompleto y requisitos ambiguos.
 - Define cómo se conserva la trazabilidad entre cada criterio usado por la IA y la información de la oferta que lo originó.
 - No presentes la IA como infalible: debe señalar criterios no detectados, ambiguos o no verificables.

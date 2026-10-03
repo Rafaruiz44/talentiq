@@ -4,56 +4,95 @@ Este documento registra la ampliación del alcance acordada para la entrega fina
 
 ## Objetivo
 
-Ofrecer a empresas un espacio privado de reclutamiento en el que sus reclutadores puedan administrar posiciones, mantener un banco reutilizable de CVs, evaluar candidatos frente a una o más posiciones abiertas, seguir sus etapas y preparar entrevistas.
+Ofrecer a cada reclutador autenticado un espacio privado para administrar sus posiciones, mantener un banco reutilizable de CVs, registrar solicitudes candidato–posición, seguir cada proceso y preparar entrevistas.
 
 La evaluación de IA es una herramienta de apoyo. La decisión de selección corresponde al equipo reclutador.
 
 ## Decisiones acordadas
 
 - Cada reclutador debe tener una cuenta y podrá registrarse/iniciar sesión con Google, si la integración elegida lo permite.
-- El primer reclutador crea la empresa y puede invitar a sus compañeros.
-- Cada empresa tiene un banco privado compartido por los reclutadores que sean miembros de esa empresa.
-- Los bancos de distintas empresas deben estar aislados.
+- En esta etapa, cada reclutador es propietario de su espacio privado, sus posiciones y su banco de candidatos.
+- No se incluyen empresas, invitaciones ni colaboración/compartición de datos entre reclutadores en esta entrega.
 - Las posiciones tienen estado propio: `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
 - La etapa del candidato se mantiene por cada relación candidato–posición: `Evaluado`, `En entrevista` o `Descartado`.
 - Los CVs se almacenan en un bucket privado. La base de datos conserva sus metadatos, el texto extraído y la referencia al archivo.
-- Los CVs pueden cruzarse con varias posiciones abiertas; cada resultado pertenece a su relación candidato–posición.
+- El reclutador puede asociar un candidato de su banco a varias posiciones abiertas; cada solicitud/postulación corresponde a una relación candidato–posición.
+- Cada nueva evaluación se conserva como una ejecución histórica de esa solicitud y no reemplaza resultados previos.
 - Las llamadas a Azure OpenAI para evaluación y generación de preguntas deben realizarse desde el backend. Las credenciales no deben incluirse en el frontend.
 - El despliegue accesible forma parte del objetivo de entrega y debe probarse con un flujo funcional.
 
 ## Alcance funcional
 
 1. Registro e inicio de sesión de reclutadores mediante Google.
-2. Creación de empresa, invitación de compañeros y acceso privado compartido a los datos de la empresa.
-3. Alta, consulta y gestión de posiciones persistentes.
-4. Banco de candidatos con CVs y texto extraído persistidos.
-5. Carga de varios CVs con progreso y errores independientes por archivo.
-6. Evaluaciones persistentes entre candidatos y posiciones abiertas, incluida la reutilización en varias posiciones.
-7. Gestión independiente de la etapa de cada candidato en cada posición.
-8. Generación de preguntas de entrevista a partir de requisitos, fortalezas y brechas del cruce.
-9. Publicación y verificación de una instancia accesible de la aplicación.
+2. Alta, consulta y gestión de posiciones persistentes propiedad del reclutador.
+3. Banco privado de candidatos del reclutador con CVs y texto extraído persistidos.
+4. Carga de varios CVs con progreso y errores independientes por archivo.
+5. Solicitudes candidato–posición persistentes para posiciones abiertas, con reutilización de candidatos.
+6. Historial de evaluaciones y gestión independiente de la etapa de cada solicitud.
+7. Generación de preguntas de entrevista a partir de requisitos, fortalezas y brechas de la solicitud.
+8. Publicación y verificación de una instancia accesible de la aplicación.
 
 ## Modelo funcional inicial
 
 | Entidad | Responsabilidad y relaciones |
 |---|---|
-| Empresa | Define el espacio de datos aislado al que pertenecen posiciones y candidatos. |
-| Reclutador | Identidad autenticada mediante Google; puede pertenecer a una o más empresas según se defina el flujo de invitaciones. |
-| Membresía | Relaciona un reclutador con una empresa y representa su acceso al espacio privado. |
-| Posición | Pertenece a una empresa; conserva requisitos, ponderaciones y su propio estado. |
-| Candidato | Pertenece al banco de una empresa; conserva los datos del perfil, metadatos del CV, texto extraído y referencia al archivo privado. |
-| Evaluación candidato–posición | Relaciona un candidato con una posición de la misma empresa; conserva resultado, puntaje, fortalezas, brechas y etapa de esa relación. |
-| Preguntas de entrevista | Se asocian al cruce candidato–posición que aportó los requisitos, fortalezas y brechas. |
+| Reclutador | Usuario autenticado mediante Google; propietario de su espacio privado de trabajo. |
+| Posición | Pertenece a un reclutador y conserva requisitos, ponderaciones y su propio estado. |
+| Candidato | Pertenece al banco privado de un reclutador; conserva datos del perfil y referencia a sus documentos. |
+| Documento de candidato | Metadatos, texto extraído y referencia privada al archivo del CV. |
+| Solicitud candidato–posición | Relaciona un candidato con una posición del mismo reclutador y conserva la etapa del proceso. |
+| Ejecución de evaluación | Resultado histórico asociado a una solicitud; conserva puntaje, fortalezas, brechas y fecha. |
+| Preguntas de entrevista | Se asocian a una ejecución concreta y usan sus requisitos, fortalezas y brechas. |
 
-La pertenencia del candidato a una empresa evita compartir CVs entre bancos privados. La evaluación y su etapa no deben modelarse como atributos globales del candidato: una persona puede tener resultados y etapas diferentes en distintas posiciones.
+La relación candidato–posición no debe modelarse como un atributo global del candidato: una persona puede tener solicitudes, resultados y etapas diferentes en distintas posiciones. En esta primera etapa los datos pertenecen a un solo reclutador y no se comparten entre cuentas.
+
+## Propuesta técnica inicial para validar
+
+Como diseño inicial se propone Supabase para PostgreSQL, autenticación con Google y almacenamiento privado de CVs. Es una recomendación de arquitectura, no significa que el proyecto ya tenga un proyecto Supabase ni que se hayan configurado credenciales, políticas o recursos. El backend Node existente puede evolucionar para llamadas a Azure OpenAI y operaciones que requieran credenciales de servidor; no se propone acceder a Azure OpenAI con una clave desde el navegador.
+
+### Tablas y relaciones propuestas
+
+| Tabla | Campos principales propuestos | Relación y restricciones |
+|---|---|---|
+| `profiles` | `user_id`, nombre visible, correo | `user_id` referencia al usuario autenticado de Supabase. |
+| `positions` | `id`, `recruiter_id`, título, seniority, puntos, estado, fechas | Pertenece al reclutador autenticado; estado limitado a `Nueva`, `Abierta`, `Cubierta` o `Cancelada`. |
+| `position_skills` | `position_id`, nombre de habilidad, peso | Una habilidad por posición; peso entre 1 y 10. |
+| `candidates` | `id`, `recruiter_id`, nombre, correo opcional, datos normalizados permitidos, fechas | Pertenece al banco privado de un reclutador. Los atributos exactos y la política de duplicados quedan pendientes. |
+| `candidate_documents` | `id`, `recruiter_id`, `candidate_id`, nombre original, tipo MIME, tamaño, ruta privada, texto extraído, estado de procesamiento, fechas | El binario se guarda en Storage; la base guarda metadatos, texto y ruta. El estado permite informar carga/procesamiento individual. |
+| `applications` | `id`, `recruiter_id`, `candidate_id`, `position_id`, etapa, fechas | Una solicitud por candidato y posición; candidato y posición deben pertenecer al mismo reclutador. La etapa vive aquí. |
+| `evaluation_runs` | `id`, `recruiter_id`, `application_id`, documento analizado, puntaje obtenido/total, veredicto, fortalezas, brechas, fecha, estado | Cada ejecución se conserva como historial bajo una solicitud. La más reciente puede mostrarse como vigente sin borrar las anteriores. |
+| `interview_questions` | `id`, `evaluation_run_id`, contenido, fecha de generación | Pertenece a una ejecución concreta y usa sus requisitos, fortalezas y brechas. |
+
+Se recomienda usar claves foráneas compuestas que incluyan `recruiter_id` para impedir en la base que una solicitud vincule un candidato y una posición de propietarios distintos. La unicidad de `applications` será `(recruiter_id, candidate_id, position_id)`. Cada reanálisis inserta una nueva fila en `evaluation_runs`; la etapa pertenece a la solicitud y no a cada ejecución.
+
+### Reglas de acceso propuestas
+
+- Activar Row Level Security (RLS) en todas las tablas con datos privados; la política debe verificar que `recruiter_id` corresponda a `auth.uid()`.
+- Las operaciones de alta y modificación deben derivar la propiedad de la sesión autenticada o validar explícitamente que coincida; no confiar en un `recruiter_id` arbitrario recibido desde la interfaz.
+- Los clientes autenticados pueden crear documentos solo en estado pendiente y consultar su estado; el backend autorizado valida el archivo y escribe el texto extraído y su estado final.
+- Los clientes autenticados pueden consultar el historial de evaluaciones y preguntas, pero su creación corresponde al backend después de validar y completar el análisis; las ejecuciones históricas no se actualizan desde el cliente.
+- Usar el bucket de CVs como privado. La ruta debe incluir el identificador del reclutador y las políticas de Storage deben comprobar que el usuario autenticado sea propietario y que exista el registro correspondiente.
+- Para descargar un CV, emitir un enlace firmado de corta duración solo después de autorizar la solicitud, o transmitir el archivo mediante backend autenticado.
+- La clave administrativa `service_role`, si el backend la necesita, es solo server-side y nunca se entrega al navegador. La clave pública del cliente no reemplaza las políticas RLS.
+- No persistir credenciales de Google. Proteger también el texto extraído del CV como dato personal sujeto a las mismas políticas que el archivo.
+
+### Flujo vertical inicial recomendado
+
+1. Un reclutador inicia sesión con Google mediante Supabase Auth.
+2. La sesión obtiene un espacio privado propio sin crear una entidad empresa.
+3. El reclutador crea una posición y la base la asocia a su identidad autenticada y aplica RLS.
+4. El reclutador consulta solo sus posiciones y su banco de candidatos.
+5. Se verifica desde una segunda cuenta que no puede leer ni alterar datos de la primera.
+
+Este primer flujo valida autenticación y aislamiento por reclutador antes de cargar CVs sensibles. La carga de un CV debe añadirse solo cuando el bucket privado y sus políticas de acceso puedan verificarse.
 
 ## Historias de usuario propuestas
 
-### Feature: Acceso y espacio privado de empresa
+### Feature: Acceso privado del reclutador
 
 #### HU-01 — Registrarse e iniciar sesión con Google
 
-**Como** reclutador, **quiero** registrarme e iniciar sesión con mi cuenta de Google, **para** acceder de forma segura a Talentiq sin administrar una contraseña adicional.
+**Como** reclutador, **quiero** registrarme e iniciar sesión con mi cuenta de Google, **para** acceder de forma segura a mi espacio privado en Talentiq sin administrar una contraseña adicional.
 
 **Criterios de aceptación**
 
@@ -68,70 +107,32 @@ La pertenencia del candidato a una empresa evita compartir CVs entre bancos priv
 - **Escenario: Cierre de sesión**
   - **Dado** que el reclutador está autenticado
   - **Cuando** cierra sesión
-  - **Entonces** deja de acceder a las pantallas y datos privados de la empresa.
-
-#### HU-02 — Crear una empresa y su espacio privado
-
-**Como** primer reclutador de una empresa, **quiero** crear el espacio de mi empresa, **para** organizar allí posiciones y candidatos de forma privada.
-
-**Criterios de aceptación**
-
-- **Escenario: Crear empresa**
-  - **Dado** que inicié sesión y todavía no pertenezco a una empresa
-  - **Cuando** ingreso los datos obligatorios y confirmo la creación
-  - **Entonces** se crea la empresa y quedo asociado a su espacio.
-- **Escenario: Validación de datos**
-  - **Dado** que intento crear una empresa
-  - **Cuando** falta un dato obligatorio o el nombre no es válido
-  - **Entonces** se informa el error y no se crea un espacio incompleto.
-- **Escenario: Datos aislados por empresa**
-  - **Dado** que existen empresas distintas
-  - **Cuando** un reclutador consulta el espacio de su empresa
-  - **Entonces** solo puede acceder a datos pertenecientes a empresas de las que es miembro.
-
-#### HU-03 — Invitar reclutadores al espacio de empresa
-
-**Como** reclutador de una empresa, **quiero** invitar a compañeros, **para** colaborar en el banco privado de la organización.
-
-**Criterios de aceptación**
-
-- **Escenario: Enviar invitación**
-  - **Dado** que estoy autenticado y tengo acceso al espacio de la empresa
-  - **Cuando** invito una dirección de correo válida
-  - **Entonces** se registra o envía una invitación vinculada a esa empresa.
-- **Escenario: Aceptar invitación**
-  - **Dado** que una persona autenticada con Google tiene una invitación vigente
-  - **Cuando** la acepta
-  - **Entonces** queda asociada a la empresa y puede acceder a su banco privado.
-- **Escenario: Invitación inválida o ya utilizada**
-  - **Dado** que el enlace de invitación no existe, venció o ya fue utilizado
-  - **Cuando** la persona intenta aceptarlo
-  - **Entonces** no obtiene acceso y se informa cómo solicitar una nueva invitación.
+  - **Entonces** deja de acceder a las pantallas y datos privados de su cuenta.
 
 ### Feature: Gestión de posiciones
 
-#### HU-04 — Crear y consultar posiciones persistentes
+#### HU-02 — Crear y consultar posiciones persistentes
 
-**Como** reclutador de una empresa, **quiero** registrar y consultar posiciones con sus requisitos, **para** reutilizarlas en el proceso de selección.
+**Como** reclutador, **quiero** registrar y consultar mis posiciones con sus requisitos, **para** reutilizarlas en el proceso de selección.
 
 **Criterios de aceptación**
 
 - **Escenario: Crear posición**
-  - **Dado** que pertenezco a una empresa y completo los datos y requisitos obligatorios
+  - **Dado** que inicié sesión y completo los datos y requisitos obligatorios
   - **Cuando** guardo la posición
-  - **Entonces** queda persistida en el espacio de esa empresa con estado `Nueva`.
+  - **Entonces** queda persistida en mi espacio privado con estado `Nueva`.
 - **Escenario: Reabrir la aplicación**
   - **Dado** que guardé una posición
-  - **Cuando** vuelvo a iniciar sesión y consulto las posiciones de mi empresa
-  - **Entonces** la posición y sus requisitos siguen disponibles.
-- **Escenario: Aislamiento entre empresas**
-  - **Dado** que una posición pertenece a otra empresa
-  - **Cuando** consulto las posiciones de mi empresa
-  - **Entonces** esa posición no aparece ni puede consultarse desde mi espacio.
+  - **Cuando** vuelvo a iniciar sesión y consulto mis posiciones
+  - **Entonces** la posición y sus requisitos siguen disponibles en mi cuenta.
+- **Escenario: Aislamiento entre reclutadores**
+  - **Dado** que una posición pertenece a otra cuenta
+  - **Cuando** consulto mis posiciones
+  - **Entonces** esa posición no aparece ni puede consultarse desde mi cuenta.
 
-#### HU-05 — Cambiar el estado de una posición
+#### HU-03 — Cambiar el estado de una posición
 
-**Como** reclutador de una empresa, **quiero** cambiar el estado de una posición, **para** reflejar su situación sin alterar las etapas de sus candidatos.
+**Como** reclutador, **quiero** cambiar el estado de una posición propia, **para** reflejar su situación sin alterar las etapas de sus solicitudes.
 
 **Criterios de aceptación**
 
@@ -149,9 +150,9 @@ La pertenencia del candidato a una empresa evita compartir CVs entre bancos priv
 
 ### Feature: Banco de CVs y procesamiento
 
-#### HU-06 — Incorporar un candidato y guardar su CV
+#### HU-04 — Incorporar un candidato y guardar su CV
 
-**Como** reclutador de una empresa, **quiero** incorporar un CV al banco privado, **para** reutilizar el perfil en distintas posiciones.
+**Como** reclutador, **quiero** incorporar un CV a mi banco privado, **para** reutilizar el perfil en distintas posiciones.
 
 **Criterios de aceptación**
 
@@ -161,20 +162,20 @@ La pertenencia del candidato a una empresa evita compartir CVs entre bancos priv
   - **Entonces** el perfil y el texto extraído quedan persistidos y el archivo queda en almacenamiento privado.
 - **Escenario: Volver a consultar el candidato**
   - **Dado** que un candidato se guardó correctamente
-  - **Cuando** un reclutador autorizado lo busca en el banco de su empresa
+  - **Cuando** vuelvo a buscarlo en mi banco
   - **Entonces** puede consultar sus datos y el texto extraído, y acceder al archivo mediante un mecanismo autorizado.
 - **Escenario: Archivo no procesable**
   - **Dado** que el archivo está dañado, vacío o no es admitido
   - **Cuando** intento cargarlo
   - **Entonces** se informa el error y no se registra como CV procesado correctamente.
-- **Escenario: Privacidad entre empresas**
-  - **Dado** que el CV pertenece al banco de otra empresa
-  - **Cuando** un reclutador sin membresía intenta consultarlo
-  - **Entonces** no puede obtener el perfil ni descargar el archivo.
+- **Escenario: Privacidad entre reclutadores**
+  - **Dado** que el CV pertenece al banco de otro reclutador
+  - **Cuando** intento consultarlo desde mi cuenta
+  - **Entonces** no puedo obtener el perfil ni descargar el archivo.
 
-#### HU-07 — Cargar varios CVs con progreso y errores independientes
+#### HU-05 — Cargar varios CVs con progreso y errores independientes
 
-**Como** reclutador de una empresa, **quiero** cargar varios CVs y ver el resultado de cada procesamiento, **para** incorporar candidatos en menos tiempo y detectar los casos fallidos.
+**Como** reclutador, **quiero** cargar varios CVs a mi banco y ver el resultado de cada procesamiento, **para** incorporar candidatos en menos tiempo y detectar los casos fallidos.
 
 **Criterios de aceptación**
 
@@ -192,19 +193,19 @@ La pertenencia del candidato a una empresa evita compartir CVs entre bancos priv
 
 ### Feature: Evaluación y seguimiento
 
-#### HU-08 — Evaluar y guardar un candidato frente a una posición abierta
+#### HU-06 — Crear una solicitud y evaluar un candidato para una posición abierta
 
-**Como** reclutador de una empresa, **quiero** evaluar un candidato frente a una posición abierta, **para** conservar un resultado consultable y trazable.
+**Como** reclutador, **quiero** asociar un candidato de mi banco a una posición abierta y evaluarlo, **para** iniciar una solicitud de selección con un resultado consultable y trazable.
 
 **Criterios de aceptación**
 
 - **Escenario: Evaluación correcta**
-  - **Dado** que el candidato y la posición pertenecen a mi empresa y la posición está `Abierta`
+  - **Dado** que el candidato y la posición pertenecen a mi cuenta y la posición está `Abierta`
   - **Cuando** solicito el análisis
-  - **Entonces** se guarda un resultado asociado a ese candidato y a esa posición, con puntaje, veredicto, fortalezas, brechas y fecha.
+  - **Entonces** se crea o actualiza la solicitud de ese candidato para esa posición y se guarda una ejecución con puntaje, veredicto, fortalezas, brechas y fecha.
 - **Escenario: Inicializar etapa**
   - **Dado** que se guarda la primera evaluación de un candidato para una posición
-  - **Entonces** el estado del cruce queda en `Evaluado`.
+  - **Entonces** la etapa de la solicitud queda en `Evaluado`.
 - **Escenario: Posición no abierta**
   - **Dado** que la posición no está `Abierta`
   - **Cuando** intento iniciar una evaluación nueva
@@ -213,29 +214,33 @@ La pertenencia del candidato a una empresa evita compartir CVs entre bancos priv
   - **Dado** que el servicio de análisis falla
   - **Cuando** recibo el error
   - **Entonces** se informa el fallo y no se muestra ni persiste una evaluación como exitosa.
+- **Escenario: Reanalizar sin perder historial**
+  - **Dado** que ya existe una solicitud con una o más evaluaciones para el candidato y la posición
+  - **Cuando** solicito un nuevo análisis
+  - **Entonces** se conserva el historial y se agrega una nueva ejecución a la solicitud existente sin duplicar la solicitud.
 
-#### HU-09 — Reutilizar un candidato en varias posiciones
+#### HU-07 — Reutilizar un candidato en varias posiciones
 
-**Como** reclutador de una empresa, **quiero** evaluar un candidato contra varias posiciones abiertas, **para** conservar resultados separados para cada búsqueda.
+**Como** reclutador, **quiero** asociar un candidato de mi banco a varias posiciones abiertas, **para** conservar solicitudes y resultados separados para cada búsqueda.
 
 **Criterios de aceptación**
 
 - **Escenario: Evaluar en más de una posición**
-  - **Dado** que un candidato pertenece a mi empresa y hay varias posiciones abiertas
+  - **Dado** que un candidato pertenece a mi banco y hay varias posiciones abiertas
   - **Cuando** lo evalúo frente a cada posición
-  - **Entonces** queda un resultado candidato–posición por cada cruce.
+  - **Entonces** queda una solicitud candidato–posición por cada cruce, con su historial independiente.
 - **Escenario: Consultar resultados**
   - **Dado** que un candidato tiene evaluaciones para distintas posiciones
   - **Cuando** consulto su historial de cruces
   - **Entonces** cada resultado muestra la posición correspondiente y no se reemplaza por el de otra posición.
-- **Escenario: Banco de otra empresa**
-  - **Dado** que el candidato pertenece a otra empresa
-  - **Cuando** intento reutilizarlo
-  - **Entonces** no puedo acceder a su CV ni crear un cruce con él.
+- **Escenario: Banco de otro reclutador**
+  - **Dado** que el candidato pertenece al banco de otro reclutador
+  - **Cuando** intento reutilizarlo desde mi cuenta
+  - **Entonces** no puedo acceder a su CV ni crear una solicitud con él.
 
-#### HU-10 — Actualizar la etapa por cada cruce candidato–posición
+#### HU-08 — Actualizar la etapa de una solicitud
 
-**Como** reclutador de una empresa, **quiero** actualizar la etapa de un candidato para una posición, **para** registrar el avance de ese proceso sin afectar otros.
+**Como** reclutador, **quiero** actualizar la etapa de un candidato para una posición, **para** registrar el avance de esa solicitud sin afectar sus otras solicitudes.
 
 **Criterios de aceptación**
 
@@ -254,9 +259,9 @@ La pertenencia del candidato a una empresa evita compartir CVs entre bancos priv
 
 ### Feature: Preparación de entrevistas
 
-#### HU-11 — Generar preguntas de entrevista contextualizadas
+#### HU-09 — Generar preguntas de entrevista contextualizadas
 
-**Como** reclutador de una empresa, **quiero** generar preguntas para un candidato y una posición, **para** profundizar en requisitos relevantes y validar fortalezas o brechas.
+**Como** reclutador, **quiero** generar preguntas para un candidato y una posición, **para** profundizar en requisitos relevantes y validar fortalezas o brechas.
 
 **Criterios de aceptación**
 
@@ -275,7 +280,7 @@ La pertenencia del candidato a una empresa evita compartir CVs entre bancos priv
 
 ### Objetivo de entrega: Despliegue
 
-#### HU-12 — Acceder a una versión desplegada y funcional
+#### HU-10 — Acceder a una versión desplegada y funcional
 
 **Como** docente o integrante del equipo, **quiero** acceder a Talentiq desde una URL publicada, **para** verificar el flujo funcional de la entrega.
 
@@ -296,26 +301,24 @@ La pertenencia del candidato a una empresa evita compartir CVs entre bancos priv
 
 ## Reglas de negocio transversales
 
-- La autorización se valida en el backend para cada operación sobre empresas, posiciones, candidatos, evaluaciones y archivos.
-- Los datos y archivos de una empresa no son visibles ni accesibles para miembros de otras empresas.
+- La autorización se valida en el backend para cada operación sobre posiciones, candidatos, solicitudes, evaluaciones y archivos.
+- Los datos y archivos de un reclutador no son visibles ni accesibles desde otras cuentas.
 - La identidad Google del reclutador y el perfil de candidato son conceptos diferentes.
 - El estado de una posición y la etapa de un candidato en una posición son independientes.
-- Una evaluación pertenece a una única relación candidato–posición y no debe sobrescribir resultados de otros cruces.
+- Una solicitud pertenece a una pareja candidato–posición; cada nueva evaluación crea una ejecución histórica dentro de esa solicitud.
+- En el alcance actual, las solicitudes son registros internos creados por el reclutador al asociar un candidato del banco a una vacante. No se incluye un portal público para que candidatos presenten solicitudes por su cuenta.
 - La carga masiva debe reportar errores por archivo y permitir que los demás archivos del lote continúen.
 - Los errores de almacenamiento o IA deben mostrarse explícitamente; no deben transformarse en resultados de éxito de respaldo sin indicarlo.
 - Las credenciales de Azure OpenAI permanecen en el backend y los archivos de CV se almacenan en un bucket privado.
 
 ## Decisiones pendientes antes de implementar
 
-- Proveedor de autenticación Google, base de datos, bucket privado y hosting.
-- Si una cuenta puede pertenecer a varias empresas y cómo cambia entre espacios.
-- Permisos de los miembros: si todos pueden administrar invitaciones, posiciones y candidatos o si habrá roles.
-- Regla para detectar candidatos duplicados dentro de una empresa.
-- Comportamiento al volver a analizar el mismo candidato para la misma posición: reemplazar el resultado o conservar versiones históricas.
+- Confirmar Supabase y el plan/proyecto; decidir dónde se alojará el backend Node y cómo se conectará de forma segura a Supabase.
+- Regla para detectar candidatos duplicados dentro del banco de un reclutador.
 - Tipos y tamaños máximos de archivo, tratamiento de CVs escaneados y conducta ante documentos sin texto extraíble.
 - Consentimiento, retención, descarga y eliminación de CVs y datos personales.
-- Caducidad y revocación de invitaciones.
 - Requisitos de acceso a la demo desplegada y configuración de sus datos de prueba.
+- Confirmar si en una etapa futura se necesitarán espacios compartidos por empresas y colaboración entre reclutadores.
 
 ## Notas de trazabilidad con el estado actual
 

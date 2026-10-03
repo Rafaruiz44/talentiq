@@ -4,7 +4,7 @@ Talentiq es una aplicación de apoyo a reclutadores para comparar requisitos de 
 
 ## Estado del proyecto
 
-El repositorio contiene el MVP ejecutable localmente. El alcance acordado para la entrega final amplía ese MVP con cuentas de reclutadores mediante Google, espacios privados por empresa, posiciones y candidatos persistentes, carga masiva, evaluaciones candidato–posición, seguimiento de etapas, preguntas de entrevista y despliegue accesible.
+El repositorio contiene el MVP ejecutable localmente. El alcance acordado para la entrega final amplía ese MVP con cuentas de reclutadores mediante Google, espacios privados por reclutador, posiciones y candidatos persistentes, carga masiva, solicitudes candidato–posición, historial de evaluaciones, seguimiento de etapas, preguntas de entrevista y despliegue accesible.
 
 Esas capacidades ampliadas están planificadas y no deben considerarse implementadas solo por estar documentadas. La arquitectura objetivo, el estado actual y las decisiones pendientes se describen en [documentacion/arquitectura-y-alcance.md](documentacion/arquitectura-y-alcance.md); las historias y sus criterios de aceptación están en [documentacion/alcance-entrega-final-y-historias.md](documentacion/alcance-entrega-final-y-historias.md).
 
@@ -20,18 +20,17 @@ El umbral actual de aprobación está fijado en 70 %. La posición, el CV y el r
 ## Alcance acordado para la entrega final
 
 - Registro e inicio de sesión de reclutadores con Google.
-- Creación de una empresa e invitación de compañeros al espacio privado compartido de la empresa.
-- Aislamiento de los bancos de CVs entre empresas.
+- Banco privado de CVs y posiciones por reclutador; no se comparten datos entre cuentas en esta etapa.
 - Posiciones persistentes con estado `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
 - Banco privado de candidatos: persistencia de datos y texto extraído, y almacenamiento del archivo original en un bucket privado.
 - Carga masiva de CVs con progreso y errores por archivo.
-- Evaluaciones persistentes de un candidato frente a una o varias posiciones abiertas, con resultado separado por cada cruce.
-- Etapas independientes por relación candidato–posición: `Evaluado`, `En entrevista` o `Descartado`.
+- Solicitudes persistentes que asocian un candidato con una o varias posiciones abiertas.
+- Historial de evaluaciones y etapas independientes por solicitud: `Evaluado`, `En entrevista` o `Descartado`.
 - Preguntas de entrevista basadas en los requisitos, fortalezas y brechas del cruce elegido.
 - Evaluación y generación de preguntas de Azure OpenAI desde un backend, sin claves secretas en el frontend.
 - Despliegue accesible con verificación de un flujo integrado.
 
-La elección de proveedor de autenticación, base de datos, almacenamiento privado y hosting sigue pendiente. También resta definir permisos de miembros, duplicados, límites de archivo, retención y eliminación de datos personales. No hay una demo pública desplegada a la fecha de esta documentación.
+La elección de proveedor de autenticación, base de datos, almacenamiento privado y hosting sigue pendiente. También resta definir duplicados, límites de archivo, retención y eliminación de datos personales. No hay una demo pública desplegada a la fecha de esta documentación. El trabajo colaborativo entre reclutadores y los bancos compartidos por empresa quedan como evolución futura.
 
 ## Tecnologías presentes
 
@@ -43,7 +42,7 @@ La elección de proveedor de autenticación, base de datos, almacenamiento priva
 - Playwright para pruebas end-to-end.
 - Oxlint para análisis estático.
 
-La base de datos, el proveedor de autenticación, el bucket privado y el hosting de la arquitectura final todavía no están incorporados al proyecto.
+Hay una migración SQL inicial en `supabase/migrations/` con el esquema, las políticas RLS y el bucket privado. El usuario reportó haberla aplicado en su proyecto de prueba de Supabase; esta aplicación todavía no usa la base de datos ni el bucket para persistir datos.
 
 ## Requisitos
 
@@ -60,6 +59,8 @@ npm run dev
 ```
 
 Vite mostrará la URL local, normalmente `http://localhost:5173`.
+
+Para habilitar el inicio de sesión, usá `.env.example` como referencia y agregá a `.env` `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` con la URL del proyecto y su clave pública (publishable/anon). Permití `http://localhost:5173` en las URL de redirección de Supabase. No pongas claves `service_role`, secretos OAuth ni credenciales privadas en variables `VITE_`. Si faltan estos valores, la aplicación bloquea el acceso al espacio privado.
 
 El servidor auxiliar de importación se ejecuta por separado:
 
@@ -83,7 +84,7 @@ npm run build
 npx playwright test
 ```
 
-Las pruebas E2E existentes cubren definición de requisitos, carga y análisis de un CV, y cambio de tema. Las pruebas del alcance ampliado —autenticación, aislamiento entre empresas, persistencia, lotes, cruces, etapas, generación de preguntas y despliegue— todavía deben incorporarse.
+Las pruebas E2E cubren el requisito de autenticación y el inicio del flujo OAuth, además de definición de requisitos, carga y análisis de un CV, y cambio de tema. El cliente de Supabase se conecta para autenticar reclutadores; persistencia, aislamiento entre cuentas en datos, lotes, solicitudes, historial, etapas, generación de preguntas y despliegue todavía deben incorporarse.
 
 ## Estructura principal
 
@@ -99,4 +100,6 @@ tests/          Pruebas end-to-end del MVP
 documentacion/
   arquitectura-y-alcance.md
   alcance-entrega-final-y-historias.md
+supabase/
+  migrations/     Esquema inicial propuesto; pendiente de aplicar y validar
 ```
