@@ -1,9 +1,32 @@
 import { createServer } from 'node:http'
+import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 
 const maxBodyLength = 3_000_000
 const maxSourceLength = 500_000
 const maxResumeLength = 600_000
+const evaluatorVersion = 'candidate-evaluation-v1'
+const getContentFingerprint = (text) =>
+  createHash('md5').update(text, 'utf8').digest('hex')
+const getEvaluationFingerprint = (requirements, resumeText) =>
+  createHash('sha256')
+    .update(
+      JSON.stringify({
+        evaluatorVersion,
+        requirements: {
+          role: requirements.role,
+          seniority: requirements.seniority,
+          seniorityPoints: requirements.seniorityPoints,
+          skills: requirements.skills.map(({ name, points }) => ({
+            name,
+            points,
+          })),
+        },
+        resumeText,
+      }),
+      'utf8',
+    )
+    .digest('hex')
 const seniorities = new Set([
   'Trainee',
   'Junior',
@@ -184,6 +207,7 @@ const createCandidateDocument = async (
 
   let response
   let createdDocuments
+  const contentFingerprint = getContentFingerprint(extractedText)
 
   try {
     response = await fetchImpl(
@@ -203,6 +227,7 @@ const createCandidateDocument = async (
           p_size_bytes: sizeBytes,
           p_storage_path: storagePath,
           p_extracted_text: extractedText,
+          p_content_fingerprint: contentFingerprint,
         }),
         signal: AbortSignal.timeout(10_000),
       },
@@ -229,6 +254,7 @@ const createCandidateDocument = async (
     : createdDocuments
   const candidateId = savedCandidate?.candidate_id
   const candidateDocumentId = savedCandidate?.candidate_document_id
+  const reusedExisting = savedCandidate?.reused_existing
   if (typeof candidateDocumentId !== 'string' || !candidateDocumentId) {
     throw new ApiError(
       502,
@@ -240,7 +266,99 @@ const createCandidateDocument = async (
     throw new ApiError(502, 'Supabase no devolvió el identificador del candidato.')
   }
 
-  return { candidateId, candidateDocumentId }
+  if (typeof reusedExisting !== 'boolean') {
+    throw new ApiError(
+      502,
+      'Supabase no confirmó si se reutilizó o creó el CV.',
+    )
+  }
+
+  return { candidateId, candidateDocumentId, reusedExisting }
+}
+
+const findCandidateDocument = async (userId, input, env, fetchImpl) => {
+  const { extractedText } = input ?? {}
+  if (
+    typeof extractedText !== 'string' ||
+    !extractedText.trim() ||
+    extractedText.length > maxResumeLength
+  ) {
+    throw new ApiError(400, 'El texto del CV no es válido.')
+  }
+
+  const { url } = getSupabaseConfiguration(env)
+  const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !serviceRoleKey) {
+    throw new ApiError(
+      503,
+      'La persistencia de candidatos no está configurada en el servidor.',
+    )
+  }
+
+  let response
+  try {
+    response = await fetchImpl(
+      `${url}/rest/v1/rpc/find_candidate_document_by_fingerprint`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          p_recruiter_id: userId,
+          p_content_fingerprint: getContentFingerprint(extractedText),
+          p_extracted_text: extractedText,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      },
+    )
+  } catch {
+    throw new ApiError(502, 'No se pudo buscar el CV en Supabase.')
+  }
+
+  if (!response.ok) {
+    console.error(
+      `Supabase rechazó la búsqueda de CV duplicado con estado ${response.status}.`,
+    )
+    throw new ApiError(502, 'No se pudo comprobar si el CV ya existe en Supabase.')
+  }
+
+  let matchingDocuments
+  try {
+    matchingDocuments = await response.json()
+  } catch {
+    throw new ApiError(
+      502,
+      'Supabase devolvió una respuesta inválida al buscar el CV.',
+    )
+  }
+
+  const match = Array.isArray(matchingDocuments)
+    ? matchingDocuments[0]
+    : matchingDocuments
+  if (!match) {
+    return { found: false }
+  }
+
+  if (
+    typeof match.candidate_id !== 'string' ||
+    !match.candidate_id ||
+    typeof match.candidate_document_id !== 'string' ||
+    !match.candidate_document_id
+  ) {
+    throw new ApiError(
+      502,
+      'Supabase devolvió identificadores de CV inválidos.',
+    )
+  }
+
+  return {
+    found: true,
+    candidateId: match.candidate_id,
+    candidateDocumentId: match.candidate_document_id,
+  }
 }
 
 const callAzureOpenAI = async (messages, env, fetchImpl) => {
@@ -360,6 +478,215 @@ const isCandidateEvaluation = (value) =>
       value.gaps.every((item) => typeof item === 'string'),
   )
 
+const isUuid = (value) =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  )
+
+const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
+  const {
+    candidateDocumentId,
+    candidateId,
+    evaluation,
+    positionId,
+    requirements,
+    resumeText,
+  } = input ?? {}
+  if (
+    !isUuid(candidateDocumentId) ||
+    !isUuid(candidateId) ||
+    !isUuid(positionId) ||
+    !isJobRequirements(requirements) ||
+    typeof resumeText !== 'string' ||
+    !resumeText.trim() ||
+    resumeText.length > maxResumeLength ||
+    !isCandidateEvaluation(evaluation) ||
+    evaluation.candidateName.trim().length === 0 ||
+    evaluation.candidateName.length > 200 ||
+    evaluation.strengths.length > 100 ||
+    evaluation.gaps.length > 100 ||
+    [...evaluation.strengths, ...evaluation.gaps].some(
+      (item) => item.length > 1000,
+    )
+  ) {
+    throw new ApiError(400, 'Los datos del análisis no son válidos.')
+  }
+
+  const { url } = getSupabaseConfiguration(env)
+  const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !serviceRoleKey) {
+    throw new ApiError(
+      503,
+      'La persistencia de evaluaciones no está configurada en el servidor.',
+    )
+  }
+
+  let response
+  try {
+    response = await fetchImpl(`${url}/rest/v1/rpc/save_evaluation_run`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_recruiter_id: userId,
+        p_candidate_id: candidateId,
+        p_candidate_document_id: candidateDocumentId,
+        p_position_id: positionId,
+        p_earned_points: evaluation.earnedPoints,
+        p_total_points: evaluation.totalPoints,
+        p_verdict: evaluation.verdict,
+        p_strengths: evaluation.strengths,
+        p_gaps: evaluation.gaps,
+        p_request_fingerprint: getEvaluationFingerprint(
+          requirements,
+          resumeText,
+        ),
+        p_evaluator_version: evaluatorVersion,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    })
+  } catch {
+    throw new ApiError(502, 'No se pudo guardar el resultado del análisis en Supabase.')
+  }
+
+  if (!response.ok) {
+    console.error(
+      `Supabase rechazó la persistencia del análisis con estado ${response.status}.`,
+    )
+    throw new ApiError(
+      502,
+      'No se pudo guardar el resultado del análisis en Supabase. Verificá que la migración de historial esté aplicada.',
+    )
+  }
+
+  let savedRuns
+  try {
+    savedRuns = await response.json()
+  } catch {
+    throw new ApiError(
+      502,
+      'Supabase devolvió una respuesta inválida al guardar el análisis.',
+    )
+  }
+  const savedRun = Array.isArray(savedRuns) ? savedRuns[0] : savedRuns
+  if (!isUuid(savedRun?.application_id) || !isUuid(savedRun?.evaluation_run_id)) {
+    throw new ApiError(
+      502,
+      'Supabase no devolvió los identificadores del historial de análisis.',
+    )
+  }
+  if (typeof savedRun.reused_existing !== 'boolean') {
+    throw new ApiError(
+      502,
+      'Supabase no confirmó si reutilizó el resultado del análisis.',
+    )
+  }
+
+  return {
+    applicationId: savedRun.application_id,
+    evaluationRunId: savedRun.evaluation_run_id,
+    reusedExisting: savedRun.reused_existing,
+  }
+}
+
+const findExistingEvaluationRun = async (
+  userId,
+  { candidateId, positionId, requirements, resumeText },
+  env,
+  fetchImpl,
+) => {
+  const { url } = getSupabaseConfiguration(env)
+  const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !serviceRoleKey) {
+    throw new ApiError(
+      503,
+      'La consulta del historial no está configurada en el servidor.',
+    )
+  }
+
+  let response
+  try {
+    response = await fetchImpl(`${url}/rest/v1/rpc/find_evaluation_run`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_recruiter_id: userId,
+        p_candidate_id: candidateId,
+        p_position_id: positionId,
+        p_request_fingerprint: getEvaluationFingerprint(
+          requirements,
+          resumeText,
+        ),
+        p_evaluator_version: evaluatorVersion,
+        p_requirements: requirements,
+        p_resume_text: resumeText,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    })
+  } catch {
+    throw new ApiError(502, 'No se pudo consultar el historial de análisis.')
+  }
+
+  if (!response.ok) {
+    console.error(
+      `Supabase rechazó la consulta del historial con estado ${response.status}.`,
+    )
+    throw new ApiError(
+      502,
+      'No se pudo consultar el historial. Verificá que las migraciones de CV e historial estén aplicadas.',
+    )
+  }
+
+  let savedRuns
+  try {
+    savedRuns = await response.json()
+  } catch {
+    throw new ApiError(
+      502,
+      'Supabase devolvió una respuesta inválida al consultar el historial.',
+    )
+  }
+
+  const savedRun = Array.isArray(savedRuns) ? savedRuns[0] : savedRuns
+  if (!savedRun) {
+    return null
+  }
+  if (
+    typeof savedRun.candidate_name !== 'string' ||
+    typeof savedRun.earned_points !== 'number' ||
+    typeof savedRun.total_points !== 'number' ||
+    (savedRun.verdict !== 'Apto' && savedRun.verdict !== 'No Apto') ||
+    !Array.isArray(savedRun.strengths) ||
+    !savedRun.strengths.every((item) => typeof item === 'string') ||
+    !Array.isArray(savedRun.gaps) ||
+    !savedRun.gaps.every((item) => typeof item === 'string') ||
+    !isUuid(savedRun.evaluation_run_id)
+  ) {
+    throw new ApiError(
+      502,
+      'Supabase devolvió un resultado de análisis inválido.',
+    )
+  }
+
+  return {
+    candidateName: savedRun.candidate_name,
+    earnedPoints: savedRun.earned_points,
+    totalPoints: savedRun.total_points,
+    verdict: savedRun.verdict,
+    strengths: savedRun.strengths,
+    gaps: savedRun.gaps,
+    reusedExistingEvaluation: true,
+  }
+}
+
 const parseModelJson = (content, message) => {
   try {
     return JSON.parse(content)
@@ -406,15 +733,57 @@ export const createApiServer = ({
         return
       }
 
+      if (request.url === '/api/candidates/lookup') {
+        const match = await findCandidateDocument(
+          user.id,
+          body,
+          env,
+          fetchImpl,
+        )
+        sendJson(response, 200, match, origin, allowedOrigin)
+        return
+      }
+
+      if (request.url === '/api/evaluation-runs') {
+        const savedRun = await saveEvaluationRun(user.id, body, env, fetchImpl)
+        sendJson(response, 201, savedRun, origin, allowedOrigin)
+        return
+      }
+
       if (request.url === '/api/evaluate-candidate') {
-        const { requirements, resumeText } = body ?? {}
+        const { requirements, resumeText, positionId } = body ?? {}
         if (
           !isJobRequirements(requirements) ||
           typeof resumeText !== 'string' ||
           !resumeText.trim() ||
-          resumeText.length > maxResumeLength
+          resumeText.length > maxResumeLength ||
+          !isUuid(positionId)
         ) {
-          throw new ApiError(400, 'Los requisitos o el texto del CV no son válidos.')
+          throw new ApiError(400, 'El puesto, los requisitos o el texto del CV no son válidos.')
+        }
+
+        const savedCandidate = await findCandidateDocument(
+          user.id,
+          { extractedText: resumeText },
+          env,
+          fetchImpl,
+        )
+        if (savedCandidate.found) {
+          const previousEvaluation = await findExistingEvaluationRun(
+            user.id,
+            {
+              candidateId: savedCandidate.candidateId,
+              positionId,
+              requirements,
+              resumeText,
+            },
+            env,
+            fetchImpl,
+          )
+          if (previousEvaluation) {
+            sendJson(response, 200, previousEvaluation, origin, allowedOrigin)
+            return
+          }
         }
 
         const content = await callAzureOpenAI(
@@ -444,7 +813,13 @@ export const createApiServer = ({
           throw new ApiError(502, 'La respuesta de evaluación tiene un formato inválido.')
         }
 
-        sendJson(response, 200, evaluation, origin, allowedOrigin)
+        sendJson(
+          response,
+          200,
+          { ...evaluation, reusedExistingEvaluation: false },
+          origin,
+          allowedOrigin,
+        )
         return
       }
 

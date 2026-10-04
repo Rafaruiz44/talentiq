@@ -15,7 +15,7 @@ La evaluación asistida por IA apoya el análisis; no sustituye la decisión del
 - Se pueden cargar varios CVs, procesándolos individualmente y mostrando progreso y errores por archivo.
 - Un reclutador puede asociar un candidato de su banco a varias posiciones abiertas. Cada solicitud corresponde a una pareja candidato–posición.
 - La etapa pertenece a la solicitud candidato–posición y usa `Evaluado`, `En entrevista` o `Descartado`; no es el estado de la posición.
-- Cada reanálisis se conserva como una ejecución histórica de la solicitud sin sobrescribir evaluaciones previas.
+- Cada análisis con CV, puesto, requisitos o versión del evaluador distintos se conserva como una ejecución histórica. Si todas esas entradas coinciden con una ejecución guardada, se reutiliza el resultado sin agregar una fila idéntica.
 - Se generan preguntas de entrevista utilizando los requisitos de la posición y las fortalezas o brechas del candidato en ese cruce.
 - Las llamadas principales a Azure OpenAI deben ejecutarse desde el backend; las credenciales no deben exponerse en el frontend.
 - El despliegue accesible es un objetivo de entrega y requiere verificar un flujo funcional integrado.
@@ -30,10 +30,11 @@ El alcance y las historias propuestas están en [documentacion/alcance-entrega-f
 - `src/services/positions.ts` consulta los puestos del reclutador autenticado y persiste cada puesto y sus habilidades con la función transaccional `save_position`.
 - `src/components/PositionList.tsx` presenta los puestos del reclutador y permite abrir su detalle o crear uno nuevo.
 - `src/components/JobRequirementsForm.tsx` permite definir o editar el rol, habilidades ponderadas y seniority.
-- `src/components/CvUpload.tsx` carga un PDF de hasta 5 MB y extrae texto en el navegador con PDF.js. Después de completar el análisis, `src/services/candidates.ts` sube el PDF al bucket privado con la sesión autenticada y el backend persiste el perfil, los metadatos y el texto extraído.
-- `src/services/inferCandidateEvaluation.ts` envía requisitos y texto del CV a `POST /api/evaluate-candidate` con el token de sesión; valida y normaliza la respuesta en el cliente.
-- `server/server.mjs` valida los tokens mediante Supabase antes de las rutas de evaluación e importación, y mantiene las credenciales Azure en variables server-side `AZURE_OPENAI_*`. No implementa todavía persistencia ni carga de CVs.
-- La persistencia de candidato/documento usa la función transaccional `save_candidate_document`, disponible en `supabase/migrations/20261004150000_save_candidate_document_rpc.sql`; el bucket necesita una política para que el reclutador pueda limpiar una carga fallida.
+- `src/components/CvUpload.tsx` carga un PDF de hasta 5 MB y extrae texto en el navegador con PDF.js. `src/services/candidates.ts` comprueba si el mismo texto ya existe para el reclutador y reutiliza el candidato y documento; si no existe, sube el archivo al bucket privado y pide al backend guardar candidato, metadatos y texto.
+- `src/services/inferCandidateEvaluation.ts` envía requisitos, texto del CV y el puesto a `POST /api/evaluate-candidate` con el token de sesión; valida y normaliza la respuesta en el cliente.
+- `server/server.mjs` valida los tokens mediante Supabase antes de las rutas privadas, mantiene las credenciales Azure en variables server-side `AZURE_OPENAI_*`, consulta el historial antes de invocar Azure y persiste evaluaciones nuevas mediante RPCs de servicio.
+- La persistencia de candidato/documento usa funciones transaccionales definidas en `supabase/migrations/20261004150000_save_candidate_document_rpc.sql` y `supabase/migrations/20261004170000_deduplicate_candidate_documents.sql`; el bucket tiene una política para que el reclutador pueda limpiar una carga fallida.
+- La consulta y escritura idempotente de evaluaciones usa `supabase/migrations/20261004180000_reuse_unchanged_evaluations.sql`. La migración `20261004190000_reuse_legacy_unchanged_evaluations.sql` extiende la búsqueda a evaluaciones antiguas sin huella, solo si el CV coincide exactamente y la posición no se modificó desde esa evaluación.
 - En desarrollo, `npm run dev:api` inicia el backend y Vite reenvía `/api` al puerto 3001. Las rutas backend tienen pruebas Node en `server/server.test.mjs`.
 - El usuario confirmó que aplicó las migraciones `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql` y `supabase/migrations/20261003214000_save_position_rpc.sql` en su proyecto Supabase; tras aplicar la segunda, confirmó que el puesto apareció correctamente.
 - El usuario confirmó que Google está habilitado y que el inicio de sesión OAuth termina con la sesión activa en Talentiq. Al cerrar sesión vuelve a la pantalla de acceso; al iniciar otra vez, Google reutiliza la sesión del navegador y no solicita la contraseña. Se conserva este comportamiento SSO.
@@ -42,7 +43,7 @@ El alcance y las historias propuestas están en [documentacion/alcance-entrega-f
 - Las pruebas Playwright cubren autenticación y la interfaz de gestión de puestos con respuestas de Supabase simuladas; el usuario confirmó además que un puesto guardado apareció correctamente en el proyecto real.
 - La documentación existente indica que no hay demo pública desplegada.
 
-Por tanto, el login/logout de Google y el guardado de puestos con sus ponderaciones están conectados y probados contra el proyecto real por el usuario. El backend de evaluación y persistencia de CV requiere una sesión de Supabase validada; Azure y la escritura administrativa usan credenciales server-side. `SUPABASE_SERVICE_ROLE_KEY` está configurada localmente, y el usuario confirmó que aplicó `20261004150000_save_candidate_document_rpc.sql`. El nuevo flujo de persistencia aún no se ha probado con una escritura real; las pruebas actuales usan mocks. Siguen pendientes el banco/listado de candidatos y duplicados, la carga masiva, solicitudes, seguimiento de etapas, historial de evaluaciones, generación de preguntas y despliegue integrado.
+Por tanto, el login/logout de Google, el guardado de puestos y la persistencia de un PDF están conectados y probados contra el proyecto real por el usuario. `SUPABASE_SERVICE_ROLE_KEY` está configurada localmente. Las migraciones `20261004170000_deduplicate_candidate_documents.sql`, `20261004180000_reuse_unchanged_evaluations.sql` y `20261004190000_reuse_legacy_unchanged_evaluations.sql` deben aplicarse para habilitar deduplicación de CV, reutilización de evaluaciones nuevas y búsqueda segura de evaluaciones anteriores. La app todavía no muestra el banco de candidatos ni el historial; siguen pendientes la carga masiva, gestión de etapas, preguntas de entrevista y despliegue integrado.
 
 ## 4. Modelo funcional de referencia
 

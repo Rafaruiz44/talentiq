@@ -30,6 +30,8 @@ Este es el alcance acordado, no una afirmación de que esas capacidades estén i
 - No usar controles de la interfaz como sustituto del aislamiento entre cuentas en el servidor.
 - Mantener las claves de Azure OpenAI y otras credenciales exclusivamente en el backend; no incluir secretos en variables `VITE_*` ni en el bundle cliente.
 - Informar explícitamente errores de autenticación, autorización, base de datos, almacenamiento y servicios de IA. No responder con éxito simulado ante fallos.
+- Incrementar `evaluatorVersion` en `server/server.mjs` cuando cambien el prompt, las reglas de evaluación o la normalización que afecte los resultados, para invalidar la reutilización de evaluaciones antiguas.
+- Para ejecutar una evaluación, consultar primero el historial persistido por candidato, CV, puesto, requisitos y versión del evaluador. No invocar Azure si existe un resultado válido; fallar explícitamente si no se puede consultar la base de datos.
 - Ampliar las pruebas para cubrir persistencia, aislamiento entre cuentas, carga masiva, errores parciales, solicitudes, historial de evaluaciones y etapas independientes, así como flujos de autenticación.
 - No instalar dependencias sin preguntar primero.
 
@@ -38,7 +40,7 @@ Este es el alcance acordado, no una afirmación de que esas capacidades estén i
 - El estado de una posición no es el estado de un candidato.
 - La etapa de un candidato se guarda en su relación con una posición.
 - Cada solicitud corresponde a una pareja candidato–posición y pertenece a un reclutador.
-- Cada reanálisis agrega una evaluación histórica a la solicitud sin eliminar las anteriores.
+- Cada análisis con CV, puesto o requisitos distintos (o nueva versión del evaluador) agrega una evaluación histórica a la solicitud; si los datos y la versión no cambiaron, se reutiliza el resultado existente sin agregar otra ejecución.
 - Los datos y documentos de CV pertenecen al banco privado de un reclutador y no se comparten con otras cuentas.
 - Las preguntas generadas deben usar el contexto del cruce candidato–posición seleccionado.
 

@@ -341,6 +341,8 @@ const isCandidateEvaluation = (
     typeof candidate.totalPoints === 'number' &&
     candidate.totalPoints > 0 &&
     candidate.earnedPoints <= candidate.totalPoints &&
+    (candidate.reusedExistingEvaluation === undefined ||
+      typeof candidate.reusedExistingEvaluation === 'boolean') &&
     (candidate.verdict === 'Apto' || candidate.verdict === 'No Apto') &&
     Array.isArray(candidate.strengths) &&
     candidate.strengths.every((item) => typeof item === 'string') &&
@@ -353,6 +355,7 @@ export async function inferCandidateEvaluation(
   requirements: JobRequirements,
   resume: CandidateResume,
   accessToken: string,
+  positionId: string,
 ): Promise<CandidateEvaluation> {
   const response = await fetch('/api/evaluate-candidate', {
     method: 'POST',
@@ -363,6 +366,7 @@ export async function inferCandidateEvaluation(
     body: JSON.stringify({
       requirements,
       resumeText: resume.text,
+      positionId,
     }),
   })
 
@@ -380,6 +384,9 @@ export async function inferCandidateEvaluation(
 
   if (!isCandidateEvaluation(result)) {
     throw new Error('La respuesta de evaluación tiene un formato inválido.')
+  }
+  if (result.reusedExistingEvaluation) {
+    return result
   }
 
   const senioritySummary = getSenioritySummary(normalizeText(resume.text), requirements)

@@ -5,6 +5,7 @@ import { EvaluationResults } from './components/EvaluationResults'
 import { JobRequirementsForm } from './components/JobRequirementsForm'
 import { PositionList } from './components/PositionList'
 import { saveCandidateDocument } from './services/candidates'
+import { saveEvaluationRun } from './services/evaluations'
 import { inferCandidateEvaluation } from './services/inferCandidateEvaluation'
 import {
   listSavedPositions,
@@ -393,10 +394,13 @@ export function App() {
 
   const handleAnalyze = async (
     requirements: JobRequirements = jobRequirements,
+    positionId = selectedPositionId,
   ) => {
     const currentRunId = ++analysisRunId.current
     setLoading(true)
     setError(null)
+    setCandidateSaveError(null)
+    setCandidateSaveNotice(null)
 
     try {
       if (!session?.access_token) {
@@ -406,17 +410,25 @@ export function App() {
         requirements,
         candidateResume,
         session.access_token,
+        positionId ?? '',
       )
       if (currentRunId === analysisRunId.current) {
         setEvaluation(result)
       }
 
+      if (currentRunId !== analysisRunId.current) {
+        return
+      }
+
+      let savedCandidateId = candidateResume.candidateId
+      let savedCandidateDocumentId = candidateResume.candidateDocumentId
+      let reusedExistingCandidate = false
+      let duplicateCleanupWarning = ''
       if (
-        currentRunId === analysisRunId.current &&
         session?.user.id &&
         session.access_token &&
         candidateResume.file &&
-        !candidateResume.candidateDocumentId
+        (!savedCandidateId || !savedCandidateDocumentId)
       ) {
         setCandidateSaveError(null)
         setCandidateSaveNotice(null)
@@ -428,27 +440,77 @@ export function App() {
             file: candidateResume.file,
             recruiterId: session.user.id,
           })
-          if (currentRunId === analysisRunId.current) {
-            setCandidateResume((currentResume) =>
-              currentResume.file === candidateResume.file
-                ? {
-                    ...currentResume,
-                    candidateDocumentId: savedCandidate.candidateDocumentId,
-                  }
-                : currentResume,
-            )
-            setCandidateSaveNotice(
-              `${result.candidateName} y su CV se guardaron en el banco de candidatos.`,
-            )
-          }
+          savedCandidateId = savedCandidate.candidateId
+          savedCandidateDocumentId = savedCandidate.candidateDocumentId
+          reusedExistingCandidate = savedCandidate.reusedExisting
+          duplicateCleanupWarning = savedCandidate.cleanupWarning ?? ''
+          setCandidateResume((currentResume) =>
+            currentResume.file === candidateResume.file
+              ? {
+                  ...currentResume,
+                  candidateId: savedCandidate.candidateId,
+                  candidateDocumentId: savedCandidate.candidateDocumentId,
+                }
+              : currentResume,
+          )
         } catch (saveError) {
           if (currentRunId === analysisRunId.current) {
             setCandidateSaveError(
               saveError instanceof Error
-                ? `El análisis se completó, pero no se pudo guardar el CV: ${saveError.message}`
-                : 'El análisis se completó, pero no se pudo guardar el CV.',
+                ? `El análisis se completó, pero no se pudo guardar el CV ni su resultado: ${saveError.message}`
+                : 'El análisis se completó, pero no se pudo guardar el CV ni su resultado.',
             )
           }
+          return
+        }
+      }
+
+      if (currentRunId !== analysisRunId.current) {
+        return
+      }
+
+      if (
+        !session?.access_token ||
+        !positionId ||
+        !savedCandidateId ||
+        !savedCandidateDocumentId
+      ) {
+        setCandidateSaveError(
+          'El análisis se completó, pero no se guardó en el historial porque falta un CV PDF guardado asociado a un puesto.',
+        )
+        return
+      }
+
+      try {
+        let reusedExistingEvaluation = result.reusedExistingEvaluation ?? false
+        if (!result.reusedExistingEvaluation) {
+          reusedExistingEvaluation = await saveEvaluationRun({
+            accessToken: session.access_token,
+            candidateDocumentId: savedCandidateDocumentId,
+            candidateId: savedCandidateId,
+            evaluation: result,
+            positionId,
+            requirements,
+            resumeText: candidateResume.text,
+          })
+        }
+        if (currentRunId === analysisRunId.current) {
+          setCandidateSaveError(null)
+          setCandidateSaveNotice(
+            reusedExistingEvaluation
+              ? 'El CV y los requisitos no cambiaron; se reutilizó la evaluación existente sin agregar otra al historial.'
+              : reusedExistingCandidate
+                ? `El CV ya estaba en el banco; se reutilizó y se guardó una nueva evaluación en el historial del puesto.${duplicateCleanupWarning}`
+                : `El resultado del análisis se guardó en el historial del puesto.${duplicateCleanupWarning}`,
+          )
+        }
+      } catch (saveError) {
+        if (currentRunId === analysisRunId.current) {
+          setCandidateSaveError(
+            saveError instanceof Error
+              ? `El análisis se completó, pero no se pudo guardar en el historial: ${saveError.message}`
+              : 'El análisis se completó, pero no se pudo guardar en el historial.',
+          )
         }
       }
     } catch (analysisError) {
@@ -753,7 +815,12 @@ export function App() {
                   requirements={currentPosition.requirements}
                   resume={candidateResume}
                   loading={loading}
-                  onAnalyze={() => handleAnalyze(currentPosition.requirements)}
+                  onAnalyze={() =>
+                    handleAnalyze(
+                      currentPosition.requirements,
+                      currentPosition.id,
+                    )
+                  }
                 />
                 {error && (
                   <p role="alert" data-testid="error-message">

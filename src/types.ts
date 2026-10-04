@@ -19,6 +19,7 @@ export interface CandidateResume {
   text: string
   fileName: string | null
   file?: File | null
+  candidateId?: string
   candidateDocumentId?: string
 }
 
@@ -29,4 +30,5 @@ export interface CandidateEvaluation {
   verdict: 'Apto' | 'No Apto'
   strengths: string[]
   gaps: string[]
+  reusedExistingEvaluation?: boolean
 }
