@@ -845,6 +845,15 @@ ul {
   box-shadow: none;
 }
 
+.page-surface .candidate-bank-panel {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .position-list-heading,
 .detail-title-row,
 .editor-actions,
@@ -864,6 +873,169 @@ ul {
   margin: 7px 0 0;
   color: #748096;
   font-size: 0.9rem;
+}
+
+.candidate-bank-heading,
+.candidate-bank-tools,
+.candidate-card,
+.candidate-card-identity,
+.candidate-create-position,
+.candidate-bank-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.candidate-bank-heading {
+  align-items: flex-start;
+}
+
+.candidate-bank-heading h2,
+.candidate-card h3,
+.candidate-empty-state h3 {
+  margin: 0;
+  color: var(--heading-text);
+}
+
+.candidate-bank-heading p,
+.candidate-card-identity p,
+.candidate-empty-state p,
+.candidate-create-position p,
+.candidate-no-results {
+  margin: 7px 0 0;
+  color: #748096;
+  font-size: 0.9rem;
+}
+
+.candidate-count {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  color: #4338ca;
+  background: #eef2ff;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.candidate-bank-tools {
+  align-items: flex-end;
+  margin: 22px 0;
+}
+
+.candidate-search,
+.candidate-position-select {
+  display: grid;
+  flex: 1 1 220px;
+  gap: 7px;
+}
+
+.candidate-search span,
+.candidate-position-select span {
+  color: var(--label-text);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.candidate-card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.candidate-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: 11px;
+}
+
+.candidate-card-identity {
+  min-width: 200px;
+  justify-content: flex-start;
+  flex: 1 1 260px;
+}
+
+.candidate-avatar {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  color: #4338ca;
+  background: #eef2ff;
+  border-radius: 13px;
+  font-size: 1.05rem;
+  font-weight: 750;
+}
+
+.candidate-card-identity h3 {
+  overflow-wrap: anywhere;
+  font-size: 0.96rem;
+}
+
+.candidate-card-identity p {
+  margin-top: 4px;
+  font-size: 0.78rem;
+}
+
+.candidate-card-document {
+  display: grid;
+  min-width: 150px;
+  flex: 1 1 180px;
+  gap: 3px;
+}
+
+.candidate-document-label,
+.candidate-document-date {
+  color: #748096;
+  font-size: 0.74rem;
+}
+
+.candidate-document-name {
+  overflow: hidden;
+  color: var(--heading-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-card-action {
+  flex: 0 0 auto;
+}
+
+.candidate-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  padding: 42px 16px;
+  text-align: center;
+}
+
+.candidate-empty-state p {
+  max-width: 480px;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.candidate-create-position {
+  margin-top: 18px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--panel-border);
+}
+
+.candidate-create-position p {
+  margin: 0;
+}
+
+.candidate-bank-error {
+  justify-content: flex-start;
+  margin: 14px 0;
+  color: #b42318;
+}
+
+.candidate-bank-error p {
+  margin: 0;
 }
 
 .position-empty-state {
@@ -1207,6 +1379,13 @@ ul {
 
 .app-shell[data-theme='dark'] .position-list-heading p,
 .app-shell[data-theme='dark'] .position-empty-state p,
+.app-shell[data-theme='dark'] .candidate-bank-heading p,
+.app-shell[data-theme='dark'] .candidate-card-identity p,
+.app-shell[data-theme='dark'] .candidate-empty-state p,
+.app-shell[data-theme='dark'] .candidate-create-position p,
+.app-shell[data-theme='dark'] .candidate-no-results,
+.app-shell[data-theme='dark'] .candidate-document-label,
+.app-shell[data-theme='dark'] .candidate-document-date,
 .app-shell[data-theme='dark'] .detail-title-row .eyebrow,
 .app-shell[data-theme='dark'] .position-requirements-grid dt,
 .app-shell[data-theme='dark'] .detail-skills li span:last-child {
@@ -1214,6 +1393,12 @@ ul {
 }
 
 .app-shell[data-theme='dark'] .empty-state-mark {
+  color: #c7d2fe;
+  background: #312e81;
+}
+
+.app-shell[data-theme='dark'] .candidate-count,
+.app-shell[data-theme='dark'] .candidate-avatar {
   color: #c7d2fe;
   background: #312e81;
 }
@@ -1377,13 +1562,31 @@ ul {
   }
 
   .position-list-heading,
-  .detail-title-row {
+  .detail-title-row,
+  .candidate-bank-heading {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .position-list-heading > button {
+  .position-list-heading > button,
+  .candidate-card-action,
+  .candidate-card-action > button {
     width: 100%;
+  }
+
+  .candidate-bank-tools,
+  .candidate-card,
+  .candidate-create-position {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .candidate-card {
+    gap: 12px;
+  }
+
+  .candidate-card-identity {
+    min-width: 0;
   }
 
   .detail-actions {

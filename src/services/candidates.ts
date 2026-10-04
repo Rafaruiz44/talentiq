@@ -1,5 +1,26 @@
 import { supabaseClient } from './supabaseClient'
 
+export interface SavedCandidateDocument {
+  id: string
+  fileName: string
+  status: 'pending' | 'processing' | 'processed' | 'failed'
+  createdAt: string
+}
+
+export interface SavedCandidate {
+  id: string
+  name: string
+  createdAt: string
+  documents: SavedCandidateDocument[]
+}
+
+export interface SavedCandidateResume {
+  candidateId: string
+  candidateDocumentId: string
+  fileName: string
+  text: string
+}
+
 interface SaveCandidateDocumentInput {
   accessToken: string
   candidateName: string
@@ -26,6 +47,128 @@ const getApiError = (body: unknown): string => {
   }
 
   return 'No se pudo guardar el CV en el banco de candidatos.'
+}
+
+const asRecord = (value: unknown): Record<string, unknown> => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('Supabase devolvió un candidato con formato inválido.')
+  }
+
+  return value as Record<string, unknown>
+}
+
+const isDocumentStatus = (
+  value: unknown,
+): value is SavedCandidateDocument['status'] =>
+  value === 'pending' ||
+  value === 'processing' ||
+  value === 'processed' ||
+  value === 'failed'
+
+const parseSavedCandidate = (value: unknown): SavedCandidate => {
+  const row = asRecord(value)
+  if (
+    typeof row.id !== 'string' ||
+    typeof row.full_name !== 'string' ||
+    typeof row.created_at !== 'string' ||
+    !Array.isArray(row.candidate_documents)
+  ) {
+    throw new Error('Supabase devolvió un candidato con formato inválido.')
+  }
+
+  const documents = row.candidate_documents.map((documentValue) => {
+    const document = asRecord(documentValue)
+    if (
+      typeof document.id !== 'string' ||
+      typeof document.original_file_name !== 'string' ||
+      !isDocumentStatus(document.processing_status) ||
+      typeof document.created_at !== 'string'
+    ) {
+      throw new Error('Supabase devolvió un CV con formato inválido.')
+    }
+    return {
+      id: document.id,
+      fileName: document.original_file_name,
+      status: document.processing_status,
+      createdAt: document.created_at,
+    }
+  })
+
+  return {
+    id: row.id,
+    name: row.full_name,
+    createdAt: row.created_at,
+    documents,
+  }
+}
+
+export async function listSavedCandidates(
+  recruiterId: string,
+): Promise<SavedCandidate[]> {
+  if (!supabaseClient) {
+    throw new Error('Supabase no está configurado.')
+  }
+
+  const { data, error } = await supabaseClient
+    .from('candidates')
+    .select(
+      'id, full_name, created_at, candidate_documents(id, original_file_name, processing_status, created_at)',
+    )
+    .eq('recruiter_id', recruiterId)
+    .order('full_name', { ascending: true })
+
+  if (error) {
+    throw new Error(`No se pudieron cargar los candidatos: ${error.message}`)
+  }
+  if (!Array.isArray(data)) {
+    throw new Error('Supabase devolvió una lista de candidatos inválida.')
+  }
+
+  return data.map(parseSavedCandidate)
+}
+
+export async function getSavedCandidateResume({
+  recruiterId,
+  candidateId,
+  candidateDocumentId,
+}: {
+  recruiterId: string
+  candidateId: string
+  candidateDocumentId: string
+}): Promise<SavedCandidateResume> {
+  if (!supabaseClient) {
+    throw new Error('Supabase no está configurado.')
+  }
+
+  const { data, error } = await supabaseClient
+    .from('candidate_documents')
+    .select('candidate_id, id, original_file_name, extracted_text, processing_status')
+    .eq('recruiter_id', recruiterId)
+    .eq('candidate_id', candidateId)
+    .eq('id', candidateDocumentId)
+    .eq('processing_status', 'processed')
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`No se pudo cargar el CV seleccionado: ${error.message}`)
+  }
+  if (
+    !data ||
+    typeof data.candidate_id !== 'string' ||
+    typeof data.id !== 'string' ||
+    typeof data.original_file_name !== 'string' ||
+    typeof data.extracted_text !== 'string' ||
+    !data.extracted_text.trim()
+  ) {
+    throw new Error('El CV seleccionado no está disponible para analizar.')
+  }
+
+  return {
+    candidateId: data.candidate_id,
+    candidateDocumentId: data.id,
+    fileName: data.original_file_name,
+    text: data.extracted_text,
+  }
 }
 
 export async function saveCandidateDocument({

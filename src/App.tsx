@@ -4,7 +4,13 @@ import { CvUpload } from './components/CvUpload'
 import { EvaluationResults } from './components/EvaluationResults'
 import { JobRequirementsForm } from './components/JobRequirementsForm'
 import { PositionList } from './components/PositionList'
-import { saveCandidateDocument } from './services/candidates'
+import { CandidateBank } from './components/CandidateBank'
+import {
+  getSavedCandidateResume,
+  listSavedCandidates,
+  saveCandidateDocument,
+  type SavedCandidate,
+} from './services/candidates'
 import { saveEvaluationRun } from './services/evaluations'
 import { inferCandidateEvaluation } from './services/inferCandidateEvaluation'
 import {
@@ -60,6 +66,17 @@ export function App() {
   const [positionsLoadedForUserId, setPositionsLoadedForUserId] = useState<
     string | null
   >(null)
+  const [savedCandidates, setSavedCandidates] = useState<SavedCandidate[]>([])
+  const [candidatesLoadedForUserId, setCandidatesLoadedForUserId] = useState<
+    string | null
+  >(null)
+  const [candidateListRefreshKey, setCandidateListRefreshKey] = useState(0)
+  const [candidateBankError, setCandidateBankError] = useState<string | null>(
+    null,
+  )
+  const [loadingCandidateDocumentId, setLoadingCandidateDocumentId] = useState<
+    string | null
+  >(null)
   const [positionSaving, setPositionSaving] = useState(false)
   const [positionError, setPositionError] = useState<string | null>(null)
   const [positionNotice, setPositionNotice] = useState<string | null>(null)
@@ -97,6 +114,10 @@ export function App() {
       setSavedPositions([])
       setSelectedPositionId(null)
       setPositionsLoadedForUserId(null)
+      setSavedCandidates([])
+      setCandidatesLoadedForUserId(null)
+      setCandidateBankError(null)
+      setLoadingCandidateDocumentId(null)
       setPositionError(null)
       setPositionNotice(null)
       setCandidateResume({ text: '', fileName: null, file: null })
@@ -205,6 +226,7 @@ export function App() {
 
   const routePath = currentPath.split('#')[0]
   const isPositionsList = routePath === '/puestos'
+  const isCandidatesList = routePath === '/candidatos'
   const isNewPosition = routePath === '/puestos/nuevo'
   const editRouteMatch = routePath.match(/^\/puestos\/([^/]+)\/editar$/)
   const detailRouteMatch = routePath.match(/^\/puestos\/([^/]+)$/)
@@ -221,11 +243,46 @@ export function App() {
   const isPositionEditor = isNewPosition || Boolean(editingPositionId)
   const pageTitle = isPositionsList
     ? 'Puestos'
-    : isNewPosition
-      ? 'Crear puesto'
-      : editingPositionId
-        ? 'Editar puesto'
-        : currentPosition?.title ?? 'Puesto'
+    : isCandidatesList
+      ? 'Candidatos'
+      : isNewPosition
+        ? 'Crear puesto'
+        : editingPositionId
+          ? 'Editar puesto'
+          : currentPosition?.title ?? 'Puesto'
+
+  useEffect(() => {
+    const recruiterId = session?.user.id
+    if (!recruiterId) {
+      return
+    }
+
+    let isActive = true
+    void listSavedCandidates(recruiterId)
+      .then((candidates) => {
+        if (isActive) {
+          setSavedCandidates(candidates)
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (isActive) {
+          setCandidateBankError(
+            loadError instanceof Error
+              ? loadError.message
+              : 'No se pudieron cargar los candidatos.',
+          )
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setCandidatesLoadedForUserId(recruiterId)
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [session?.user.id, candidateListRefreshKey])
 
   useEffect(() => {
     if (!routePositionId || !positionsLoadedForUserId) {
@@ -269,6 +326,65 @@ export function App() {
     setPositionError(null)
     setPositionNotice(null)
     navigate('/puestos/nuevo')
+  }
+
+  const handleUseSavedCandidate = async (
+    candidateId: string,
+    candidateDocumentId: string,
+    positionId: string,
+  ) => {
+    const recruiterId = session?.user.id
+    if (!recruiterId) {
+      setCandidateBankError('Iniciá sesión nuevamente para usar este CV.')
+      return
+    }
+    const position = savedPositions.find((item) => item.id === positionId)
+    if (!position) {
+      setCandidateBankError('El puesto seleccionado ya no está disponible.')
+      return
+    }
+
+    setLoadingCandidateDocumentId(candidateDocumentId)
+    setCandidateBankError(null)
+    try {
+      const resume = await getSavedCandidateResume({
+        recruiterId,
+        candidateId,
+        candidateDocumentId,
+      })
+      if (activeUserId.current !== recruiterId) {
+        return
+      }
+      analysisRunId.current += 1
+      setSelectedPositionId(position.id)
+      setJobRequirements(position.requirements)
+      setCandidateResume({
+        text: resume.text,
+        fileName: resume.fileName,
+        file: null,
+        candidateId: resume.candidateId,
+        candidateDocumentId: resume.candidateDocumentId,
+      })
+      setLoading(false)
+      setEvaluation(null)
+      setError(null)
+      setCandidateSaveError(null)
+      setCandidateSaveNotice(null)
+      setPositionNotice(null)
+      navigate(`/puestos/${encodeURIComponent(position.id)}#cv-analysis`)
+    } catch (resumeError: unknown) {
+      if (activeUserId.current === recruiterId) {
+        setCandidateBankError(
+          resumeError instanceof Error
+            ? resumeError.message
+            : 'No se pudo cargar el CV seleccionado.',
+        )
+      }
+    } finally {
+      if (activeUserId.current === recruiterId) {
+        setLoadingCandidateDocumentId(null)
+      }
+    }
   }
 
   const handleEditPosition = (positionId: string) => {
@@ -567,6 +683,19 @@ export function App() {
               Puestos
             </a>
             <a
+              className={`sidebar-link${isCandidatesList ? ' sidebar-link-active' : ''}`}
+              href="/candidatos"
+              onClick={(event) => {
+                event.preventDefault()
+                navigate('/candidatos')
+              }}
+            >
+              <span className="sidebar-link-mark" aria-hidden="true">
+                C
+              </span>
+              Candidatos
+            </a>
+            <a
               className={`sidebar-link${detailPositionId ? ' sidebar-link-active' : ''}`}
               href={
                 selectedPositionId
@@ -640,6 +769,8 @@ export function App() {
             <p>
               {isPositionsList
                 ? 'Organizá tus búsquedas y elegí una posición para continuar.'
+                : isCandidatesList
+                  ? 'Consultá tus candidatos guardados y reutilizá sus CVs en otras posiciones.'
                 : isPositionEditor
                   ? 'Definí el rol, las habilidades requeridas y su ponderación.'
                   : currentPosition
@@ -664,6 +795,34 @@ export function App() {
               }
               onCreate={handleNewPosition}
               onOpen={handleSelectPosition}
+            />
+          </section>
+        )}
+
+        {isCandidatesList && (
+          <section className="page-surface">
+            <CandidateBank
+              candidates={savedCandidates}
+              positions={savedPositions}
+              loading={
+                Boolean(session.user.id) &&
+                candidatesLoadedForUserId !== session.user.id
+              }
+              loadingDocumentId={loadingCandidateDocumentId}
+              error={candidateBankError}
+              onRetry={() => {
+                setCandidateBankError(null)
+                setCandidatesLoadedForUserId(null)
+                setCandidateListRefreshKey((current) => current + 1)
+              }}
+              onUseCandidate={(candidateId, candidateDocumentId, positionId) =>
+                void handleUseSavedCandidate(
+                  candidateId,
+                  candidateDocumentId,
+                  positionId,
+                )
+              }
+              onCreatePosition={handleNewPosition}
             />
           </section>
         )}
