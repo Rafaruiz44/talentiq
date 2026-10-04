@@ -29,6 +29,7 @@ El alcance y las historias propuestas están en [documentacion/alcance-entrega-f
 - La interfaz autenticada usa un shell Modern SaaS adaptable y separa los flujos en `/puestos` (listado), `/puestos/nuevo` (creación), `/puestos/:id` (detalle, carga y evaluación de CV) y `/puestos/:id/editar` (edición). La navegación usa History API, sin agregar una dependencia de routing.
 - `src/services/positions.ts` consulta los puestos del reclutador autenticado y persiste cada puesto y sus habilidades con la función transaccional `save_position`.
 - `src/components/PositionList.tsx` presenta los puestos del reclutador y permite abrir su detalle o crear uno nuevo.
+- La opción "Evaluación de CV" del menú lateral abre siempre `/evaluacion-cv`, con `src/components/CvEvaluationPositionPicker.tsx`: sin puestos muestra "Primero crea un puesto" con acceso para crear uno; con puestos lista los puestos para elegir uno y abre `/puestos/:id#cv-analysis`; distingue cargando, error de carga y cuenta sin puestos. Ya no abre automáticamente el último puesto creado o seleccionado.
 - `src/components/JobRequirementsForm.tsx` permite definir o editar el rol, habilidades ponderadas y seniority.
 - `src/components/CvUpload.tsx` carga un PDF de hasta 5 MB y extrae texto en el navegador con PDF.js.
 - `src/services/inferCandidateEvaluation.ts` contiene lógica de evaluación local y llama a Azure OpenAI directamente desde el navegador cuando están configuradas variables `VITE_*`.
@@ -37,7 +38,7 @@ El alcance y las historias propuestas están en [documentacion/alcance-entrega-f
 - El usuario confirmó que Google está habilitado y que el inicio de sesión OAuth termina con la sesión activa en Talentiq. Al cerrar sesión vuelve a la pantalla de acceso; al iniciar otra vez, Google reutiliza la sesión del navegador y no solicita la contraseña. Se conserva este comportamiento SSO.
 - El usuario compartió la consulta de `pg_policies`: `positions` y `position_skills` tienen políticas `SELECT`, `INSERT` y `UPDATE` con `recruiter_id = auth.uid()` para `authenticated`. Storage muestra las tres políticas previstas para `candidate-cvs`; no se ha inspeccionado el predicado completo de cada política de Storage.
 - El usuario confirmó la ejecución satisfactoria de guardado de un puesto con la migración `save_position` aplicada.
-- Las pruebas Playwright cubren autenticación y la interfaz de gestión de puestos con respuestas de Supabase simuladas; el usuario confirmó además que un puesto guardado apareció correctamente en el proyecto real.
+- Las pruebas Playwright cubren autenticación, la interfaz de gestión de puestos y el acceso a Evaluación de CV (`tests/evaluacion-cv-menu.spec.ts`) con respuestas de Supabase simuladas; el usuario confirmó además que un puesto guardado apareció correctamente en el proyecto real.
 - La documentación existente indica que no hay demo pública desplegada.
 
 Por tanto, el login/logout de Google y el guardado de puestos con sus ponderaciones están conectados y probados contra el proyecto real por el usuario. También siguen pendientes la persistencia de candidatos y solicitudes, almacenamiento de CVs desde la app, carga masiva, seguimiento de etapas, historial de evaluaciones, generación de preguntas y despliegue integrado.
@@ -73,6 +74,7 @@ No asumir decisiones sobre estas cuestiones sin confirmarlas.
 ## 7. Guía de navegación
 
 - Flujo actual: `src/App.tsx`.
+- Selección de puesto para evaluar CVs: `src/components/CvEvaluationPositionPicker.tsx` (ruta `/evaluacion-cv`).
 - Contratos actuales: `src/types.ts`.
 - Requisitos de posición: `src/components/JobRequirementsForm.tsx`.
 - Carga y extracción de CV: `src/components/CvUpload.tsx`.

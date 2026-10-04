@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnalysisControls } from './components/AnalysisControls'
+import { CvEvaluationPositionPicker } from './components/CvEvaluationPositionPicker'
 import { CvUpload } from './components/CvUpload'
 import { EvaluationResults } from './components/EvaluationResults'
 import { JobRequirementsForm } from './components/JobRequirementsForm'
@@ -194,6 +195,7 @@ export function App() {
 
   const routePath = currentPath.split('#')[0]
   const isPositionsList = routePath === '/puestos'
+  const isCvEvaluation = routePath === '/evaluacion-cv'
   const isNewPosition = routePath === '/puestos/nuevo'
   const editRouteMatch = routePath.match(/^\/puestos\/([^/]+)\/editar$/)
   const detailRouteMatch = routePath.match(/^\/puestos\/([^/]+)$/)
@@ -210,11 +212,13 @@ export function App() {
   const isPositionEditor = isNewPosition || Boolean(editingPositionId)
   const pageTitle = isPositionsList
     ? 'Puestos'
-    : isNewPosition
-      ? 'Crear puesto'
-      : editingPositionId
-        ? 'Editar puesto'
-        : currentPosition?.title ?? 'Puesto'
+    : isCvEvaluation
+      ? 'Evaluación de CV'
+      : isNewPosition
+        ? 'Crear puesto'
+        : editingPositionId
+          ? 'Editar puesto'
+          : currentPosition?.title ?? 'Puesto'
 
   useEffect(() => {
     if (!routePositionId || !positionsLoadedForUserId) {
@@ -233,7 +237,7 @@ export function App() {
     setPositionNotice(null)
   }
 
-  const handleSelectPosition = (positionId: string) => {
+  const handleSelectPosition = (positionId: string, section?: string) => {
     const position = savedPositions.find((item) => item.id === positionId)
     if (!position) {
       return
@@ -243,7 +247,9 @@ export function App() {
     setEvaluation(null)
     setPositionError(null)
     setPositionNotice(null)
-    navigate(`/puestos/${encodeURIComponent(position.id)}`)
+    navigate(
+      `/puestos/${encodeURIComponent(position.id)}${section ? `#${section}` : ''}`,
+    )
   }
 
   const handleNewPosition = () => {
@@ -440,21 +446,12 @@ export function App() {
               Puestos
             </a>
             <a
-              className={`sidebar-link${detailPositionId ? ' sidebar-link-active' : ''}`}
-              href={
-                selectedPositionId
-                  ? `/puestos/${encodeURIComponent(selectedPositionId)}#cv-analysis`
-                  : '/puestos'
-              }
+              className={`sidebar-link${isCvEvaluation ? ' sidebar-link-active' : ''}`}
+              href="/evaluacion-cv"
+              aria-current={isCvEvaluation ? 'page' : undefined}
               onClick={(event) => {
                 event.preventDefault()
-                if (selectedPositionId) {
-                  navigate(
-                    `/puestos/${encodeURIComponent(selectedPositionId)}#cv-analysis`,
-                  )
-                } else {
-                  navigate('/puestos')
-                }
+                navigate('/evaluacion-cv')
               }}
             >
               <span className="sidebar-link-mark" aria-hidden="true">
@@ -513,11 +510,13 @@ export function App() {
             <p>
               {isPositionsList
                 ? 'Organizá tus búsquedas y elegí una posición para continuar.'
-                : isPositionEditor
-                  ? 'Definí el rol, las habilidades requeridas y su ponderación.'
-                  : currentPosition
-                    ? 'Revisá los requisitos y analizá CVs para esta posición.'
-                    : 'No encontramos el puesto solicitado.'}
+                : isCvEvaluation
+                  ? 'Elegí el puesto contra el que querés evaluar CVs.'
+                  : isPositionEditor
+                    ? 'Definí el rol, las habilidades requeridas y su ponderación.'
+                    : currentPosition
+                      ? 'Revisá los requisitos y analizá CVs para esta posición.'
+                      : 'No encontramos el puesto solicitado.'}
             </p>
           </div>
         </section>
@@ -537,6 +536,20 @@ export function App() {
               }
               onCreate={handleNewPosition}
               onOpen={handleSelectPosition}
+            />
+          </section>
+        )}
+
+        {isCvEvaluation && (
+          <section className="page-surface" id="cv-evaluation">
+            <CvEvaluationPositionPicker
+              positions={savedPositions}
+              loading={positionsLoadedForUserId !== session.user.id}
+              error={positionError}
+              onCreate={handleNewPosition}
+              onSelect={(positionId) =>
+                handleSelectPosition(positionId, 'cv-analysis')
+              }
             />
           </section>
         )}
