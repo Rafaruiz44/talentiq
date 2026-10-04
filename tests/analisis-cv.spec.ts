@@ -34,6 +34,7 @@ const createResumePdf = (): Buffer => {
 }
 
 const prepareAnalysis = async (page: Page) => {
+  const capturedRequest = { authorization: '', body: '' }
   const evaluation = {
     candidateName: 'Candidato de prueba',
     earnedPoints: 15,
@@ -48,15 +49,16 @@ const prepareAnalysis = async (page: Page) => {
     gaps: [],
   }
 
-  await page.route(/\/chat\/completions\?/, (route) =>
-    route.fulfill({
+  await page.route('**/api/evaluate-candidate', async (route) => {
+    capturedRequest.authorization =
+      route.request().headers().authorization ?? ''
+    capturedRequest.body = route.request().postData() ?? ''
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(evaluation) } }],
-      }),
-    }),
-  )
+      body: JSON.stringify(evaluation),
+    })
+  })
 
   await page.goto('/puestos/position-1')
 
@@ -72,6 +74,8 @@ const prepareAnalysis = async (page: Page) => {
     mimeType: 'application/pdf',
     buffer: createResumePdf(),
   })
+
+  return capturedRequest
 }
 
 test.beforeEach(async ({ page }) => {
@@ -110,10 +114,15 @@ test('muestra el currículum a todo el ancho y el análisis debajo', async ({
 })
 
 test('calcula y muestra la compatibilidad y el veredicto', async ({ page }) => {
-  await prepareAnalysis(page)
+  const capturedRequest = await prepareAnalysis(page)
 
   await page.getByRole('button', { name: 'Procesar análisis' }).click()
 
+  expect(capturedRequest.authorization).toMatch(/^Bearer .+/)
+  expect(JSON.parse(capturedRequest.body)).toMatchObject({
+    requirements: { role: 'Desarrollador Frontend' },
+    resumeText: expect.stringContaining('React'),
+  })
   const results = page.getByRole('region', { name: 'Resultados del análisis' })
   await expect(results).toBeVisible()
   await expect(results).toContainText('100%')

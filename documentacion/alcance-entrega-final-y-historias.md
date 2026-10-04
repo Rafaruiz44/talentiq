@@ -322,6 +322,6 @@ Este primer flujo valida autenticación y aislamiento por reclutador antes de ca
 
 ## Notas de trazabilidad con el estado actual
 
-El repositorio implementa hoy una interfaz React/Vite que conserva en memoria los requisitos de una posición, un CV PDF y su resultado de análisis. `server/server.mjs` contiene una API auxiliar para importar requisitos desde ofertas, pero no implementa persistencia, autenticación, almacenamiento de CVs ni evaluación backend del flujo principal. La evaluación principal de Azure OpenAI se inicia desde el frontend y utiliza variables `VITE_*`; debe trasladarse al backend antes de desplegar el nuevo alcance.
+El repositorio implementa hoy una interfaz React/Vite que conserva en memoria los requisitos de una posición, un CV PDF y su resultado de análisis. `server/server.mjs` valida sesiones Supabase antes de aceptar solicitudes de evaluación o importación, y llama a Azure OpenAI usando variables server-side `AZURE_OPENAI_*`. La integración real contra servicios remotos no queda verificada por las pruebas simuladas. Siguen pendientes la persistencia de candidatos, almacenamiento de CVs, solicitudes, evaluaciones, estados y preguntas.
 
 Las pruebas E2E actuales cubren la definición de requisitos, carga de un PDF, análisis de un CV y cambio de tema. No cubren las historias propuestas en este documento. El despliegue se considera objetivo pendiente, no capacidad ya entregada.

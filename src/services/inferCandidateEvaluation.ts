@@ -4,14 +4,6 @@ import type {
   JobRequirements,
 } from '../types'
 
-interface AzureOpenAIResponse {
-  choices?: Array<{
-    message?: {
-      content?: string
-    }
-  }>
-}
-
 export const SENIORITY_RANGES = [
   'Trainee: hasta 1 año',
   'Junior: más de 1 y hasta 3 años',
@@ -333,87 +325,6 @@ const normalizeStrengths = (
   return ordered.filter((item): item is string => Boolean(item))
 }
 
-const buildFallbackEvaluation = (
-  requirements: JobRequirements,
-  resume: CandidateResume,
-): CandidateEvaluation => {
-  const resumeText = normalizeText(resume.text)
-  const role = requirements.role.trim()
-  const seniority = requirements.seniority.trim()
-  const skillMatches = requirements.skills.filter(
-    (skill) =>
-      skill.name.trim().length > 0 &&
-      skillMatchesText(skill.name, resumeText),
-  )
-  const seniorityMatches =
-    seniority.length > 0 &&
-    isSeniorityQualified(resumeText, seniority, role)
-  const totalPoints =
-    requirements.skills.reduce((total, skill) => total + skill.points, 0) +
-    (seniority.length > 0 ? requirements.seniorityPoints : 0)
-  const earnedPoints =
-    skillMatches.reduce((total, skill) => total + skill.points, 0) +
-    (seniorityMatches ? requirements.seniorityPoints : 0)
-
-  const strengths: string[] = []
-
-  if (skillMatches.some((skill) => normalizeText(skill.name) === 'react')) {
-    strengths.push('Experiencia con React: el CV menciona experiencia práctica con esta tecnología.')
-  } else if (requirements.skills.length > 0) {
-    strengths.push(`Experiencia con ${requirements.skills[0].name}`)
-  }
-
-  if (skillMatches.some((skill) => normalizeText(skill.name) === 'typescript')) {
-    strengths.push('Experiencia con TypeScript: el CV menciona experiencia práctica con este lenguaje.')
-  } else if (requirements.skills.length > 1) {
-    strengths.push(`Experiencia con ${requirements.skills[1].name}`)
-  }
-
-  if (role.length > 0) {
-    strengths.push(`Perfil alineado al rol ${role}`)
-  }
-
-  if (seniority.length > 0 && seniorityMatches) {
-    strengths.push('Seniority coincidente')
-  }
-
-  while (strengths.length < 4) {
-    strengths.push('Perfil compatible con el puesto')
-  }
-
-  const gaps = requirements.skills
-    .filter(
-      (skill) =>
-        skill.name.trim().length > 0 &&
-        !skillMatchesText(skill.name, resumeText),
-    )
-    .map(
-      (skill) =>
-        `${skill.name}: no se encontró evidencia explícita de esta habilidad en el CV.`,
-    )
-  if (seniority.length > 0 && !seniorityMatches) {
-    gaps.push(getSenioritySummary(resumeText, requirements))
-  }
-
-  return {
-    candidateName: 'Candidato demo',
-    earnedPoints,
-    totalPoints: Math.max(totalPoints, 1),
-    verdict:
-      earnedPoints / Math.max(totalPoints, 1) >= APPROVAL_THRESHOLD_PERCENTAGE / 100
-        ? 'Apto'
-        : 'No Apto',
-    strengths: normalizeStrengths(
-      strengths,
-      role,
-      getSenioritySummary(resumeText, requirements),
-      requirements.skills.map((skill) => skill.name),
-      seniorityMatches,
-    ).slice(0, 4),
-    gaps,
-  }
-}
-
 const isCandidateEvaluation = (
   value: unknown,
 ): value is CandidateEvaluation => {
@@ -441,70 +352,34 @@ const isCandidateEvaluation = (
 export async function inferCandidateEvaluation(
   requirements: JobRequirements,
   resume: CandidateResume,
+  accessToken: string,
 ): Promise<CandidateEvaluation> {
-  const endpoint = import.meta.env.VITE_AZURE_OPENAI_ENDPOINT as string | undefined
-  const key = import.meta.env.VITE_AZURE_OPENAI_KEY as string | undefined
-  const deployment = import.meta.env.VITE_AZURE_OPENAI_DEPLOYMENT as
-    | string
-    | undefined
-  const apiVersion = import.meta.env.VITE_AZURE_OPENAI_API_VERSION as
-    | string
-    | undefined
-
-  if (!endpoint || !key || !deployment || !apiVersion) {
-    return buildFallbackEvaluation(requirements, resume)
-  }
-
-  const url = `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${apiVersion}`
-  const response = await fetch(url, {
+  const response = await fetch('/api/evaluate-candidate', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'api-key': key,
+      Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify({
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Cada habilidad de skills tiene un peso points independiente entre 1 y 10; el seniority tiene seniorityPoints. Para seniority, analizá únicamente las experiencias laborales cuyo título corresponda al role solicitado; no uses la experiencia total de otros roles, educación ni certificaciones. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Si el CV declara un seniority pero no informa años de experiencia relacionada con el role, usá ese nivel. Un candidato con un nivel superior al requerido está calificado igualmente y debe sumar los seniorityPoints; no lo penalices por sobrecalificación. Un candidato con un nivel inferior no cumple el seniority. Sumá los pesos de todas las habilidades y del seniority para obtener totalPoints, sin aplicar un límite máximo al total. earnedPoints debe ser la suma de los pesos de los requisitos cumplidos. Respondé Apto si la proporción de puntos obtenidos es igual o mayor al 70%, y No Apto si es menor. Para cada fortaleza, indicá la habilidad, el nivel o tipo de experiencia y la evidencia concreta encontrada en el CV; no escribas únicamente el nombre de la habilidad. Para cada brecha, indicá la habilidad faltante y explicá qué evidencia no aparece o qué requisito no queda acreditado. No inventes años, proyectos, responsabilidades ni tecnologías. Evitá duplicar una misma habilidad entre fortalezas y brechas. Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            jobRequirements: requirements,
-            candidateResume: resume.text,
-          }),
-        },
-      ],
+      requirements,
+      resumeText: resume.text,
     }),
   })
 
+  const result: unknown = await response.json().catch(() => null)
   if (!response.ok) {
-    const errorDetails: unknown = await response.json()
-    console.error('Detalle error Azure:', errorDetails)
-    throw new Error(
-      `Azure OpenAI error ${response.status}: ${JSON.stringify(errorDetails)}`,
-    )
+    const message =
+      typeof result === 'object' &&
+      result !== null &&
+      'error' in result &&
+      typeof result.error === 'string'
+        ? result.error
+        : 'No se pudo completar el análisis.'
+    throw new Error(message)
   }
 
-  const data = (await response.json()) as AzureOpenAIResponse
-  const content = data.choices?.[0]?.message?.content
-
-  if (!content) {
-    throw new Error('Azure OpenAI no devolvió contenido.')
-  }
-
-  let parsed: unknown
-
-  try {
-    parsed = JSON.parse(content)
-  } catch {
-    throw new Error('Azure OpenAI devolvió un JSON inválido.')
-  }
-
-  if (!isCandidateEvaluation(parsed)) {
-    return buildFallbackEvaluation(requirements, resume)
+  if (!isCandidateEvaluation(result)) {
+    throw new Error('La respuesta de evaluación tiene un formato inválido.')
   }
 
   const senioritySummary = getSenioritySummary(normalizeText(resume.text), requirements)
@@ -514,19 +389,19 @@ export async function inferCandidateEvaluation(
     requirements.role,
   )
   const normalizedStrengths = normalizeStrengths(
-    parsed.strengths.length >= 4
-      ? parsed.strengths.slice(0, 4)
+    result.strengths.length >= 4
+      ? result.strengths.slice(0, 4)
       : [
-          ...parsed.strengths,
+          ...result.strengths,
           ...Array.from(
-            { length: 4 - parsed.strengths.length },
+            { length: 4 - result.strengths.length },
             () => 'Perfil compatible con el puesto',
           ),
         ],
     requirements.role.trim(),
     senioritySummary,
     requirements.skills.map((skill) => skill.name),
-        seniorityMatches,
+    seniorityMatches,
   )
   const verifiedStrengths = normalizedStrengths.filter(
     (strength) =>
@@ -536,7 +411,7 @@ export async function inferCandidateEvaluation(
           !skillMatchesText(skill.name, resume.text),
       ),
   )
-  const normalizedGaps = parsed.gaps.filter(
+  const normalizedGaps = result.gaps.filter(
     (gap) =>
       !requirements.skills.some(
         (skill) =>
@@ -561,7 +436,7 @@ export async function inferCandidateEvaluation(
     )
 
   return {
-    ...parsed,
+    ...result,
     strengths: verifiedStrengths.slice(0, 4),
     gaps: [
       ...nonSeniorityGaps,
@@ -570,9 +445,5 @@ export async function inferCandidateEvaluation(
         : [senioritySummary]),
       ...missingSkillGaps,
     ],
-    verdict:
-      parsed.verdict === 'Apto' || parsed.verdict === 'No Apto'
-        ? parsed.verdict
-        : 'Apto',
   }
 }

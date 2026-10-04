@@ -47,6 +47,7 @@ Supabase está seleccionado para autenticación, base de datos y almacenamiento 
 ## Contexto obligatorio para tareas de desarrollo
 
 - Consultar primero [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) para distinguir alcance objetivo e implementación presente.
+- Consultar [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md) y actualizarlo en la misma tarea cuando un cambio modifique una capacidad visible, su integración con servicios, su estado de seguridad o el alcance pendiente. Actualizar también la fecha; no marcar como verificado contra servicios reales algo que solo se probó con mocks.
 - Revisar `App.tsx` y los archivos involucrados solo después de identificar el área afectada.
 - No asumir que una funcionalidad del alcance ya está implementada porque figure en las historias.
 - Antes de crear cualquier work item en Azure DevOps, mostrar qué se va a crear y esperar confirmación.

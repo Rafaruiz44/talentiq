@@ -44,11 +44,13 @@ const isJobRequirementsImport = (
 export async function importJobRequirements(
   endpoint: string,
   sourceUrl: string,
+  accessToken: string,
 ): Promise<JobRequirementsImport> {
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify({ sourceUrl }),
   })

@@ -98,14 +98,14 @@ flowchart LR
     F --> S[Estado local de React]
     PDF --> S
     S --> E[Servicio inferCandidateEvaluation]
-    E -->|Azure configurado| AOAI[Azure OpenAI desde el navegador]
-    E -->|Sin configuración| FB[Evaluación local de respaldo]
-    AOAI --> V[Validación y normalización]
-    FB --> V
+    E -->|Token de sesión + requisitos + texto CV| API[Backend Talentiq]
+    API -->|Valida token| AUTH[Supabase Auth]
+    API -->|Credenciales server-side| AOAI[Azure OpenAI]
+    AOAI --> V[Validación de respuesta]
     V --> UI
 ```
 
-La aplicación principal mantiene posición, CV y evaluación en memoria. `server/server.mjs` es un servidor auxiliar Node.js que expone `POST /api/import-job-requirements` para importar requisitos desde ofertas públicas de LinkedIn o Computrabajo; no implementa el flujo principal de evaluación ni persistencia.
+La aplicación principal mantiene posición, CV y evaluación en memoria. `POST /api/evaluate-candidate` y `POST /api/import-job-requirements` requieren un token de sesión que el backend valida con Supabase antes de usar Azure OpenAI. Las credenciales Azure se configuran en el entorno server-side como `AZURE_OPENAI_*`, nunca como `VITE_*`. La persistencia de candidatos, documentos y evaluaciones todavía no está conectada.
 
 ### Arquitectura objetivo (proveedores por definir)
 
@@ -129,9 +129,9 @@ Esta arquitectura es una guía de responsabilidades, no una implementación ya e
 
 ## IA y procesamiento
 
-En el MVP actual, `inferCandidateEvaluation` envía requisitos y texto del CV a Azure OpenAI desde el cliente cuando están configuradas las variables correspondientes. El resultado se valida y normaliza; también hay una ruta de evaluación local de respaldo. La integración real con Azure no se considera garantizada por las pruebas E2E actuales.
+El cliente envía requisitos y texto del CV a `POST /api/evaluate-candidate` con el token de sesión de Supabase. El backend verifica el token con Supabase Auth y llama a Azure OpenAI con credenciales server-side. Si la configuración o el servicio falla, devuelve un error explícito; no se sustituye por un resultado local de apariencia exitosa. Las pruebas actuales simulan Supabase y Azure y no demuestran conectividad real con esos servicios.
 
-Para la entrega final, la evaluación y la generación de preguntas deben solicitarse al backend. El backend protege la clave, valida la entrada y respuesta del modelo, asocia cada resultado a la solicitud del reclutador correcto y devuelve errores explícitos si el servicio falla. Cada reanálisis conserva una nueva ejecución histórica. No debe exponer la clave en variables `VITE_*` ni en recursos compilados para el navegador.
+Para la entrega final, la generación de preguntas también debe pasar por el backend. Cuando se implemente persistencia, el backend deberá asociar cada resultado a una solicitud que pertenezca al reclutador autenticado. Cada reanálisis conservará una nueva ejecución histórica. No se debe exponer la clave en variables `VITE_*` ni en recursos compilados para el navegador.
 
 La carga masiva procesa cada CV de manera individual. El sistema debe registrar e informar progreso y resultado de cada archivo, y continuar con los demás ante un fallo individual. La extracción actual en navegador solo contempla PDF y el límite actual de 5 MB; los formatos, límites y tratamiento de documentos escaneados para la entrega final están pendientes de definición.
 

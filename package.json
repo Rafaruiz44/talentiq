@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:api": "node --env-file-if-exists=.env server/server.mjs",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test:server": "node --test server/server.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -8,6 +8,8 @@ El repositorio contiene el MVP ejecutable localmente. El alcance acordado para l
 
 Esas capacidades ampliadas están planificadas y no deben considerarse implementadas solo por estar documentadas. La arquitectura objetivo, el estado actual y las decisiones pendientes se describen en [documentacion/arquitectura-y-alcance.md](documentacion/arquitectura-y-alcance.md); las historias y sus criterios de aceptación están en [documentacion/alcance-entrega-final-y-historias.md](documentacion/alcance-entrega-final-y-historias.md).
 
+Para consultar el estado de implementación revisado y las próximas tareas, ver [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md).
+
 ## Funcionalidades actuales del MVP
 
 - Gestionar puestos en pantallas diferenciadas: listado en `/puestos`, creación en `/puestos/nuevo`, detalle y evaluación en `/puestos/:id`, y edición en `/puestos/:id/editar`.
@@ -65,13 +67,13 @@ Vite mostrará la URL local, normalmente `http://localhost:5173`.
 
 Para habilitar el inicio de sesión, usá `.env.example` como referencia y agregá a `.env` `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` con la URL del proyecto y su clave pública (publishable/anon). Permití `http://localhost:5173` en las URL de redirección de Supabase. No pongas claves `service_role`, secretos OAuth ni credenciales privadas en variables `VITE_`. Si faltan estos valores, la aplicación bloquea el acceso al espacio privado.
 
-El servidor auxiliar de importación se ejecuta por separado:
+El backend local sirve la evaluación protegida y la importación de requisitos. En una segunda terminal:
 
 ```powershell
-node server/server.mjs
+npm run dev:api
 ```
 
-Escucha en el puerto 3001 por defecto y requiere configurar las variables de Azure OpenAI en el entorno del proceso para usar la importación asistida. Este endpoint auxiliar no forma parte del flujo principal de evaluación del MVP.
+Escucha en el puerto 3001 por defecto. Vite reenvía las rutas `/api` al backend.
 
 ## Configuración de Supabase y Google Auth
 
@@ -90,15 +92,18 @@ El guardado de puestos requiere `supabase/migrations/20261003214000_save_positio
 
 ## Configuración de IA
 
-El código actual reconoce las variables `VITE_AZURE_OPENAI_ENDPOINT`, `VITE_AZURE_OPENAI_KEY`, `VITE_AZURE_OPENAI_DEPLOYMENT` y `VITE_AZURE_OPENAI_API_VERSION` para su evaluación desde el navegador. Por el prefijo `VITE_`, los valores pueden quedar incluidos en el bundle público: **no configurar una clave real de Azure de esta manera en un despliegue accesible**.
+Configurar `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_KEY`, `AZURE_OPENAI_DEPLOYMENT` y `AZURE_OPENAI_API_VERSION` para el proceso Node del backend, usando `.env.example` como referencia. Estas variables no deben tener el prefijo `VITE_`: Vite incorpora las variables `VITE_*` al cliente. El endpoint `/api/evaluate-candidate` valida el token de sesión con Supabase antes de llamar a Azure; la importación de ofertas también requiere autenticación.
 
-Para la entrega final, las llamadas de evaluación y generación de preguntas deben pasar por el backend y las credenciales deben configurarse únicamente en el entorno seguro del servidor. La integración real con Azure no queda verificada por las pruebas actuales.
+Si una clave de Azure se configuró anteriormente como `VITE_AZURE_OPENAI_KEY` o se usó en una compilación accesible, revocarla y crear una nueva antes de volver a habilitar el servicio. No se debe considerar privada una clave que ya pudo estar incluida en un bundle.
+
+Las pruebas automatizadas simulan la respuesta de evaluación; no verifican credenciales ni conectividad reales con Azure OpenAI.
 
 ## Pruebas y validaciones
 
 ```powershell
 npm run lint
 npm run build
+npm run test:server
 npx playwright test
 ```
 
@@ -113,7 +118,7 @@ src/
   App.tsx       Flujo principal actual
   types.ts      Contratos actuales
 server/
-  server.mjs    API auxiliar para importar requisitos de ofertas
+  server.mjs    API autenticada para evaluación e importación de requisitos
 tests/          Pruebas end-to-end del MVP
 documentacion/
   arquitectura-y-alcance.md

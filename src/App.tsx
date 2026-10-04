@@ -379,9 +379,13 @@ export function App() {
     setError(null)
 
     try {
+      if (!session?.access_token) {
+        throw new Error('Iniciá sesión nuevamente para analizar el CV.')
+      }
       const result = await inferCandidateEvaluation(
         requirements,
         candidateResume,
+        session.access_token,
       )
       if (currentRunId === analysisRunId.current) {
         setEvaluation(result)

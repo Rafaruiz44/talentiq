@@ -31,8 +31,9 @@ El alcance y las historias propuestas están en [documentacion/alcance-entrega-f
 - `src/components/PositionList.tsx` presenta los puestos del reclutador y permite abrir su detalle o crear uno nuevo.
 - `src/components/JobRequirementsForm.tsx` permite definir o editar el rol, habilidades ponderadas y seniority.
 - `src/components/CvUpload.tsx` carga un PDF de hasta 5 MB y extrae texto en el navegador con PDF.js.
-- `src/services/inferCandidateEvaluation.ts` contiene lógica de evaluación local y llama a Azure OpenAI directamente desde el navegador cuando están configuradas variables `VITE_*`.
-- `server/server.mjs` expone una API auxiliar para importar requisitos de ofertas; no implementa persistencia, autenticación, carga de CVs ni el endpoint backend de evaluación del flujo principal.
+- `src/services/inferCandidateEvaluation.ts` envía requisitos y texto del CV a `POST /api/evaluate-candidate` con el token de sesión; valida y normaliza la respuesta en el cliente.
+- `server/server.mjs` valida los tokens mediante Supabase antes de las rutas de evaluación e importación, y mantiene las credenciales Azure en variables server-side `AZURE_OPENAI_*`. No implementa todavía persistencia ni carga de CVs.
+- En desarrollo, `npm run dev:api` inicia el backend y Vite reenvía `/api` al puerto 3001. Las rutas backend tienen pruebas Node en `server/server.test.mjs`.
 - El usuario confirmó que aplicó las migraciones `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql` y `supabase/migrations/20261003214000_save_position_rpc.sql` en su proyecto Supabase; tras aplicar la segunda, confirmó que el puesto apareció correctamente.
 - El usuario confirmó que Google está habilitado y que el inicio de sesión OAuth termina con la sesión activa en Talentiq. Al cerrar sesión vuelve a la pantalla de acceso; al iniciar otra vez, Google reutiliza la sesión del navegador y no solicita la contraseña. Se conserva este comportamiento SSO.
 - El usuario compartió la consulta de `pg_policies`: `positions` y `position_skills` tienen políticas `SELECT`, `INSERT` y `UPDATE` con `recruiter_id = auth.uid()` para `authenticated`. Storage muestra las tres políticas previstas para `candidate-cvs`; no se ha inspeccionado el predicado completo de cada política de Storage.
@@ -40,7 +41,7 @@ El alcance y las historias propuestas están en [documentacion/alcance-entrega-f
 - Las pruebas Playwright cubren autenticación y la interfaz de gestión de puestos con respuestas de Supabase simuladas; el usuario confirmó además que un puesto guardado apareció correctamente en el proyecto real.
 - La documentación existente indica que no hay demo pública desplegada.
 
-Por tanto, el login/logout de Google y el guardado de puestos con sus ponderaciones están conectados y probados contra el proyecto real por el usuario. También siguen pendientes la persistencia de candidatos y solicitudes, almacenamiento de CVs desde la app, carga masiva, seguimiento de etapas, historial de evaluaciones, generación de preguntas y despliegue integrado.
+Por tanto, el login/logout de Google y el guardado de puestos con sus ponderaciones están conectados y probados contra el proyecto real por el usuario. El backend de evaluación ya requiere una sesión de Supabase validada y llama a Azure con credenciales server-side; las pruebas de esta integración usan mocks y no confirman la conectividad real contra Supabase o Azure. También siguen pendientes la persistencia de candidatos y solicitudes, almacenamiento de CVs desde la app, carga masiva, seguimiento de etapas, historial de evaluaciones, generación de preguntas y despliegue integrado.
 
 ## 4. Modelo funcional de referencia
 
@@ -77,7 +78,7 @@ No asumir decisiones sobre estas cuestiones sin confirmarlas.
 - Requisitos de posición: `src/components/JobRequirementsForm.tsx`.
 - Carga y extracción de CV: `src/components/CvUpload.tsx`.
 - Evaluación actual: `src/services/inferCandidateEvaluation.ts`.
-- API auxiliar actual: `server/server.mjs`.
+- API de evaluación e importación: `server/server.mjs`.
 - Pruebas actuales: `tests/`.
 - Alcance y backlog propuestos: `documentacion/alcance-entrega-final-y-historias.md`.
 
