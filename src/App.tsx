@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnalysisControls } from './components/AnalysisControls'
-import { CvUpload } from './components/CvUpload'
-import { EvaluationResults } from './components/EvaluationResults'
 import { JobRequirementsForm } from './components/JobRequirementsForm'
 import { PositionList } from './components/PositionList'
 import { CandidateBank } from './components/CandidateBank'
+import { ApplicationIntake } from './components/ApplicationIntake'
+import { PositionRanking } from './components/PositionRanking'
 import {
   getSavedCandidateResume,
   listSavedCandidates,
-  saveCandidateDocument,
   type SavedCandidate,
 } from './services/candidates'
 import { saveEvaluationRun } from './services/evaluations'
@@ -29,11 +27,7 @@ import {
 import { supabaseConfigurationError } from './services/supabaseClient'
 import { AuthScreen } from './components/AuthScreen'
 import type { Session } from '@supabase/supabase-js'
-import type {
-  CandidateEvaluation,
-  CandidateResume,
-  JobRequirements,
-} from './types'
+import type { JobRequirements } from './types'
 
 const getInitialTheme = (): 'light' | 'dark' => {
   const storedTheme = sessionStorage.getItem('talentiq-theme')
@@ -52,7 +46,6 @@ export function App() {
   const [signingIn, setSigningIn] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const activeUserId = useRef<string | null>(null)
-  const analysisRunId = useRef(0)
   const [jobRequirements, setJobRequirements] = useState<JobRequirements>({
     role: '',
     skills: [],
@@ -74,27 +67,15 @@ export function App() {
   const [candidateBankError, setCandidateBankError] = useState<string | null>(
     null,
   )
+  const [candidateBankNotice, setCandidateBankNotice] = useState<string | null>(
+    null,
+  )
   const [loadingCandidateDocumentId, setLoadingCandidateDocumentId] = useState<
     string | null
   >(null)
   const [positionSaving, setPositionSaving] = useState(false)
   const [positionError, setPositionError] = useState<string | null>(null)
   const [positionNotice, setPositionNotice] = useState<string | null>(null)
-  const [candidateResume, setCandidateResume] = useState<CandidateResume>({
-    text: '',
-    fileName: null,
-    file: null,
-  })
-  const [candidateSaveError, setCandidateSaveError] = useState<string | null>(
-    null,
-  )
-  const [candidateSaveNotice, setCandidateSaveNotice] = useState<string | null>(
-    null,
-  )
-  const [evaluation, setEvaluation] = useState<CandidateEvaluation | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
   const navigate = (path: string) => {
     window.history.pushState(null, '', path)
     setCurrentPath(path)
@@ -104,7 +85,6 @@ export function App() {
     const nextUserId = nextSession?.user.id ?? null
     if (activeUserId.current !== nextUserId) {
       activeUserId.current = nextUserId
-      analysisRunId.current += 1
       setJobRequirements({
         role: '',
         skills: [],
@@ -117,15 +97,10 @@ export function App() {
       setSavedCandidates([])
       setCandidatesLoadedForUserId(null)
       setCandidateBankError(null)
+      setCandidateBankNotice(null)
       setLoadingCandidateDocumentId(null)
       setPositionError(null)
       setPositionNotice(null)
-      setCandidateResume({ text: '', fileName: null, file: null })
-      setCandidateSaveError(null)
-      setCandidateSaveNotice(null)
-      setEvaluation(null)
-      setLoading(false)
-      setError(null)
       if (activeUserId.current === null || !nextUserId) {
         window.history.replaceState(null, '', '/puestos')
         setCurrentPath('/puestos')
@@ -224,9 +199,11 @@ export function App() {
     }
   }, [session?.user.id])
 
-  const routePath = currentPath.split('#')[0]
+  const routePath = currentPath.split(/[?#]/, 1)[0]
   const isPositionsList = routePath === '/puestos'
   const isCandidatesList = routePath === '/candidatos'
+  const isApplicationsPage = routePath === '/postulaciones'
+  const isRankingPage = routePath === '/ranking'
   const isNewPosition = routePath === '/puestos/nuevo'
   const editRouteMatch = routePath.match(/^\/puestos\/([^/]+)\/editar$/)
   const detailRouteMatch = routePath.match(/^\/puestos\/([^/]+)$/)
@@ -245,11 +222,15 @@ export function App() {
     ? 'Puestos'
     : isCandidatesList
       ? 'Candidatos'
-      : isNewPosition
-        ? 'Crear puesto'
-        : editingPositionId
-          ? 'Editar puesto'
-          : currentPosition?.title ?? 'Puesto'
+      : isApplicationsPage
+        ? 'Postulaciones'
+        : isRankingPage
+          ? 'Ranking'
+          : isNewPosition
+            ? 'Crear puesto'
+            : editingPositionId
+              ? 'Editar puesto'
+              : currentPosition?.title ?? 'Puesto'
 
   useEffect(() => {
     const recruiterId = session?.user.id
@@ -297,7 +278,6 @@ export function App() {
 
   const handleRequirementsChange = (requirements: JobRequirements) => {
     setJobRequirements(requirements)
-    setEvaluation(null)
     setPositionNotice(null)
   }
 
@@ -307,8 +287,6 @@ export function App() {
       return
     }
     setSelectedPositionId(position.id)
-    setJobRequirements(position.requirements)
-    setEvaluation(null)
     setPositionError(null)
     setPositionNotice(null)
     navigate(`/puestos/${encodeURIComponent(position.id)}`)
@@ -322,7 +300,6 @@ export function App() {
       seniority: '',
       seniorityPoints: 5,
     })
-    setEvaluation(null)
     setPositionError(null)
     setPositionNotice(null)
     navigate('/puestos/nuevo')
@@ -334,7 +311,8 @@ export function App() {
     positionId: string,
   ) => {
     const recruiterId = session?.user.id
-    if (!recruiterId) {
+    const accessToken = session?.access_token
+    if (!recruiterId || !accessToken) {
       setCandidateBankError('Iniciá sesión nuevamente para usar este CV.')
       return
     }
@@ -346,6 +324,7 @@ export function App() {
 
     setLoadingCandidateDocumentId(candidateDocumentId)
     setCandidateBankError(null)
+    setCandidateBankNotice(null)
     try {
       const resume = await getSavedCandidateResume({
         recruiterId,
@@ -355,23 +334,36 @@ export function App() {
       if (activeUserId.current !== recruiterId) {
         return
       }
-      analysisRunId.current += 1
-      setSelectedPositionId(position.id)
-      setJobRequirements(position.requirements)
-      setCandidateResume({
+      const evaluation = await inferCandidateEvaluation(
+        position.requirements,
+        {
         text: resume.text,
         fileName: resume.fileName,
         file: null,
         candidateId: resume.candidateId,
         candidateDocumentId: resume.candidateDocumentId,
-      })
-      setLoading(false)
-      setEvaluation(null)
-      setError(null)
-      setCandidateSaveError(null)
-      setCandidateSaveNotice(null)
-      setPositionNotice(null)
-      navigate(`/puestos/${encodeURIComponent(position.id)}#cv-analysis`)
+        },
+        accessToken,
+        position.id,
+      )
+      if (!evaluation.reusedExistingEvaluation) {
+        await saveEvaluationRun({
+        accessToken,
+        candidateDocumentId: resume.candidateDocumentId,
+        candidateId: resume.candidateId,
+        evaluation,
+        positionId: position.id,
+        requirements: position.requirements,
+        resumeText: resume.text,
+        })
+      }
+      if (activeUserId.current === recruiterId) {
+        setCandidateBankNotice(
+        `${evaluation.candidateName}: ${evaluation.verdict}, ${Math.round(
+          (evaluation.earnedPoints / evaluation.totalPoints) * 100,
+        )}% de compatibilidad para ${position.title}.`,
+        )
+      }
     } catch (resumeError: unknown) {
       if (activeUserId.current === recruiterId) {
         setCandidateBankError(
@@ -498,153 +490,6 @@ export function App() {
     setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'))
   }
 
-  const handleResumeChange = (resume: CandidateResume) => {
-    analysisRunId.current += 1
-    setCandidateResume(resume)
-    setLoading(false)
-    setEvaluation(null)
-    setError(null)
-    setCandidateSaveError(null)
-    setCandidateSaveNotice(null)
-  }
-
-  const handleAnalyze = async (
-    requirements: JobRequirements = jobRequirements,
-    positionId = selectedPositionId,
-  ) => {
-    const currentRunId = ++analysisRunId.current
-    setLoading(true)
-    setError(null)
-    setCandidateSaveError(null)
-    setCandidateSaveNotice(null)
-
-    try {
-      if (!session?.access_token) {
-        throw new Error('Iniciá sesión nuevamente para analizar el CV.')
-      }
-      const result = await inferCandidateEvaluation(
-        requirements,
-        candidateResume,
-        session.access_token,
-        positionId ?? '',
-      )
-      if (currentRunId === analysisRunId.current) {
-        setEvaluation(result)
-      }
-
-      if (currentRunId !== analysisRunId.current) {
-        return
-      }
-
-      let savedCandidateId = candidateResume.candidateId
-      let savedCandidateDocumentId = candidateResume.candidateDocumentId
-      let reusedExistingCandidate = false
-      let duplicateCleanupWarning = ''
-      if (
-        session?.user.id &&
-        session.access_token &&
-        candidateResume.file &&
-        (!savedCandidateId || !savedCandidateDocumentId)
-      ) {
-        setCandidateSaveError(null)
-        setCandidateSaveNotice(null)
-        try {
-          const savedCandidate = await saveCandidateDocument({
-            accessToken: session.access_token,
-            candidateName: result.candidateName,
-            extractedText: candidateResume.text,
-            file: candidateResume.file,
-            recruiterId: session.user.id,
-          })
-          savedCandidateId = savedCandidate.candidateId
-          savedCandidateDocumentId = savedCandidate.candidateDocumentId
-          reusedExistingCandidate = savedCandidate.reusedExisting
-          duplicateCleanupWarning = savedCandidate.cleanupWarning ?? ''
-          setCandidateResume((currentResume) =>
-            currentResume.file === candidateResume.file
-              ? {
-                  ...currentResume,
-                  candidateId: savedCandidate.candidateId,
-                  candidateDocumentId: savedCandidate.candidateDocumentId,
-                }
-              : currentResume,
-          )
-        } catch (saveError) {
-          if (currentRunId === analysisRunId.current) {
-            setCandidateSaveError(
-              saveError instanceof Error
-                ? `El análisis se completó, pero no se pudo guardar el CV ni su resultado: ${saveError.message}`
-                : 'El análisis se completó, pero no se pudo guardar el CV ni su resultado.',
-            )
-          }
-          return
-        }
-      }
-
-      if (currentRunId !== analysisRunId.current) {
-        return
-      }
-
-      if (
-        !session?.access_token ||
-        !positionId ||
-        !savedCandidateId ||
-        !savedCandidateDocumentId
-      ) {
-        setCandidateSaveError(
-          'El análisis se completó, pero no se guardó en el historial porque falta un CV PDF guardado asociado a un puesto.',
-        )
-        return
-      }
-
-      try {
-        let reusedExistingEvaluation = result.reusedExistingEvaluation ?? false
-        if (!result.reusedExistingEvaluation) {
-          reusedExistingEvaluation = await saveEvaluationRun({
-            accessToken: session.access_token,
-            candidateDocumentId: savedCandidateDocumentId,
-            candidateId: savedCandidateId,
-            evaluation: result,
-            positionId,
-            requirements,
-            resumeText: candidateResume.text,
-          })
-        }
-        if (currentRunId === analysisRunId.current) {
-          setCandidateSaveError(null)
-          setCandidateSaveNotice(
-            reusedExistingEvaluation
-              ? 'El CV y los requisitos no cambiaron; se reutilizó la evaluación existente sin agregar otra al historial.'
-              : reusedExistingCandidate
-                ? `El CV ya estaba en el banco; se reutilizó y se guardó una nueva evaluación en el historial del puesto.${duplicateCleanupWarning}`
-                : `El resultado del análisis se guardó en el historial del puesto.${duplicateCleanupWarning}`,
-          )
-        }
-      } catch (saveError) {
-        if (currentRunId === analysisRunId.current) {
-          setCandidateSaveError(
-            saveError instanceof Error
-              ? `El análisis se completó, pero no se pudo guardar en el historial: ${saveError.message}`
-              : 'El análisis se completó, pero no se pudo guardar en el historial.',
-          )
-        }
-      }
-    } catch (analysisError) {
-      if (currentRunId === analysisRunId.current) {
-        setEvaluation(null)
-        setError(
-          analysisError instanceof Error
-            ? analysisError.message
-            : 'No se pudo completar el análisis.',
-        )
-      }
-    } finally {
-      if (currentRunId === analysisRunId.current) {
-        setLoading(false)
-      }
-    }
-  }
-
   if (authLoading || !session) {
     return (
       <AuthScreen
@@ -696,27 +541,30 @@ export function App() {
               Candidatos
             </a>
             <a
-              className={`sidebar-link${detailPositionId ? ' sidebar-link-active' : ''}`}
-              href={
-                selectedPositionId
-                  ? `/puestos/${encodeURIComponent(selectedPositionId)}#cv-analysis`
-                  : '/puestos'
-              }
+              className={`sidebar-link${isApplicationsPage ? ' sidebar-link-active' : ''}`}
+              href="/postulaciones"
               onClick={(event) => {
                 event.preventDefault()
-                if (selectedPositionId) {
-                  navigate(
-                    `/puestos/${encodeURIComponent(selectedPositionId)}#cv-analysis`,
-                  )
-                } else {
-                  navigate('/puestos')
-                }
+                navigate('/postulaciones')
               }}
             >
               <span className="sidebar-link-mark" aria-hidden="true">
-                A
+                +
               </span>
-              Evaluación de CV
+              Postulaciones
+            </a>
+            <a
+              className={`sidebar-link${isRankingPage ? ' sidebar-link-active' : ''}`}
+              href="/ranking"
+              onClick={(event) => {
+                event.preventDefault()
+                navigate('/ranking')
+              }}
+            >
+              <span className="sidebar-link-mark" aria-hidden="true">
+                #
+              </span>
+              Ranking
             </a>
           </nav>
         </div>
@@ -771,11 +619,15 @@ export function App() {
                 ? 'Organizá tus búsquedas y elegí una posición para continuar.'
                 : isCandidatesList
                   ? 'Consultá tus candidatos guardados y reutilizá sus CVs en otras posiciones.'
-                : isPositionEditor
-                  ? 'Definí el rol, las habilidades requeridas y su ponderación.'
-                  : currentPosition
-                    ? 'Revisá los requisitos y analizá CVs para esta posición.'
-                    : 'No encontramos el puesto solicitado.'}
+                  : isApplicationsPage
+                    ? 'Cargá varios CVs para una posición y seguí el análisis individual de cada postulación.'
+                    : isRankingPage
+                      ? 'Compará las evaluaciones más recientes de los candidatos para cada posición.'
+                      : isPositionEditor
+                        ? 'Definí el rol, las habilidades requeridas y su ponderación.'
+                        : currentPosition
+                          ? 'Consultá los requisitos, editá el puesto o cargá CVs para esta posición.'
+                          : 'No encontramos el puesto solicitado.'}
             </p>
           </div>
         </section>
@@ -810,8 +662,10 @@ export function App() {
               }
               loadingDocumentId={loadingCandidateDocumentId}
               error={candidateBankError}
+              notice={candidateBankNotice}
               onRetry={() => {
                 setCandidateBankError(null)
+                setCandidateBankNotice(null)
                 setCandidatesLoadedForUserId(null)
                 setCandidateListRefreshKey((current) => current + 1)
               }}
@@ -823,6 +677,36 @@ export function App() {
                 )
               }
               onCreatePosition={handleNewPosition}
+            />
+          </section>
+        )}
+
+        {isApplicationsPage && (
+          <section className="page-surface">
+            <ApplicationIntake
+              positions={savedPositions}
+              session={session}
+              requestedPositionId={
+                new URLSearchParams(window.location.search).get('positionId') ?? ''
+              }
+              onSaved={() => {
+                setCandidateBankError(null)
+                setCandidateBankNotice(null)
+                setCandidatesLoadedForUserId(null)
+                setCandidateListRefreshKey((current) => current + 1)
+              }}
+            />
+          </section>
+        )}
+
+        {isRankingPage && (
+          <section className="page-surface">
+            <PositionRanking
+              positions={savedPositions}
+              recruiterId={session.user.id}
+              requestedPositionId={
+                new URLSearchParams(window.location.search).get('positionId') ?? ''
+              }
             />
           </section>
         )}
@@ -955,52 +839,20 @@ export function App() {
                   ))}
                 </ul>
               </div>
-            </section>
-
-            <div
-              className="analysis-workspace"
-              id="cv-analysis"
-              data-testid="analysis-workspace"
-            >
-              <CvUpload
-                value={candidateResume}
-                onChange={handleResumeChange}
-              />
-              <div
-                className="analysis-controls-column"
-                data-testid="analysis-controls-column"
-              >
-                <AnalysisControls
-                  requirements={currentPosition.requirements}
-                  resume={candidateResume}
-                  loading={loading}
-                  onAnalyze={() =>
-                    handleAnalyze(
-                      currentPosition.requirements,
-                      currentPosition.id,
+              <div className="position-detail-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      `/postulaciones?positionId=${encodeURIComponent(currentPosition.id)}`,
                     )
                   }
-                />
-                {error && (
-                  <p role="alert" data-testid="error-message">
-                    {error}
-                  </p>
-                )}
-                {candidateSaveError && (
-                  <p role="alert" data-testid="candidate-save-error">
-                    {candidateSaveError}
-                  </p>
-                )}
-                {candidateSaveNotice && (
-                  <p role="status" data-testid="candidate-save-notice">
-                    {candidateSaveNotice}
-                  </p>
-                )}
-                {evaluation && (
-                  <EvaluationResults evaluation={evaluation} />
-                )}
+                  data-testid="open-position-applications"
+                >
+                  Cargar CVs y analizar
+                </button>
               </div>
-            </div>
+            </section>
           </>
         )}
       </main>

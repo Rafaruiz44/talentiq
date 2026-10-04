@@ -44,6 +44,23 @@ test('carga un puesto guardado con las ponderaciones de sus habilidades', async 
   await expect(page.getByRole('heading', { name: 'Seniority' })).toHaveCount(0)
   await expect(page.getByText('Semi Senior', { exact: true })).toBeVisible()
   await expect(page.getByText('SQL', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('analysis-workspace')).toHaveCount(0)
+  await expect(
+    page.getByRole('link', { name: 'Evaluación de CV' }),
+  ).toHaveCount(0)
+  await expect(page.getByTestId('open-position-applications')).toBeVisible()
+
+  await page.getByTestId('open-position-applications').click()
+  await expect(page).toHaveURL(/\/postulaciones\?positionId=position-1$/)
+  await expect(page.getByTestId('application-position')).toHaveValue('position-1')
+
+  await page.goBack()
+  await expect(
+    page.getByRole('heading', {
+      name: 'Desarrollador Backend',
+      level: 2,
+    }),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: 'Editar puesto' }).click()
   await expect(

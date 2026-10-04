@@ -5,7 +5,7 @@ const candidateId = '22222222-2222-4222-8222-222222222222'
 const candidateDocumentId = '33333333-3333-4333-8333-333333333333'
 const resumeText = 'Desarrolladora Frontend con React y TypeScript'
 
-test('lista candidatos propios y reutiliza su CV en una evaluación de otro puesto', async ({
+test('lista candidatos propios y reevalúa un CV guardado en otra posición sin subirlo otra vez', async ({
   page,
 }) => {
   await mockAuthenticatedSession(page, [
@@ -115,22 +115,14 @@ test('lista candidatos propios y reutiliza su CV en una evaluación de otro pues
 
   await page.getByTestId('candidate-position').selectOption('position-1')
   await page
-    .getByRole('button', { name: 'Usar en el puesto' })
+    .getByRole('button', { name: 'Analizar en esta posición' })
     .click()
 
-  await expect(
-    page.getByRole('heading', { name: 'Desarrollador Frontend', level: 2 }),
-  ).toBeVisible()
-  await expect(page.getByTestId('candidate-resume-file-name')).toContainText(
-    'maria-cv.pdf',
+  await expect(page.getByTestId('candidate-bank-notice')).toContainText(
+    'Apto, 100% de compatibilidad para Desarrollador Frontend',
   )
   expect(new URL(selectedDocumentUrl).searchParams.get('recruiter_id')).toBe(
     `eq.${recruiterId}`,
-  )
-
-  await page.getByTestId('run-analysis').click()
-  await expect(page.getByTestId('candidate-save-notice')).toContainText(
-    'se guardó en el historial',
   )
   expect(JSON.parse(evaluationRequestBody)).toMatchObject({
     positionId: 'position-1',

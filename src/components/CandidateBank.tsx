@@ -8,6 +8,7 @@ interface CandidateBankProps {
   loading: boolean
   loadingDocumentId: string | null
   error: string | null
+  notice: string | null
   onRetry: () => void
   onUseCandidate: (
     candidateId: string,
@@ -30,6 +31,7 @@ export function CandidateBank({
   loading,
   loadingDocumentId,
   error,
+  notice,
   onRetry,
   onUseCandidate,
   onCreatePosition,
@@ -61,7 +63,7 @@ export function CandidateBank({
           <h2 id="candidate-bank-title">Banco de candidatos</h2>
           <p>
             Tus candidatos y CVs guardados, privados para tu cuenta. Elegí un
-            puesto para reutilizar un CV sin volver a subirlo.
+            puesto para volver a evaluar un CV sin subirlo otra vez.
           </p>
         </div>
         <span className="candidate-count" data-testid="candidate-count">
@@ -110,6 +112,11 @@ export function CandidateBank({
           </button>
         </div>
       )}
+      {notice && (
+        <p role="status" className="candidate-bank-notice" data-testid="candidate-bank-notice">
+          {notice}
+        </p>
+      )}
 
       {loading ? (
         <p role="status">Cargando candidatos...</p>
@@ -120,8 +127,8 @@ export function CandidateBank({
           </span>
           <h3>Tu banco está vacío</h3>
           <p>
-            Cuando analices y guardes un CV desde un puesto, el candidato
-            aparecerá acá para que puedas reutilizarlo.
+            Cuando cargues un CV en Postulaciones, el candidato aparecerá acá
+            para que puedas volver a evaluarlo en otra posición.
           </p>
         </div>
       ) : filteredCandidates.length === 0 ? (
@@ -191,8 +198,8 @@ export function CandidateBank({
                     data-testid={`use-candidate-${candidate.id}`}
                   >
                     {loadingDocumentId === latestDocument?.id
-                      ? 'Cargando CV...'
-                      : 'Usar en el puesto'}
+                      ? 'Analizando CV...'
+                      : 'Analizar en esta posición'}
                   </button>
                 </div>
               </article>

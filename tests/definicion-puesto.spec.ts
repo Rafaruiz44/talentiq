@@ -52,21 +52,3 @@ test('permite modificar el peso de una habilidad ya agregada', async ({ page }) 
   await expect(page.getByTestId('skill-weight-0')).toHaveValue('9')
   await expect(page.getByTestId('skills-list').getByRole('listitem')).toContainText('9')
 })
-
-test('permite cargar un CV PDF desde la zona de selección', async ({ page }) => {
-  await page.goto('/puestos/position-1')
-
-  const chooserPromise = page.waitForEvent('filechooser')
-  await page.getByRole('button', {
-    name: 'Arrastrá el CV acá o hacé clic para elegirlo PDF · máx. 5 MB',
-  }).click()
-  const chooser = await chooserPromise
-
-  await chooser.setFiles({
-    name: 'candidato.pdf',
-    mimeType: 'application/pdf',
-    buffer: Buffer.from('%PDF-1.4 CV de prueba'),
-  })
-
-  await expect(page.getByTestId('candidate-resume-file')).toHaveValue(/candidato\.pdf/)
-})
