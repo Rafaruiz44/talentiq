@@ -10,12 +10,15 @@ Esas capacidades ampliadas están planificadas y no deben considerarse implement
 
 ## Funcionalidades actuales del MVP
 
-- Definir el nombre del puesto, habilidades con peso individual y seniority requerido con su peso.
-- Cargar un CV PDF individual de hasta 5 MB y extraer su texto con PDF.js en el navegador.
+- Gestionar puestos en pantallas diferenciadas: listado en `/puestos`, creación en `/puestos/nuevo`, detalle y evaluación en `/puestos/:id`, y edición en `/puestos/:id/editar`.
+- Definir el nombre del puesto, habilidades con peso individual y seniority requerido con su peso; los puestos y requisitos se guardan en Supabase.
+- Desde el detalle de un puesto, cargar un CV PDF individual de hasta 5 MB y extraer su texto con PDF.js en el navegador.
 - Ejecutar un análisis de compatibilidad y mostrar puntaje, veredicto `Apto` o `No Apto`, fortalezas y brechas.
 - Cambiar entre tema claro y oscuro; la preferencia se conserva en `sessionStorage`.
 
-El umbral actual de aprobación está fijado en 70 %. El CV y el resultado se mantienen en memoria; los puestos y sus requisitos se cargan y guardan en Supabase. Si Azure OpenAI no está configurado, el MVP usa una evaluación local de respaldo.
+El umbral actual de aprobación está fijado en 70 %. El CV y el resultado se mantienen en memoria y no se persisten ni se suben al bucket. Si Azure OpenAI no está configurado, el MVP usa una evaluación local de respaldo.
+
+La interfaz autenticada usa un shell adaptable Modern SaaS minimalista y navegación cliente con History API, sin dependencia de routing adicional.
 
 ## Alcance acordado para la entrega final
 
@@ -30,7 +33,7 @@ El umbral actual de aprobación está fijado en 70 %. El CV y el resultado se ma
 - Evaluación y generación de preguntas de Azure OpenAI desde un backend, sin claves secretas en el frontend.
 - Despliegue accesible con verificación de un flujo integrado.
 
-Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. El usuario confirmó las tablas, Google OAuth y las políticas RLS de lectura, inserción y actualización para puestos y ponderaciones. La aplicación ya permite cargar y guardar puestos desde Supabase, sujeto a aplicar la nueva migración RPC descrita abajo. El hosting sigue pendiente. También resta definir duplicados, límites de archivo, retención y eliminación de datos personales. No hay una demo pública desplegada a la fecha de esta documentación. El trabajo colaborativo entre reclutadores y los bancos compartidos por empresa quedan como evolución futura.
+Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. El usuario confirmó las tablas, Google OAuth, las políticas RLS para puestos y ponderaciones, y un guardado real correcto de puesto y sus habilidades. La aplicación ya permite cargar, guardar y actualizar puestos desde Supabase. El hosting sigue pendiente. También resta definir duplicados, límites de archivo, retención y eliminación de datos personales. No hay una demo pública desplegada a la fecha de esta documentación. El trabajo colaborativo entre reclutadores y los bancos compartidos por empresa quedan como evolución futura.
 
 ## Tecnologías presentes
 
@@ -42,7 +45,7 @@ Supabase está seleccionado para autenticación, base de datos y almacenamiento 
 - Playwright para pruebas end-to-end.
 - Oxlint para análisis estático.
 
-Hay una migración SQL inicial en `supabase/migrations/` con el esquema, las políticas RLS y el bucket privado. El usuario confirmó que la aplicó y la consulta a `pg_policies` confirma las políticas de las tablas de puestos. La migración `20261003214000_save_position_rpc.sql` agrega el guardado atómico de un puesto con sus habilidades y debe aplicarse antes de usar esa acción en la app. La persistencia de candidatos y el uso del bucket desde la aplicación aún no están implementados.
+Hay una migración SQL inicial en `supabase/migrations/` con el esquema, las políticas RLS y el bucket privado. El usuario confirmó que la aplicó y la consulta a `pg_policies` confirma las políticas de las tablas de puestos. La migración `20261003214000_save_position_rpc.sql` agrega el guardado atómico de un puesto con sus habilidades; el usuario confirmó haberla aplicado y haber guardado un puesto correctamente. La persistencia de candidatos y el uso del bucket desde la aplicación aún no están implementados.
 
 ## Requisitos
 
@@ -83,7 +86,7 @@ Los pasos concretos están en [documentacion/configuracion-supabase-google-auth.
 5. Mantener `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en `.env` únicamente.
 6. Nunca exponer `service_role` ni claves privadas en el bundle.
 
-Para habilitar el guardado de puestos, aplicar además `supabase/migrations/20261003214000_save_position_rpc.sql` en SQL Editor del mismo proyecto Supabase. Esta función inserta o actualiza el puesto y reemplaza sus habilidades dentro de una sola transacción, y valida que el puesto pertenezca al usuario autenticado. No volver a ejecutar la migración inicial.
+El guardado de puestos requiere `supabase/migrations/20261003214000_save_position_rpc.sql`, ya aplicada por el usuario en el proyecto. La función inserta o actualiza el puesto y reemplaza sus habilidades dentro de una sola transacción, y valida que el puesto pertenezca al usuario autenticado. No volver a ejecutar la migración inicial.
 
 ## Configuración de IA
 
@@ -99,7 +102,7 @@ npm run build
 npx playwright test
 ```
 
-Las pruebas E2E cubren autenticación, definición y selección local de requisitos, y la integración de la interfaz de puestos con respuestas de Supabase simuladas. La escritura/lectura real debe verificarse luego de aplicar la migración RPC en el proyecto; persistencia de candidatos, lotes, solicitudes, historial, etapas, generación de preguntas y despliegue todavía deben incorporarse.
+Las pruebas E2E cubren autenticación, definición y selección de requisitos, y la integración de la interfaz de puestos con respuestas de Supabase simuladas. El usuario verificó un guardado real de puesto en Supabase. Persistencia de candidatos, lotes, solicitudes, historial, etapas, generación de preguntas y despliegue todavía deben incorporarse.
 
 ## Estructura principal
 

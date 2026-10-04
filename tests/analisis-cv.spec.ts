@@ -58,19 +58,7 @@ const prepareAnalysis = async (page: Page) => {
     }),
   )
 
-  await page.goto('/')
-  await page
-    .getByRole('textbox', { name: 'Nombre del puesto' })
-    .fill('Desarrollador Frontend')
-
-  for (const skill of ['React', 'TypeScript']) {
-    await page.getByRole('textbox', { name: 'Habilidad' }).fill(skill)
-    await page.getByRole('button', { name: '+ Agregar' }).click()
-  }
-
-  await page
-    .getByRole('combobox', { name: 'Nivel' })
-    .selectOption({ label: 'Semi Senior' })
+  await page.goto('/puestos/position-1')
 
   const fileChooserPromise = page.waitForEvent('filechooser')
   await page
@@ -87,7 +75,38 @@ const prepareAnalysis = async (page: Page) => {
 }
 
 test.beforeEach(async ({ page }) => {
-  await mockAuthenticatedSession(page)
+  await mockAuthenticatedSession(page, [
+    {
+      id: 'position-1',
+      title: 'Desarrollador Frontend',
+      seniority: 'Semi Senior',
+      seniority_points: 5,
+      status: 'Nueva',
+      position_skills: [
+        { name: 'React', points: 5 },
+        { name: 'TypeScript', points: 5 },
+      ],
+    },
+  ])
+})
+
+test('muestra el currículum a todo el ancho y el análisis debajo', async ({
+  page,
+}) => {
+  await page.goto('/puestos/position-1')
+
+  const workspace = page.getByTestId('analysis-workspace')
+  const cvPanel = page.getByTestId('cv-upload-panel')
+  const analysisColumn = page.getByTestId('analysis-controls-column')
+  const workspaceBox = await workspace.boundingBox()
+  const cvBox = await cvPanel.boundingBox()
+  const analysisBox = await analysisColumn.boundingBox()
+
+  expect(workspaceBox).not.toBeNull()
+  expect(cvBox).not.toBeNull()
+  expect(analysisBox).not.toBeNull()
+  expect(cvBox!.width).toBeGreaterThan(workspaceBox!.width * 0.9)
+  expect(analysisBox!.y).toBeGreaterThanOrEqual(cvBox!.y + cvBox!.height)
 })
 
 test('calcula y muestra la compatibilidad y el veredicto', async ({ page }) => {

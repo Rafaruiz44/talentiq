@@ -21,6 +21,7 @@ Este es el alcance acordado, no una afirmación de que esas capacidades estén i
 ## Reglas de implementación
 
 - Stack actual: Vite, React 19 y TypeScript en modo estricto. Actualizar esta descripción cuando cambie el proyecto.
+- Para crear o modificar UI, seguir el agente [Diseñador UI](.github/agents/disenador-ui.agent.md) y las instrucciones [.github/instructions/estilo-ui.instructions.md](.github/instructions/estilo-ui.instructions.md), aplicadas automáticamente a archivos de `src/`.
 - Nunca usar `any`.
 - Un componente por archivo, con export nombrado, siguiendo los patrones existentes.
 - Usar elementos HTML nativos (`button`, `input`, `label`, `textarea`); no usar un `div` con `onClick`.

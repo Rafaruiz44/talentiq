@@ -1,26 +1,36 @@
 import { expect, test, mockAuthenticatedSession } from './fixtures'
 
 test.beforeEach(async ({ page }) => {
-  await mockAuthenticatedSession(page)
+  await mockAuthenticatedSession(page, [
+    {
+      id: 'position-1',
+      title: 'Desarrollador Backend',
+      seniority: 'Semi Senior',
+      seniority_points: 5,
+      status: 'Nueva',
+      position_skills: [{ name: 'SQL', points: 5 }],
+    },
+  ])
 })
 
-test('mantiene deshabilitado el análisis hasta completar los datos requeridos', async ({ page }) => {
-  await page.goto('/')
+test('mantiene deshabilitada la creación hasta completar los datos requeridos', async ({ page }) => {
+  await page.goto('/puestos/nuevo')
 
-  const analyzeButton = page.getByRole('button', { name: 'Procesar análisis' })
-  await expect(analyzeButton).toBeDisabled()
+  const createButton = page.getByRole('button', { name: 'Crear puesto' })
+  await expect(createButton).toBeDisabled()
 
   await page.getByRole('textbox', { name: 'Nombre del puesto' }).fill('Desarrollador Backend')
-  await expect(analyzeButton).toBeDisabled()
+  await expect(createButton).toBeDisabled()
 
   await page.getByRole('textbox', { name: 'Habilidad' }).fill('SQL')
   await page.getByRole('button', { name: '+ Agregar' }).click()
+  await expect(createButton).toBeDisabled()
   await page.getByRole('combobox', { name: 'Nivel' }).selectOption({ label: 'Semi Senior' })
-  await expect(analyzeButton).toBeDisabled()
+  await expect(createButton).toBeEnabled()
 })
 
 test('agrega una habilidad con su peso individual', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/puestos/nuevo')
 
   await page.getByRole('textbox', { name: 'Nombre del puesto' }).fill('Desarrollador Backend')
   await page.getByRole('textbox', { name: 'Habilidad' }).fill('SQL')
@@ -33,7 +43,7 @@ test('agrega una habilidad con su peso individual', async ({ page }) => {
 })
 
 test('permite modificar el peso de una habilidad ya agregada', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/puestos/nuevo')
 
   await page.getByRole('textbox', { name: 'Habilidad' }).fill('SQL')
   await page.getByRole('button', { name: '+ Agregar' }).click()
@@ -44,7 +54,7 @@ test('permite modificar el peso de una habilidad ya agregada', async ({ page }) 
 })
 
 test('permite cargar un CV PDF desde la zona de selección', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/puestos/position-1')
 
   const chooserPromise = page.waitForEvent('filechooser')
   await page.getByRole('button', {

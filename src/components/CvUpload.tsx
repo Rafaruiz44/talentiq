@@ -74,7 +74,7 @@ export function CvUpload({ value, onChange }: CvUploadProps) {
   const handleChooseFile = () => inputRef.current?.click()
 
   return (
-    <section aria-labelledby="cv-upload-title">
+    <section aria-labelledby="cv-upload-title" data-testid="cv-upload-panel">
       <div className="step-heading"><span className="step-number">4</span><h2 id="cv-upload-title">Currículum</h2></div>
       <div
         className={`file-dropzone${isDragging ? ' file-dropzone-active' : ''}${value.fileName ? ' file-dropzone-loaded' : ''}`}

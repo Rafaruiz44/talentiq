@@ -36,15 +36,16 @@ Los usuarios principales son reclutadores autenticados con Google. En esta etapa
 
 El código comprobable en el repositorio actualmente permite:
 
-- Ingresar el nombre del puesto.
+- Gestionar puestos persistidos en pantallas separadas: `/puestos` (listado), `/puestos/nuevo` (creación), `/puestos/:id` (detalle y análisis) y `/puestos/:id/editar` (edición).
+- Ingresar y guardar el nombre del puesto.
 - Agregar y quitar habilidades requeridas con un peso individual de 1 a 10.
-- Seleccionar el seniority requerido y asignarle un peso.
-- Cargar un CV PDF individual de hasta 5 MB.
+- Seleccionar y guardar el seniority requerido y asignarle un peso.
+- Desde el detalle de una posición, cargar un CV PDF individual de hasta 5 MB.
 - Extraer el texto del PDF en el navegador con PDF.js.
 - Calcular y mostrar un resultado con veredicto `Apto` o `No Apto`, fortalezas y brechas.
 - Cambiar entre tema claro y oscuro; la preferencia se guarda en `sessionStorage`.
 
-Los requisitos, el nombre y texto del CV y el resultado de la evaluación viven en el estado React durante la sesión; no se guardan en una base de datos o bucket. El umbral de aprobación está fijado en 70 %. Si faltan las variables de Azure OpenAI, el flujo actual puede recurrir a una evaluación local.
+Los puestos y sus requisitos se guardan en Supabase. El CV y el resultado de la evaluación viven en el estado React durante la sesión; todavía no se guardan en una base de datos o bucket. El umbral de aprobación está fijado en 70 %. Si faltan las variables de Azure OpenAI, el flujo actual puede recurrir a una evaluación local.
 
 ## Alcance acordado para la entrega final
 
@@ -165,7 +166,9 @@ La carga masiva procesa cada CV de manera individual. El sistema debe registrar 
 | Pruebas E2E | Playwright | Pruebas de la interfaz del MVP |
 | Lint | Oxlint | Análisis estático |
 
-La migración inicial `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql` se aplicó en el proyecto Supabase del usuario. La consulta a `pg_policies` confirma las políticas RLS `SELECT`, `INSERT` y `UPDATE` para `positions` y `position_skills`, restringidas a `auth.uid()`. El usuario también confirmó Google OAuth y el bucket `candidate-cvs` con políticas para `INSERT`, `SELECT` y `UPDATE`. La app consulta la lista de puestos; para guardar o actualizar el puesto y sus habilidades de manera atómica, debe aplicarse la migración adicional `supabase/migrations/20261003214000_save_position_rpc.sql`. Aún no se ha validado una operación de escritura contra la instancia real.
+La interfaz autenticada dispone de un shell adaptable con sidebar/navegación compacta y enlaces a las superficies existentes de puestos y evaluación de CV. No representa aún módulos de candidatos o pipeline, que siguen pendientes de implementación.
+
+La migración inicial `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql` se aplicó en el proyecto Supabase del usuario. La consulta a `pg_policies` confirma las políticas RLS `SELECT`, `INSERT` y `UPDATE` para `positions` y `position_skills`, restringidas a `auth.uid()`. El usuario también confirmó Google OAuth y el bucket `candidate-cvs` con políticas para `INSERT`, `SELECT` y `UPDATE`. La app consulta la lista de puestos; para guardar o actualizar el puesto y sus habilidades de manera atómica, se agregó la migración `supabase/migrations/20261003214000_save_position_rpc.sql`, que el usuario aplicó y validó con un guardado real correcto.
 
 ## Pruebas y despliegue
 

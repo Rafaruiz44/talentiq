@@ -10,6 +10,10 @@ test('requiere iniciar sesión antes de acceder al espacio privado', async ({
     page.getByRole('heading', { name: 'Acceso de reclutador' }),
   ).toBeVisible()
   await expect(page.getByTestId('google-sign-in')).toBeVisible()
+  await expect(page.getByTestId('google-sign-in')).toContainText(
+    'Ingresar con Google',
+  )
+  await expect(page.getByTestId('google-sign-in-icon')).toBeVisible()
   await expect(
     page.getByRole('textbox', { name: 'Nombre del puesto' }),
   ).toHaveCount(0)
@@ -50,9 +54,9 @@ test('cierra sesión y oculta el espacio privado', async ({ page }) => {
   )
   await page.goto('/')
   await expect(
-    page.getByRole('textbox', { name: 'Nombre del puesto' }),
+    page.getByRole('heading', { name: 'Tus puestos' }),
   ).toBeVisible()
-  await page.getByRole('textbox', { name: 'Nombre del puesto' }).fill('Puesto privado')
+  await expect(page.getByTestId('signed-in-user')).toBeVisible()
 
   await page.getByTestId('sign-out').click()
 
@@ -60,6 +64,6 @@ test('cierra sesión y oculta el espacio privado', async ({ page }) => {
     page.getByRole('heading', { name: 'Acceso de reclutador' }),
   ).toBeVisible()
   await expect(
-    page.getByRole('textbox', { name: 'Nombre del puesto' }),
+    page.getByTestId('signed-in-user'),
   ).toHaveCount(0)
 })
