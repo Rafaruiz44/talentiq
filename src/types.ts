@@ -18,6 +18,8 @@ export interface JobRequirementsImport {
 export interface CandidateResume {
   text: string
   fileName: string | null
+  file?: File | null
+  candidateDocumentId?: string
 }
 
 export interface CandidateEvaluation {

@@ -4,6 +4,7 @@ import { CvUpload } from './components/CvUpload'
 import { EvaluationResults } from './components/EvaluationResults'
 import { JobRequirementsForm } from './components/JobRequirementsForm'
 import { PositionList } from './components/PositionList'
+import { saveCandidateDocument } from './services/candidates'
 import { inferCandidateEvaluation } from './services/inferCandidateEvaluation'
 import {
   listSavedPositions,
@@ -64,7 +65,14 @@ export function App() {
   const [candidateResume, setCandidateResume] = useState<CandidateResume>({
     text: '',
     fileName: null,
+    file: null,
   })
+  const [candidateSaveError, setCandidateSaveError] = useState<string | null>(
+    null,
+  )
+  const [candidateSaveNotice, setCandidateSaveNotice] = useState<string | null>(
+    null,
+  )
   const [evaluation, setEvaluation] = useState<CandidateEvaluation | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,7 +98,9 @@ export function App() {
       setPositionsLoadedForUserId(null)
       setPositionError(null)
       setPositionNotice(null)
-      setCandidateResume({ text: '', fileName: null })
+      setCandidateResume({ text: '', fileName: null, file: null })
+      setCandidateSaveError(null)
+      setCandidateSaveNotice(null)
       setEvaluation(null)
       setLoading(false)
       setError(null)
@@ -371,6 +381,16 @@ export function App() {
     setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'))
   }
 
+  const handleResumeChange = (resume: CandidateResume) => {
+    analysisRunId.current += 1
+    setCandidateResume(resume)
+    setLoading(false)
+    setEvaluation(null)
+    setError(null)
+    setCandidateSaveError(null)
+    setCandidateSaveNotice(null)
+  }
+
   const handleAnalyze = async (
     requirements: JobRequirements = jobRequirements,
   ) => {
@@ -389,6 +409,47 @@ export function App() {
       )
       if (currentRunId === analysisRunId.current) {
         setEvaluation(result)
+      }
+
+      if (
+        currentRunId === analysisRunId.current &&
+        session?.user.id &&
+        session.access_token &&
+        candidateResume.file &&
+        !candidateResume.candidateDocumentId
+      ) {
+        setCandidateSaveError(null)
+        setCandidateSaveNotice(null)
+        try {
+          const savedCandidate = await saveCandidateDocument({
+            accessToken: session.access_token,
+            candidateName: result.candidateName,
+            extractedText: candidateResume.text,
+            file: candidateResume.file,
+            recruiterId: session.user.id,
+          })
+          if (currentRunId === analysisRunId.current) {
+            setCandidateResume((currentResume) =>
+              currentResume.file === candidateResume.file
+                ? {
+                    ...currentResume,
+                    candidateDocumentId: savedCandidate.candidateDocumentId,
+                  }
+                : currentResume,
+            )
+            setCandidateSaveNotice(
+              `${result.candidateName} y su CV se guardaron en el banco de candidatos.`,
+            )
+          }
+        } catch (saveError) {
+          if (currentRunId === analysisRunId.current) {
+            setCandidateSaveError(
+              saveError instanceof Error
+                ? `El análisis se completó, pero no se pudo guardar el CV: ${saveError.message}`
+                : 'El análisis se completó, pero no se pudo guardar el CV.',
+            )
+          }
+        }
       }
     } catch (analysisError) {
       if (currentRunId === analysisRunId.current) {
@@ -682,7 +743,7 @@ export function App() {
             >
               <CvUpload
                 value={candidateResume}
-                onChange={setCandidateResume}
+                onChange={handleResumeChange}
               />
               <div
                 className="analysis-controls-column"
@@ -697,6 +758,16 @@ export function App() {
                 {error && (
                   <p role="alert" data-testid="error-message">
                     {error}
+                  </p>
+                )}
+                {candidateSaveError && (
+                  <p role="alert" data-testid="candidate-save-error">
+                    {candidateSaveError}
+                  </p>
+                )}
+                {candidateSaveNotice && (
+                  <p role="status" data-testid="candidate-save-notice">
+                    {candidateSaveNotice}
                   </p>
                 )}
                 {evaluation && (

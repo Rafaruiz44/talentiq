@@ -48,6 +48,7 @@ const prepareAnalysis = async (page: Page) => {
     ],
     gaps: [],
   }
+  const candidateSaveRequest = { authorization: '', body: '', calls: 0 }
 
   await page.route('**/api/evaluate-candidate', async (route) => {
     capturedRequest.authorization =
@@ -57,6 +58,27 @@ const prepareAnalysis = async (page: Page) => {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(evaluation),
+    })
+  })
+  await page.route('**/storage/v1/object/candidate-cvs/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ Key: 'candidate-cvs/test/resume.pdf' }),
+    }),
+  )
+  await page.route('**/api/candidates', async (route) => {
+    candidateSaveRequest.calls += 1
+    candidateSaveRequest.authorization =
+      route.request().headers().authorization ?? ''
+    candidateSaveRequest.body = route.request().postData() ?? ''
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        candidateId: 'candidate-1',
+        candidateDocumentId: 'document-1',
+      }),
     })
   })
 
@@ -75,7 +97,7 @@ const prepareAnalysis = async (page: Page) => {
     buffer: createResumePdf(),
   })
 
-  return capturedRequest
+  return { candidateSaveRequest, evaluationRequest: capturedRequest }
 }
 
 test.beforeEach(async ({ page }) => {
@@ -114,12 +136,13 @@ test('muestra el currículum a todo el ancho y el análisis debajo', async ({
 })
 
 test('calcula y muestra la compatibilidad y el veredicto', async ({ page }) => {
-  const capturedRequest = await prepareAnalysis(page)
+  const { candidateSaveRequest, evaluationRequest } =
+    await prepareAnalysis(page)
 
   await page.getByRole('button', { name: 'Procesar análisis' }).click()
 
-  expect(capturedRequest.authorization).toMatch(/^Bearer .+/)
-  expect(JSON.parse(capturedRequest.body)).toMatchObject({
+  expect(evaluationRequest.authorization).toMatch(/^Bearer .+/)
+  expect(JSON.parse(evaluationRequest.body)).toMatchObject({
     requirements: { role: 'Desarrollador Frontend' },
     resumeText: expect.stringContaining('React'),
   })
@@ -127,6 +150,21 @@ test('calcula y muestra la compatibilidad y el veredicto', async ({ page }) => {
   await expect(results).toBeVisible()
   await expect(results).toContainText('100%')
   await expect(results).toContainText('Apto')
+  await expect(page.getByTestId('candidate-save-notice')).toContainText(
+    'Candidato de prueba y su CV se guardaron',
+  )
+  expect(candidateSaveRequest.authorization).toMatch(/^Bearer .+/)
+  expect(JSON.parse(candidateSaveRequest.body)).toMatchObject({
+    candidateName: 'Candidato de prueba',
+    fileName: 'candidato.pdf',
+    mimeType: 'application/pdf',
+    extractedText: expect.stringContaining('React'),
+  })
+  expect(candidateSaveRequest.calls).toBe(1)
+
+  await page.getByRole('button', { name: 'Procesar análisis' }).click()
+  await expect(results).toBeVisible()
+  expect(candidateSaveRequest.calls).toBe(1)
 })
 
 test('muestra el desglose de fortalezas y brechas', async ({ page }) => {

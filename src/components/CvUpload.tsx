@@ -45,8 +45,16 @@ export function CvUpload({ value, onChange }: CvUploadProps) {
     }
 
     setFileError(null)
-    const text = await extractPdfText(file)
-    onChange({ text, fileName: file.name })
+    try {
+      const text = await extractPdfText(file)
+      if (!text.trim()) {
+        setFileError('No se pudo extraer texto del PDF.')
+        return
+      }
+      onChange({ text, fileName: file.name, file })
+    } catch {
+      setFileError('No se pudo leer el PDF. Verificá que el archivo no esté dañado.')
+    }
   }
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {

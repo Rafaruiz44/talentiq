@@ -105,7 +105,7 @@ flowchart LR
     V --> UI
 ```
 
-La aplicación principal mantiene posición, CV y evaluación en memoria. `POST /api/evaluate-candidate` y `POST /api/import-job-requirements` requieren un token de sesión que el backend valida con Supabase antes de usar Azure OpenAI. Las credenciales Azure se configuran en el entorno server-side como `AZURE_OPENAI_*`, nunca como `VITE_*`. La persistencia de candidatos, documentos y evaluaciones todavía no está conectada.
+La posición, el CV en edición y la evaluación permanecen en memoria; después de un análisis exitoso, el PDF individual se sube al bucket privado y se persisten el candidato, los metadatos y el texto extraído. `POST /api/evaluate-candidate`, `POST /api/candidates` y `POST /api/import-job-requirements` requieren un token de sesión que el backend valida con Supabase. La persistencia usa `SUPABASE_SERVICE_ROLE_KEY` solo desde el servidor para ejecutar una RPC restringida. Las credenciales Azure se configuran como `AZURE_OPENAI_*`, nunca como `VITE_*`. Aún no se guardan las ejecuciones de evaluación ni las solicitudes candidato–posición.
 
 ### Arquitectura objetivo (proveedores por definir)
 
@@ -140,9 +140,10 @@ La carga masiva procesa cada CV de manera individual. El sistema debe registrar 
 ### Situación actual
 
 - El navegador extrae el texto del PDF.
-- El nombre del archivo y el texto extraído se conservan temporalmente en memoria.
+- Antes de analizar, el nombre del archivo y el texto extraído se conservan temporalmente en memoria.
+- Después de un análisis exitoso, el PDF individual, los metadatos del documento, el perfil del candidato y el texto extraído se guardan en Supabase. El usuario confirmó la aplicación de `20261004150000_save_candidate_document_rpc.sql`; se requiere configurar `SUPABASE_SERVICE_ROLE_KEY` solo en el servidor y aún falta probar la escritura real desde la aplicación.
 - Los puestos y sus ponderaciones se cargan desde Supabase; guardado/actualización usa una función transaccional que debe aplicarse en la instancia.
-- No hay persistencia de perfiles o resultados ni almacenamiento de archivos en bucket desde la aplicación.
+- No se persisten los resultados de análisis ni las solicitudes; tampoco hay listado/búsqueda del banco de candidatos o tratamiento de duplicados.
 - La llamada configurada a Azure OpenAI desde el frontend transmite el texto del CV y los requisitos a Azure.
 - Una clave `VITE_*` queda disponible al código cliente al compilar y no es apta como secreto en producción.
 

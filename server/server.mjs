@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { pathToFileURL } from 'node:url'
 
-const maxBodyLength = 750_000
+const maxBodyLength = 3_000_000
 const maxSourceLength = 500_000
 const maxResumeLength = 600_000
 const seniorities = new Set([
@@ -128,6 +128,119 @@ const getAzureConfiguration = (env) => {
   }
 
   return { endpoint, key, deployment, apiVersion }
+}
+
+const createCandidateDocument = async (
+  userId,
+  candidateInput,
+  env,
+  fetchImpl,
+) => {
+  const {
+    candidateName,
+    extractedText,
+    fileName,
+    mimeType,
+    sizeBytes,
+    storagePath,
+  } = candidateInput ?? {}
+  const storagePathParts =
+    typeof storagePath === 'string' ? storagePath.split('/') : []
+  const validStoragePath =
+    storagePathParts.length === 3 &&
+    storagePathParts[0] === userId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      storagePathParts[1],
+    ) &&
+    storagePathParts[2] === 'resume.pdf'
+
+  if (
+    typeof candidateName !== 'string' ||
+    !candidateName.trim() ||
+    candidateName.length > 200 ||
+    typeof extractedText !== 'string' ||
+    !extractedText.trim() ||
+    extractedText.length > maxResumeLength ||
+    typeof fileName !== 'string' ||
+    !fileName.trim() ||
+    fileName.length > 255 ||
+    mimeType !== 'application/pdf' ||
+    !Number.isInteger(sizeBytes) ||
+    sizeBytes < 1 ||
+    sizeBytes > 5 * 1024 * 1024 ||
+    !validStoragePath
+  ) {
+    throw new ApiError(400, 'Los datos del candidato o del CV no son válidos.')
+  }
+
+  const { url } = getSupabaseConfiguration(env)
+  const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !serviceRoleKey) {
+    throw new ApiError(
+      503,
+      'La persistencia de candidatos no está configurada en el servidor.',
+    )
+  }
+
+  let response
+  let createdDocuments
+
+  try {
+    response = await fetchImpl(
+      `${url}/rest/v1/rpc/save_candidate_document`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          p_recruiter_id: userId,
+          p_full_name: candidateName.trim(),
+          p_original_file_name: fileName.trim(),
+          p_mime_type: mimeType,
+          p_size_bytes: sizeBytes,
+          p_storage_path: storagePath,
+          p_extracted_text: extractedText,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      },
+    )
+  } catch {
+    throw new ApiError(502, 'No se pudo guardar el candidato y su CV en Supabase.')
+  }
+
+  if (!response.ok) {
+    console.error(
+      `Supabase rechazó la persistencia del CV con estado ${response.status}.`,
+    )
+    throw new ApiError(502, 'No se pudo guardar el candidato y su CV en Supabase.')
+  }
+
+  try {
+    createdDocuments = await response.json()
+  } catch {
+    throw new ApiError(502, 'Supabase devolvió una respuesta inválida al guardar el CV.')
+  }
+
+  const savedCandidate = Array.isArray(createdDocuments)
+    ? createdDocuments[0]
+    : createdDocuments
+  const candidateId = savedCandidate?.candidate_id
+  const candidateDocumentId = savedCandidate?.candidate_document_id
+  if (typeof candidateDocumentId !== 'string' || !candidateDocumentId) {
+    throw new ApiError(
+      502,
+      'Supabase no devolvió los identificadores del candidato y su CV.',
+    )
+  }
+
+  if (typeof candidateId !== 'string' || !candidateId) {
+    throw new ApiError(502, 'Supabase no devolvió el identificador del candidato.')
+  }
+
+  return { candidateId, candidateDocumentId }
 }
 
 const callAzureOpenAI = async (messages, env, fetchImpl) => {
@@ -279,8 +392,19 @@ export const createApiServer = ({
     }
 
     try {
-      await requireAuthenticatedUser(request, env, fetchImpl)
+      const user = await requireAuthenticatedUser(request, env, fetchImpl)
       const body = await readRequestBody(request)
+
+      if (request.url === '/api/candidates') {
+        const candidate = await createCandidateDocument(
+          user.id,
+          body,
+          env,
+          fetchImpl,
+        )
+        sendJson(response, 201, candidate, origin, allowedOrigin)
+        return
+      }
 
       if (request.url === '/api/evaluate-candidate') {
         const { requirements, resumeText } = body ?? {}

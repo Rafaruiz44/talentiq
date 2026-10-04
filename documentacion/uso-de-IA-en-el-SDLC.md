@@ -17,9 +17,9 @@ Este documento separa los hechos observables en el repositorio de las prácticas
 
 ## IA integrada en el producto
 
-Cuando está configurado, el servicio `inferCandidateEvaluation` envía a Azure OpenAI los requisitos ponderados de una posición y el texto extraído del CV. El prompt solicita una respuesta JSON con el nombre del candidato, puntos obtenidos y posibles, veredicto, fortalezas y brechas. El servicio valida el formato y normaliza parte de la respuesta antes de presentarla.
+El cliente envía al backend los requisitos ponderados de una posición y el texto extraído del CV, junto con el token de sesión de Supabase. El backend verifica la sesión y envía la solicitud a Azure OpenAI usando credenciales server-side. El prompt solicita una respuesta JSON con el nombre del candidato, puntos obtenidos y posibles, veredicto, fortalezas y brechas. El resultado se valida y normaliza antes de presentarlo.
 
-Si Azure OpenAI no está configurado, el producto usa una evaluación local de respaldo. Por eso, una demostración ejecutada sin las variables de Azure no demuestra que se haya invocado el modelo externo.
+Si Azure OpenAI no está configurado o el servicio falla, el producto muestra un error y no presenta una evaluación local de respaldo. Las pruebas automatizadas simulan la respuesta del backend y no demuestran que se haya invocado realmente el modelo externo.
 
 El repositorio no permite identificar el nombre exacto del modelo o deployment configurado sin consultar el entorno, lo cual no se hace para proteger secretos. La clave de Azure no debe publicarse ni incorporarse a un bundle público del navegador.
 

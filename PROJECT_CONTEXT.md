@@ -30,9 +30,10 @@ El alcance y las historias propuestas están en [documentacion/alcance-entrega-f
 - `src/services/positions.ts` consulta los puestos del reclutador autenticado y persiste cada puesto y sus habilidades con la función transaccional `save_position`.
 - `src/components/PositionList.tsx` presenta los puestos del reclutador y permite abrir su detalle o crear uno nuevo.
 - `src/components/JobRequirementsForm.tsx` permite definir o editar el rol, habilidades ponderadas y seniority.
-- `src/components/CvUpload.tsx` carga un PDF de hasta 5 MB y extrae texto en el navegador con PDF.js.
+- `src/components/CvUpload.tsx` carga un PDF de hasta 5 MB y extrae texto en el navegador con PDF.js. Después de completar el análisis, `src/services/candidates.ts` sube el PDF al bucket privado con la sesión autenticada y el backend persiste el perfil, los metadatos y el texto extraído.
 - `src/services/inferCandidateEvaluation.ts` envía requisitos y texto del CV a `POST /api/evaluate-candidate` con el token de sesión; valida y normaliza la respuesta en el cliente.
 - `server/server.mjs` valida los tokens mediante Supabase antes de las rutas de evaluación e importación, y mantiene las credenciales Azure en variables server-side `AZURE_OPENAI_*`. No implementa todavía persistencia ni carga de CVs.
+- La persistencia de candidato/documento usa la función transaccional `save_candidate_document`, disponible en `supabase/migrations/20261004150000_save_candidate_document_rpc.sql`; el bucket necesita una política para que el reclutador pueda limpiar una carga fallida.
 - En desarrollo, `npm run dev:api` inicia el backend y Vite reenvía `/api` al puerto 3001. Las rutas backend tienen pruebas Node en `server/server.test.mjs`.
 - El usuario confirmó que aplicó las migraciones `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql` y `supabase/migrations/20261003214000_save_position_rpc.sql` en su proyecto Supabase; tras aplicar la segunda, confirmó que el puesto apareció correctamente.
 - El usuario confirmó que Google está habilitado y que el inicio de sesión OAuth termina con la sesión activa en Talentiq. Al cerrar sesión vuelve a la pantalla de acceso; al iniciar otra vez, Google reutiliza la sesión del navegador y no solicita la contraseña. Se conserva este comportamiento SSO.
@@ -41,7 +42,7 @@ El alcance y las historias propuestas están en [documentacion/alcance-entrega-f
 - Las pruebas Playwright cubren autenticación y la interfaz de gestión de puestos con respuestas de Supabase simuladas; el usuario confirmó además que un puesto guardado apareció correctamente en el proyecto real.
 - La documentación existente indica que no hay demo pública desplegada.
 
-Por tanto, el login/logout de Google y el guardado de puestos con sus ponderaciones están conectados y probados contra el proyecto real por el usuario. El backend de evaluación ya requiere una sesión de Supabase validada y llama a Azure con credenciales server-side; las pruebas de esta integración usan mocks y no confirman la conectividad real contra Supabase o Azure. También siguen pendientes la persistencia de candidatos y solicitudes, almacenamiento de CVs desde la app, carga masiva, seguimiento de etapas, historial de evaluaciones, generación de preguntas y despliegue integrado.
+Por tanto, el login/logout de Google y el guardado de puestos con sus ponderaciones están conectados y probados contra el proyecto real por el usuario. El backend de evaluación y persistencia de CV requiere una sesión de Supabase validada; Azure y la escritura administrativa usan credenciales server-side. `SUPABASE_SERVICE_ROLE_KEY` está configurada localmente, y el usuario confirmó que aplicó `20261004150000_save_candidate_document_rpc.sql`. El nuevo flujo de persistencia aún no se ha probado con una escritura real; las pruebas actuales usan mocks. Siguen pendientes el banco/listado de candidatos y duplicados, la carga masiva, solicitudes, seguimiento de etapas, historial de evaluaciones, generación de preguntas y despliegue integrado.
 
 ## 4. Modelo funcional de referencia
 

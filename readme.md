@@ -15,10 +15,11 @@ Para consultar el estado de implementación revisado y las próximas tareas, ver
 - Gestionar puestos en pantallas diferenciadas: listado en `/puestos`, creación en `/puestos/nuevo`, detalle y evaluación en `/puestos/:id`, y edición en `/puestos/:id/editar`.
 - Definir el nombre del puesto, habilidades con peso individual y seniority requerido con su peso; los puestos y requisitos se guardan en Supabase.
 - Desde el detalle de un puesto, cargar un CV PDF individual de hasta 5 MB y extraer su texto con PDF.js en el navegador.
+- Después de un análisis exitoso, guardar el CV en el bucket privado y persistir el perfil del candidato, los metadatos y el texto extraído en Supabase.
 - Ejecutar un análisis de compatibilidad y mostrar puntaje, veredicto `Apto` o `No Apto`, fortalezas y brechas.
 - Cambiar entre tema claro y oscuro; la preferencia se conserva en `sessionStorage`.
 
-El umbral actual de aprobación está fijado en 70 %. El CV y el resultado se mantienen en memoria y no se persisten ni se suben al bucket. Si Azure OpenAI no está configurado, el MVP usa una evaluación local de respaldo.
+El umbral actual de aprobación está fijado en 70 %. El resultado de la evaluación y las solicitudes candidato–puesto todavía no se persisten. Si Azure OpenAI no está configurado o falla, la aplicación informa el error y no devuelve una evaluación local de respaldo.
 
 La interfaz autenticada usa un shell adaptable Modern SaaS minimalista y navegación cliente con History API, sin dependencia de routing adicional.
 
@@ -42,12 +43,12 @@ Supabase está seleccionado para autenticación, base de datos y almacenamiento 
 - React 19 y TypeScript.
 - Vite.
 - PDF.js (`pdfjs-dist`) para extraer texto de PDFs en el navegador.
-- Azure OpenAI en el flujo actual de evaluación, si está configurado.
-- Node.js nativo para una API auxiliar de importación de requisitos desde ofertas públicas.
+- Azure OpenAI en el backend para evaluación e importación, si está configurado.
+- Node.js nativo para una API autenticada de evaluación e importación de requisitos desde ofertas públicas.
 - Playwright para pruebas end-to-end.
 - Oxlint para análisis estático.
 
-Hay una migración SQL inicial en `supabase/migrations/` con el esquema, las políticas RLS y el bucket privado. El usuario confirmó que la aplicó y la consulta a `pg_policies` confirma las políticas de las tablas de puestos. La migración `20261003214000_save_position_rpc.sql` agrega el guardado atómico de un puesto con sus habilidades; el usuario confirmó haberla aplicado y haber guardado un puesto correctamente. La persistencia de candidatos y el uso del bucket desde la aplicación aún no están implementados.
+Hay una migración SQL inicial en `supabase/migrations/` con el esquema, las políticas RLS y el bucket privado. El usuario confirmó que la aplicó y la consulta a `pg_policies` confirma las políticas de las tablas de puestos. La migración `20261003214000_save_position_rpc.sql` agrega el guardado atómico de un puesto con sus habilidades; el usuario confirmó haberla aplicado y haber guardado un puesto correctamente. El usuario también confirmó haber aplicado `20261004150000_save_candidate_document_rpc.sql`, que habilita la persistencia atómica de candidatos y metadatos de CV; todavía falta probar una escritura real desde el flujo de la aplicación.
 
 ## Requisitos
 
@@ -66,6 +67,8 @@ npm run dev
 Vite mostrará la URL local, normalmente `http://localhost:5173`.
 
 Para habilitar el inicio de sesión, usá `.env.example` como referencia y agregá a `.env` `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` con la URL del proyecto y su clave pública (publishable/anon). Permití `http://localhost:5173` en las URL de redirección de Supabase. No pongas claves `service_role`, secretos OAuth ni credenciales privadas en variables `VITE_`. Si faltan estos valores, la aplicación bloquea el acceso al espacio privado.
+
+El guardado de candidatos requiere además `SUPABASE_SERVICE_ROLE_KEY` en el entorno local del backend. Es una credencial administrativa: mantenerla solo en `.env`/entorno del servidor, nunca en el frontend, en `VITE_*` ni en el repositorio.
 
 El backend local sirve la evaluación protegida y la importación de requisitos. En una segunda terminal:
 
@@ -88,7 +91,9 @@ Los pasos concretos están en [documentacion/configuracion-supabase-google-auth.
 5. Mantener `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en `.env` únicamente.
 6. Nunca exponer `service_role` ni claves privadas en el bundle.
 
-El guardado de puestos requiere `supabase/migrations/20261003214000_save_position_rpc.sql`, ya aplicada por el usuario en el proyecto. La función inserta o actualiza el puesto y reemplaza sus habilidades dentro de una sola transacción, y valida que el puesto pertenezca al usuario autenticado. No volver a ejecutar la migración inicial.
+El guardado de puestos requiere `supabase/migrations/20261003214000_save_position_rpc.sql`, ya aplicada por el usuario en el proyecto. La función inserta o actualiza el puesto y reemplaza sus habilidades dentro de una sola transacción, y valida que el puesto pertenezca al usuario autenticado.
+
+El guardado del candidato y su CV requiere `supabase/migrations/20261004150000_save_candidate_document_rpc.sql`, que el usuario confirmó haber aplicado. Esta migración añade una operación atómica restringida a `service_role` para crear el candidato y registrar el documento procesado, además de la política que permite a cada usuario eliminar sus propios objetos CV. La aplicación sube el PDF con la sesión autenticada; el backend valida esa sesión antes de registrar metadatos y texto extraído. Cada carga nueva crea un candidato; la detección de duplicados queda pendiente.
 
 ## Configuración de IA
 
@@ -107,7 +112,7 @@ npm run test:server
 npx playwright test
 ```
 
-Las pruebas E2E cubren autenticación, definición y selección de requisitos, y la integración de la interfaz de puestos con respuestas de Supabase simuladas. El usuario verificó un guardado real de puesto en Supabase. Persistencia de candidatos, lotes, solicitudes, historial, etapas, generación de preguntas y despliegue todavía deben incorporarse.
+Las pruebas E2E cubren autenticación, definición de requisitos, carga del CV individual, evaluación simulada y su contrato de persistencia; las pruebas de servidor simulan Supabase y Azure. El usuario verificó un guardado real de puesto en Supabase. La persistencia de candidatos requiere aplicar la migración nueva y configurar la clave administrativa server-side. Carga masiva, solicitudes, historial, etapas, generación de preguntas y despliegue todavía deben incorporarse.
 
 ## Estructura principal
 
@@ -119,6 +124,7 @@ src/
   types.ts      Contratos actuales
 server/
   server.mjs    API autenticada para evaluación e importación de requisitos
+  server.test.mjs Pruebas de autenticación y rutas protegidas
 tests/          Pruebas end-to-end del MVP
 documentacion/
   arquitectura-y-alcance.md
