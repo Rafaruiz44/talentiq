@@ -41,7 +41,7 @@ Este es el alcance acordado, no una afirmación de que esas capacidades estén i
 - Los datos y documentos de CV pertenecen al banco privado de un reclutador y no se comparten con otras cuentas.
 - Las preguntas generadas deben usar el contexto del cruce candidato–posición seleccionado.
 
-Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. La configuración real de Google OAuth, las políticas RLS y el bucket deben verificarse en el proyecto Supabase; el hosting aún requiere decisión. No fijar políticas de privacidad no acordadas.
+Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. Google OAuth y las políticas RLS de las tablas de posiciones ya fueron confirmadas; el bucket tiene las políticas esperadas, aunque falta inspeccionar sus predicados completos. El hosting aún requiere decisión. No fijar políticas de privacidad no acordadas.
 
 ## Contexto obligatorio para tareas de desarrollo
 

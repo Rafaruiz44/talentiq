@@ -25,18 +25,20 @@ El alcance y las historias propuestas están en [documentacion/alcance-entrega-f
 ## 3. Estado actual implementado (no confundir con el alcance acordado)
 
 - Stack en el repositorio: Vite, React 19 y TypeScript.
-- `src/App.tsx` conserva los requisitos de una posición, un CV y el resultado en estado React en memoria.
+- `src/App.tsx` conserva el CV y el resultado en estado React; los puestos guardados y sus habilidades se cargan desde Supabase y pueden crearse o actualizarse.
+- `src/services/positions.ts` consulta los puestos del reclutador autenticado y persiste cada puesto y sus habilidades con la función transaccional `save_position`.
 - `src/components/JobRequirementsForm.tsx` permite definir el rol, habilidades ponderadas y seniority.
 - `src/components/CvUpload.tsx` carga un PDF de hasta 5 MB y extrae texto en el navegador con PDF.js.
 - `src/services/inferCandidateEvaluation.ts` contiene lógica de evaluación local y llama a Azure OpenAI directamente desde el navegador cuando están configuradas variables `VITE_*`.
 - `server/server.mjs` expone una API auxiliar para importar requisitos de ofertas; no implementa persistencia, autenticación, carga de CVs ni el endpoint backend de evaluación del flujo principal.
 - El usuario confirmó que aplicó la migración `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql` en su proyecto Supabase; una captura del Table Editor muestra las tablas `applications`, `candidate_documents`, `candidates`, `evaluation_runs`, `interview_questions`, `position_skills`, `positions` y `profiles`.
 - El usuario confirmó que Google está habilitado y que el inicio de sesión OAuth termina con la sesión activa en Talentiq. Al cerrar sesión vuelve a la pantalla de acceso; al iniciar otra vez, Google reutiliza la sesión del navegador y no solicita la contraseña. Se conserva este comportamiento SSO.
-- No se han verificado independientemente las políticas RLS ni el bucket privado en el dashboard.
-- Las pruebas Playwright existentes cubren definición del puesto, carga y análisis de un CV y cambio de tema. No cubren las historias ampliadas.
+- El usuario compartió la consulta de `pg_policies`: `positions` y `position_skills` tienen políticas `SELECT`, `INSERT` y `UPDATE` con `recruiter_id = auth.uid()` para `authenticated`. Storage muestra las tres políticas previstas para `candidate-cvs`; no se ha inspeccionado el predicado completo de cada política de Storage.
+- La nueva migración `supabase/migrations/20261003214000_save_position_rpc.sql` debe aplicarse en Supabase para habilitar los guardados atómicos; el frontend ya invoca esa función.
+- Las pruebas Playwright cubren autenticación y la interfaz de gestión de puestos con respuestas de Supabase simuladas. Aún falta validar la persistencia en vivo contra el proyecto real.
 - La documentación existente indica que no hay demo pública desplegada.
 
-Por tanto, aunque el login/logout de Google ya funciona, la persistencia de datos, autorización/aislamiento comprobados entre reclutadores, almacenamiento de CVs, carga masiva, solicitudes reutilizables, seguimiento de etapas, historial de evaluaciones, generación de preguntas y despliegue integrado siguen pendientes; no deben presentarse como funcionalidades ya implementadas.
+Por tanto, aunque el login/logout de Google y la persistencia de puestos ya están conectados en el código, resta aplicar y validar la nueva función RPC en el proyecto real. También siguen pendientes la persistencia de candidatos y solicitudes, almacenamiento de CVs desde la app, carga masiva, seguimiento de etapas, historial de evaluaciones, generación de preguntas y despliegue integrado.
 
 ## 4. Modelo funcional de referencia
 
@@ -62,7 +64,7 @@ Un candidato puede estar en varias posiciones y tener distintas solicitudes, res
 
 ## 6. Decisiones pendientes
 
-Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. Aún deben verificarse en el dashboard las políticas RLS, el bucket privado y la configuración de Google OAuth. También quedan por definir el hosting, la detección de candidatos duplicados, los límites y formatos de CV, y las reglas de consentimiento, retención y eliminación de datos personales. La colaboración mediante espacios compartidos por empresas queda para una posible etapa posterior.
+Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. Google OAuth funciona según la validación del usuario y las políticas RLS de las tablas de posiciones se comprobaron con `pg_policies`. Falta aplicar y validar la migración de guardado atómico de puestos. También quedan por definir el hosting, la detección de candidatos duplicados, los límites y formatos de CV, y las reglas de consentimiento, retención y eliminación de datos personales. La colaboración mediante espacios compartidos por empresas queda para una posible etapa posterior.
 
 No asumir decisiones sobre estas cuestiones sin confirmarlas.
 

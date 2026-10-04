@@ -124,7 +124,7 @@ flowchart LR
     API --> Q[Preguntas de entrevista]
 ```
 
-Esta arquitectura es una guía de responsabilidades, no una implementación ya existente. Se propone Supabase; el proveedor y su configuración aún deben confirmarse. Las políticas deben comprobar que la identidad autenticada sea propietaria de cada posición, candidato, solicitud y archivo. El frontend no debe comunicarse directamente con Azure OpenAI usando una clave secreta.
+Esta arquitectura es una guía de responsabilidades, no una implementación ya existente. Supabase está configurado para autenticación, base de datos y almacenamiento. Las políticas deben comprobar que la identidad autenticada sea propietaria de cada posición, candidato, solicitud y archivo. El frontend no debe comunicarse directamente con Azure OpenAI usando una clave secreta.
 
 ## IA y procesamiento
 
@@ -140,7 +140,8 @@ La carga masiva procesa cada CV de manera individual. El sistema debe registrar 
 
 - El navegador extrae el texto del PDF.
 - El nombre del archivo y el texto extraído se conservan temporalmente en memoria.
-- No hay persistencia de perfiles, posiciones o resultados en base de datos ni almacenamiento de archivos en bucket.
+- Los puestos y sus ponderaciones se cargan desde Supabase; guardado/actualización usa una función transaccional que debe aplicarse en la instancia.
+- No hay persistencia de perfiles o resultados ni almacenamiento de archivos en bucket desde la aplicación.
 - La llamada configurada a Azure OpenAI desde el frontend transmite el texto del CV y los requisitos a Azure.
 - Una clave `VITE_*` queda disponible al código cliente al compilar y no es apta como secreto en producción.
 
@@ -164,7 +165,7 @@ La carga masiva procesa cada CV de manera individual. El sistema debe registrar 
 | Pruebas E2E | Playwright | Pruebas de la interfaz del MVP |
 | Lint | Oxlint | Análisis estático |
 
-Hay una migración SQL inicial propuesta en `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql`; define el esquema del espacio privado por reclutador, políticas RLS y un bucket privado, pero todavía no se aplicó ni validó contra una instancia. Base de datos, autenticación, bucket y hosting aún no están configurados para la aplicación.
+La migración inicial `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql` se aplicó en el proyecto Supabase del usuario. La consulta a `pg_policies` confirma las políticas RLS `SELECT`, `INSERT` y `UPDATE` para `positions` y `position_skills`, restringidas a `auth.uid()`. El usuario también confirmó Google OAuth y el bucket `candidate-cvs` con políticas para `INSERT`, `SELECT` y `UPDATE`. La app consulta la lista de puestos; para guardar o actualizar el puesto y sus habilidades de manera atómica, debe aplicarse la migración adicional `supabase/migrations/20261003214000_save_position_rpc.sql`. Aún no se ha validado una operación de escritura contra la instancia real.
 
 ## Pruebas y despliegue
 
@@ -174,7 +175,7 @@ Para la entrega final se deberá ampliar la cobertura con pruebas de esos flujos
 
 ## Decisiones pendientes
 
-- Proveedor de autenticación con Google, base de datos, bucket privado y plataforma de hosting.
+- Plataforma de hosting.
 - Detección de candidatos duplicados dentro del banco de un reclutador.
 - Formatos y tamaños admitidos, tratamiento de CVs escaneados y texto no extraíble.
 - Consentimiento, retención, exportación y eliminación de CVs y datos personales.
@@ -190,7 +191,8 @@ Para la entrega final se deberá ampliar la cobertura con pruebas de esos flujos
 - `src/services/inferCandidateEvaluation.ts`: evaluación local, llamada actual a Azure y validación.
 - `src/types.ts`: contratos de datos actuales.
 - `server/server.mjs`: API auxiliar actual para importar requisitos.
-- `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql`: migración inicial propuesta, aún no aplicada.
+- `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql`: migración inicial aplicada en el proyecto Supabase del usuario.
+- `supabase/migrations/20261003214000_save_position_rpc.sql`: función transaccional para guardar puestos y ponderaciones; requiere aplicación en el proyecto.
 - `tests/`: pruebas end-to-end existentes.
 - `package.json`: dependencias y comandos disponibles.
 - [Alcance y propuestas de HU](./alcance-entrega-final-y-historias.md): decisiones acordadas, modelo funcional, historias y criterios propuestos.

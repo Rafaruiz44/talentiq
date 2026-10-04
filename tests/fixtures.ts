@@ -3,7 +3,27 @@ import { expect, test as base, type Page } from '@playwright/test'
 const testUserId = '11111111-1111-4111-8111-111111111111'
 const testEmail = 'reclutador@example.com'
 
-export const mockAuthenticatedSession = async (page: Page) => {
+interface PositionFixture {
+  id: string
+  title: string
+  seniority: string
+  seniority_points: number
+  status: string
+  position_skills: Array<{ name: string; points: number }>
+}
+
+export const mockAuthenticatedSession = async (
+  page: Page,
+  positions: PositionFixture[] = [],
+) => {
+  await page.route('**/rest/v1/positions?*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(positions),
+    }),
+  )
+
   const issuedAt = Math.floor(Date.now() / 1000)
   const expiresAt = issuedAt + 60 * 60
   const jwtHeader = Buffer.from(

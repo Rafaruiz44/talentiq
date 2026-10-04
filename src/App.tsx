@@ -3,7 +3,13 @@ import { AnalysisControls } from './components/AnalysisControls'
 import { CvUpload } from './components/CvUpload'
 import { EvaluationResults } from './components/EvaluationResults'
 import { JobRequirementsForm } from './components/JobRequirementsForm'
+import { SavedPositions } from './components/SavedPositions'
 import { inferCandidateEvaluation } from './services/inferCandidateEvaluation'
+import {
+  listSavedPositions,
+  savePosition,
+  type SavedPosition,
+} from './services/positions'
 import {
   getCurrentSession,
   getSupabaseAuthErrorMessage,
@@ -41,6 +47,16 @@ export function App() {
     seniority: '',
     seniorityPoints: 5,
   })
+  const [savedPositions, setSavedPositions] = useState<SavedPosition[]>([])
+  const [selectedPositionId, setSelectedPositionId] = useState<string | null>(
+    null,
+  )
+  const [positionsLoadedForUserId, setPositionsLoadedForUserId] = useState<
+    string | null
+  >(null)
+  const [positionSaving, setPositionSaving] = useState(false)
+  const [positionError, setPositionError] = useState<string | null>(null)
+  const [positionNotice, setPositionNotice] = useState<string | null>(null)
   const [candidateResume, setCandidateResume] = useState<CandidateResume>({
     text: '',
     fileName: null,
@@ -60,6 +76,11 @@ export function App() {
         seniority: '',
         seniorityPoints: 5,
       })
+      setSavedPositions([])
+      setSelectedPositionId(null)
+      setPositionsLoadedForUserId(null)
+      setPositionError(null)
+      setPositionNotice(null)
       setCandidateResume({ text: '', fileName: null })
       setEvaluation(null)
       setLoading(false)
@@ -110,8 +131,128 @@ export function App() {
     }
   }, [])
 
+  useEffect(() => {
+    const recruiterId = session?.user.id
+    if (!recruiterId) {
+      return
+    }
+
+    let isActive = true
+
+    void listSavedPositions(recruiterId)
+      .then((positions) => {
+        if (isActive) {
+          setSavedPositions(positions)
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (isActive) {
+          setPositionError(
+            loadError instanceof Error
+              ? loadError.message
+              : 'No se pudieron cargar los puestos.',
+          )
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setPositionsLoadedForUserId(recruiterId)
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [session?.user.id])
+
   const handleRequirementsChange = (requirements: JobRequirements) => {
     setJobRequirements(requirements)
+    setEvaluation(null)
+    setPositionNotice(null)
+  }
+
+  const handleSelectPosition = (positionId: string) => {
+    const position = savedPositions.find((item) => item.id === positionId)
+    setSelectedPositionId(position?.id ?? null)
+    setJobRequirements(
+      position?.requirements ?? {
+        role: '',
+        skills: [],
+        seniority: '',
+        seniorityPoints: 5,
+      },
+    )
+    setEvaluation(null)
+    setPositionError(null)
+    setPositionNotice(null)
+  }
+
+  const handleNewPosition = () => {
+    setSelectedPositionId(null)
+    setJobRequirements({
+      role: '',
+      skills: [],
+      seniority: '',
+      seniorityPoints: 5,
+    })
+    setEvaluation(null)
+    setPositionError(null)
+    setPositionNotice(null)
+  }
+
+  const handleSavePosition = async () => {
+    if (
+      !session ||
+      !jobRequirements.role.trim() ||
+      !jobRequirements.skills.length ||
+      !jobRequirements.seniority ||
+      jobRequirements.seniorityPoints < 1
+    ) {
+      return
+    }
+
+    setPositionSaving(true)
+    setPositionError(null)
+    setPositionNotice(null)
+
+    try {
+      const positionId = await savePosition({
+        positionId: selectedPositionId,
+        requirements: jobRequirements,
+      })
+      const existingPosition = savedPositions.find(
+        (position) => position.id === positionId,
+      )
+      const savedPosition: SavedPosition = {
+        id: positionId,
+        title: jobRequirements.role.trim(),
+        requirements: {
+          ...jobRequirements,
+          role: jobRequirements.role.trim(),
+        },
+        status: existingPosition?.status ?? 'Nueva',
+      }
+
+      setSavedPositions((current) =>
+        existingPosition
+          ? current.map((position) =>
+              position.id === positionId ? savedPosition : position,
+            )
+          : [savedPosition, ...current],
+      )
+      setSelectedPositionId(positionId)
+      setPositionNotice(
+        existingPosition ? 'Puesto actualizado.' : 'Puesto guardado.',
+      )
+    } catch (saveError) {
+      setPositionError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'No se pudo guardar el puesto.',
+      )
+    } finally {
+      setPositionSaving(false)
+    }
   }
 
   const handleSignIn = async () => {
@@ -225,6 +366,34 @@ export function App() {
       {authError && (
         <p role="alert" data-testid="auth-error">
           {authError}
+        </p>
+      )}
+      <SavedPositions
+        positions={savedPositions}
+        selectedPositionId={selectedPositionId}
+        loading={
+          Boolean(session.user.id) &&
+          positionsLoadedForUserId !== session.user.id
+        }
+        saving={positionSaving}
+        canSave={
+          Boolean(jobRequirements.role.trim()) &&
+          jobRequirements.skills.length > 0 &&
+          Boolean(jobRequirements.seniority) &&
+          jobRequirements.seniorityPoints >= 1
+        }
+        onSelect={handleSelectPosition}
+        onNew={handleNewPosition}
+        onSave={() => void handleSavePosition()}
+      />
+      {positionError && (
+        <p role="alert" data-testid="position-error">
+          {positionError}
+        </p>
+      )}
+      {positionNotice && (
+        <p role="status" data-testid="position-notice">
+          {positionNotice}
         </p>
       )}
       <JobRequirementsForm
