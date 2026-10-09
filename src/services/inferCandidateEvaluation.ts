@@ -267,10 +267,9 @@ const getSenioritySummary = (
 
 const normalizeStrength = (
   value: string,
-  role: string,
   senioritySummary: string,
   skillNames: string[],
-): string => {
+): string | null => {
   const normalized = value.trim()
   const lowerValue = normalized.toLowerCase()
 
@@ -285,7 +284,7 @@ const normalizeStrength = (
   }
 
   if (lowerValue.includes('perfil') || lowerValue.includes('alineado') || lowerValue.includes('rol')) {
-    return `Perfil alineado al rol ${role}`
+    return null
   }
 
   if (lowerValue.includes('seniority') || lowerValue.includes('semi senior')) {
@@ -297,14 +296,16 @@ const normalizeStrength = (
 
 const normalizeStrengths = (
   strengths: string[],
-  role: string,
   senioritySummary = 'Seniority coincidente',
   skillNames: string[] = [],
   seniorityQualified = true,
 ): string[] => {
   const normalized = strengths.map((item) =>
-    normalizeStrength(item, role, senioritySummary, skillNames),
-  ).filter((item) => seniorityQualified || !item.toLowerCase().includes('seniority'))
+    normalizeStrength(item, senioritySummary, skillNames),
+  ).filter(
+    (item): item is string =>
+      item !== null && (seniorityQualified || !item.toLowerCase().includes('seniority')),
+  )
 
   const ordered = [
     ...skillNames.slice(0, 2).map(
@@ -316,7 +317,6 @@ const normalizeStrengths = (
         ) ??
         `Experiencia con ${skillName}`,
     ),
-    normalized.find((item) => item.startsWith('Perfil alineado al rol')) ?? `Perfil alineado al rol ${role}`,
     seniorityQualified
       ? normalized.find((item) => item.startsWith('Seniority')) ?? senioritySummary
       : undefined,
@@ -396,16 +396,7 @@ export async function inferCandidateEvaluation(
     requirements.role,
   )
   const normalizedStrengths = normalizeStrengths(
-    result.strengths.length >= 4
-      ? result.strengths.slice(0, 4)
-      : [
-          ...result.strengths,
-          ...Array.from(
-            { length: 4 - result.strengths.length },
-            () => 'Perfil compatible con el puesto',
-          ),
-        ],
-    requirements.role.trim(),
+    result.strengths.slice(0, 4),
     senioritySummary,
     requirements.skills.map((skill) => skill.name),
     seniorityMatches,
