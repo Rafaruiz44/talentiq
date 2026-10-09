@@ -9,11 +9,11 @@ Esta guía documenta el primer bloque a implementar para dejar la autenticación
 3. Guardarlas en `.env` usando las variables:
 
 ```env
-VITE_SUPABASE_URL=https://<project-ref>.supabase.co
-VITE_SUPABASE_ANON_KEY=<anon-key>
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_ANON_KEY=<anon-key>
 ```
 
-No almacenar `service_role` ni secretos OAuth en variables `VITE_*`.
+`SUPABASE_ANON_KEY` es una clave pública que se incluye en el cliente web. No almacenar `service_role` ni secretos OAuth en variables expuestas al frontend.
 
 ## 2. Habilitar Google como proveedor de autenticación
 

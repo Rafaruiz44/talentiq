@@ -78,8 +78,8 @@ const readRequestBody = async (request) => {
 }
 
 const getSupabaseConfiguration = (env) => ({
-  url: (env.SUPABASE_URL ?? env.VITE_SUPABASE_URL ?? '').replace(/\/$/, ''),
-  anonKey: env.SUPABASE_ANON_KEY ?? env.VITE_SUPABASE_ANON_KEY,
+  url: (env.SUPABASE_URL ?? '').replace(/\/$/, ''),
+  anonKey: env.SUPABASE_ANON_KEY,
 })
 
 const requireAuthenticatedUser = async (request, env, fetchImpl) => {
