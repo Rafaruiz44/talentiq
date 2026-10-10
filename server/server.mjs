@@ -699,6 +699,10 @@ export const createApiRequestHandler = ({
   env = process.env,
   fetchImpl = fetch,
 } = {}) => async (request, response) => {
+    const requestPath = new URL(request.url, 'http://localhost').pathname
+    const routePath = requestPath.startsWith('/api/')
+      ? requestPath.slice('/api'.length)
+      : requestPath
     const origin = request.headers.origin
     const allowedOrigin = env.APP_ORIGIN ?? 'http://localhost:5173'
 
@@ -707,7 +711,7 @@ export const createApiRequestHandler = ({
       return
     }
 
-    if (request.method === 'GET' && request.url === '/health') {
+    if (request.method === 'GET' && routePath === '/health') {
       sendJson(response, 200, { status: 'ok' }, origin, allowedOrigin)
       return
     }
@@ -721,7 +725,7 @@ export const createApiRequestHandler = ({
       const user = await requireAuthenticatedUser(request, env, fetchImpl)
       const body = await readRequestBody(request)
 
-      if (request.url === '/api/candidates') {
+      if (routePath === '/candidates') {
         const candidate = await createCandidateDocument(
           user.id,
           body,
@@ -732,7 +736,7 @@ export const createApiRequestHandler = ({
         return
       }
 
-      if (request.url === '/api/candidates/lookup') {
+      if (routePath === '/candidates/lookup') {
         const match = await findCandidateDocument(
           user.id,
           body,
@@ -743,13 +747,13 @@ export const createApiRequestHandler = ({
         return
       }
 
-      if (request.url === '/api/evaluation-runs') {
+      if (routePath === '/evaluation-runs') {
         const savedRun = await saveEvaluationRun(user.id, body, env, fetchImpl)
         sendJson(response, 201, savedRun, origin, allowedOrigin)
         return
       }
 
-      if (request.url === '/api/evaluate-candidate') {
+      if (routePath === '/evaluate-candidate') {
         const { requirements, resumeText, positionId } = body ?? {}
         if (
           !isJobRequirements(requirements) ||
@@ -822,7 +826,7 @@ export const createApiRequestHandler = ({
         return
       }
 
-      if (request.url === '/api/import-job-requirements') {
+      if (routePath === '/import-job-requirements') {
         const sourceUrl = body?.sourceUrl
         if (typeof sourceUrl !== 'string' || !isSupportedJobUrl(sourceUrl)) {
           throw new ApiError(

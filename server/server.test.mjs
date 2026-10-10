@@ -233,6 +233,20 @@ test('requires a valid Supabase access token before evaluating a CV', async () =
   assert.equal(azureCalls, 0)
 })
 
+test('accepts a Vercel catch-all path without the /api prefix', async () => {
+  const response = await fetch(`${apiUrl}/evaluate-candidate?source=vercel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(validRequest),
+  })
+
+  assert.equal(response.status, 401)
+  assert.deepEqual(await response.json(), {
+    error: 'Iniciá sesión para realizar esta operación.',
+  })
+  assert.equal(azureCalls, 0)
+})
+
 test('rejects an invalid Supabase token without calling Azure OpenAI', async () => {
   const response = await fetch(`${apiUrl}/api/evaluate-candidate`, {
     method: 'POST',
