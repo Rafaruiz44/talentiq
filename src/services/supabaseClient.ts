@@ -16,9 +16,9 @@ const isValidSupabaseUrl = (() => {
 
 export const supabaseConfigurationError =
   !supabaseUrl || !supabaseAnonKey
-    ? 'Falta configurar VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY para habilitar el acceso.'
+    ? 'Falta configurar SUPABASE_URL y SUPABASE_ANON_KEY para habilitar el acceso.'
     : !isValidSupabaseUrl
-      ? 'VITE_SUPABASE_URL debe ser una URL HTTP o HTTPS válida.'
+      ? 'SUPABASE_URL debe ser una URL HTTP o HTTPS válida.'
     : null
 
 export const supabaseClient =

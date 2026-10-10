@@ -40,7 +40,7 @@ La clave `SUPABASE_SERVICE_ROLE_KEY` ya está configurada en el `.env` local (se
 - La validación de sesión por reclutador quedó integrada en los endpoints del backend que manejan CV, evaluaciones e importación de ofertas; todas las operaciones relevantes requieren un token válido de Supabase y usan la identidad autenticada del usuario para mantener aislamiento por cuenta.
 - La revisión de autorización por reclutador quedó cubierta en la capa de lectura/escritura del flujo principal: posiciones y candidatos se consultan con `recruiter_id`, y los documentos se validan con el mismo criterio antes de persistir o reutilizar un CV.
 - La clave de Azure no requiere rotación por el uso local confirmado; solo debería rotarse si se compartió o publicó fuera del entorno local.
-- Para trabajar localmente, iniciar tanto el frontend (`npm run dev`) como la API (`npm run dev:api`); Vite reenvía `/api` al puerto 3001. Se confirmó que el análisis volvió a funcionar al iniciar la API cuando el frontend estaba activo y la API se encontraba detenida.
+- Para trabajar localmente, iniciar tanto el frontend (`npm run dev`) como la API (`npm run dev:api`); Vite reenvía `/api` al puerto 3001. En Vercel, `api/[...route].mjs` adapta las mismas rutas a una Vercel Function. Se confirmó que el análisis volvió a funcionar al iniciar la API cuando el frontend estaba activo y la API se encontraba detenida.
 - Decidir si se limpian de forma controlada duplicados antiguos del bucket.
 - Probar la pantalla del banco contra Supabase real, incluyendo candidatos sin CV procesado y reutilización de un CV en otro puesto.
 - Implementar eliminación autorizada de candidatos y documentos desde la aplicación.

@@ -78,8 +78,8 @@ const readRequestBody = async (request) => {
 }
 
 const getSupabaseConfiguration = (env) => ({
-  url: (env.SUPABASE_URL ?? env.VITE_SUPABASE_URL ?? '').replace(/\/$/, ''),
-  anonKey: env.SUPABASE_ANON_KEY ?? env.VITE_SUPABASE_ANON_KEY,
+  url: (env.SUPABASE_URL ?? '').replace(/\/$/, ''),
+  anonKey: env.SUPABASE_ANON_KEY,
 })
 
 const requireAuthenticatedUser = async (request, env, fetchImpl) => {
@@ -695,11 +695,10 @@ const parseModelJson = (content, message) => {
   }
 }
 
-export const createApiServer = ({
+export const createApiRequestHandler = ({
   env = process.env,
   fetchImpl = fetch,
-} = {}) =>
-  createServer(async (request, response) => {
+} = {}) => async (request, response) => {
     const origin = request.headers.origin
     const allowedOrigin = env.APP_ORIGIN ?? 'http://localhost:5173'
 
@@ -905,7 +904,10 @@ export const createApiServer = ({
       }
       sendJson(response, status, { error: message }, origin, allowedOrigin)
     }
-  })
+  }
+
+export const createApiServer = (options = {}) =>
+  createServer(createApiRequestHandler(options))
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT ?? 3001)

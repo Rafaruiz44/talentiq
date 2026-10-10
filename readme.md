@@ -66,7 +66,7 @@ npm run dev
 
 Vite mostrará la URL local, normalmente `http://localhost:5173`.
 
-Para habilitar el inicio de sesión, usá `.env.example` como referencia y agregá a `.env` `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` con la URL del proyecto y su clave pública (publishable/anon). Permití `http://localhost:5173` en las URL de redirección de Supabase. No pongas claves `service_role`, secretos OAuth ni credenciales privadas en variables `VITE_`. Si faltan estos valores, la aplicación bloquea el acceso al espacio privado.
+Para habilitar el inicio de sesión, usá `.env.example` como referencia y agregá a `.env` `SUPABASE_URL` y `SUPABASE_ANON_KEY` con la URL del proyecto y su clave pública (publishable/anon). La clave anon es pública y se incluye en el cliente web. Permití `http://localhost:5173` en las URL de redirección de Supabase. No pongas claves `service_role`, secretos OAuth ni credenciales privadas en variables expuestas al frontend. Si faltan estos valores, la aplicación bloquea el acceso al espacio privado.
 
 El guardado de candidatos requiere además `SUPABASE_SERVICE_ROLE_KEY` en el entorno local del backend. Es una credencial administrativa: mantenerla solo en `.env`/entorno del servidor, nunca en el frontend, en `VITE_*` ni en el repositorio.
 
@@ -78,6 +78,27 @@ npm run dev:api
 
 Escucha en el puerto 3001 por defecto. Vite reenvía las rutas `/api` al backend.
 
+### Despliegue en Vercel
+
+El archivo `api/[...route].mjs` adapta las rutas protegidas del backend a una Vercel Function. Al importar el proyecto en Vercel, usar `npm run build` como comando de build y dejar la salida de Vite (`dist`) como directorio de salida si Vercel no la detecta automáticamente.
+
+En Vercel > Settings > Environment Variables, configurar para Production, Preview o Development según corresponda:
+
+```env
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<publishable-or-anon-key>
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_ANON_KEY=<publishable-or-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<server-only-service-role-key>
+AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com
+AZURE_OPENAI_KEY=<server-only-azure-openai-key>
+AZURE_OPENAI_DEPLOYMENT=<deployment-name>
+AZURE_OPENAI_API_VERSION=<api-version>
+APP_ORIGIN=https://<tu-proyecto>.vercel.app
+```
+
+`VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` se incorporan al cliente porque son necesarias para Supabase Auth. Las variables restantes son exclusivas de la Function y nunca deben tener prefijo `VITE_`. Después de guardar o modificar variables, crear un nuevo deployment; las Functions no reciben cambios de entorno hasta el siguiente deployment.
+
 ## Configuración de Supabase y Google Auth
 
 La autenticación con Supabase + Google ya está configurada. La guía de referencia está en:
@@ -88,7 +109,7 @@ Los pasos concretos están en [documentacion/configuracion-supabase-google-auth.
 2. Configurar Google OAuth con Client ID y Client Secret si aún no está habilitado.
 3. Permitir las origins del frontend (por ejemplo `http://localhost:5173`).
 4. Verificar las políticas RLS y el bucket privado creados por la migración ya aplicada.
-5. Mantener `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en `.env` únicamente.
+5. Mantener `SUPABASE_URL` y `SUPABASE_ANON_KEY` en `.env` únicamente.
 6. Nunca exponer `service_role` ni claves privadas en el bundle.
 
 El guardado de puestos requiere `supabase/migrations/20261003214000_save_position_rpc.sql`, ya aplicada por el usuario en el proyecto. La función inserta o actualiza el puesto y reemplaza sus habilidades dentro de una sola transacción, y valida que el puesto pertenezca al usuario autenticado.

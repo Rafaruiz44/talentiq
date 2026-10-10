@@ -30,8 +30,8 @@ export default defineConfig({
       url: 'http://localhost:5174',
       reuseExistingServer: false,
       env: {
-        VITE_SUPABASE_URL: 'https://test-project.supabase.co',
-        VITE_SUPABASE_ANON_KEY: 'test-publishable-key',
+        SUPABASE_URL: 'https://test-project.supabase.co',
+        SUPABASE_ANON_KEY: 'test-publishable-key',
       },
     },
   ],
