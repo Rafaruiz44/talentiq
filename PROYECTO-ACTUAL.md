@@ -1,6 +1,6 @@
 # Talentiq — proyecto actual
 
-**Actualizado:** 4 de octubre de 2026  
+**Actualizado:** 10 de octubre de 2026
 **Estado general:** MVP funcional en desarrollo; todavía no alcanza el alcance acordado para la entrega final.
 
 Este documento separa las capacidades conectadas en la aplicación de las que solo tienen esquema, prototipos o planificación. La existencia de una tabla o una historia no significa que la función esté disponible para el usuario.
@@ -40,7 +40,7 @@ La clave `SUPABASE_SERVICE_ROLE_KEY` ya está configurada en el `.env` local (se
 - La validación de sesión por reclutador quedó integrada en los endpoints del backend que manejan CV, evaluaciones e importación de ofertas; todas las operaciones relevantes requieren un token válido de Supabase y usan la identidad autenticada del usuario para mantener aislamiento por cuenta.
 - La revisión de autorización por reclutador quedó cubierta en la capa de lectura/escritura del flujo principal: posiciones y candidatos se consultan con `recruiter_id`, y los documentos se validan con el mismo criterio antes de persistir o reutilizar un CV.
 - La clave de Azure no requiere rotación por el uso local confirmado; solo debería rotarse si se compartió o publicó fuera del entorno local.
-- Para trabajar localmente, iniciar tanto el frontend (`npm run dev`) como la API (`npm run dev:api`); Vite reenvía `/api` al puerto 3001. En Vercel, `api/[...route].mjs` adapta las mismas rutas a una Vercel Function. Se confirmó que el análisis volvió a funcionar al iniciar la API cuando el frontend estaba activo y la API se encontraba detenida.
+- Para trabajar localmente, iniciar tanto el frontend (`npm run dev`) como la API (`npm run dev:api`); Vite reenvía `/api` al puerto 3001. En Vercel, `api/[...route].mjs` adapta las rutas generales a una Vercel Function y hay funciones explícitas para `/api/candidates` y `/api/candidates/lookup`. El usuario confirmó que el análisis responde `200` en producción, pero el lookup de candidatos devolvió un `404 NOT_FOUND` de Vercel; las rutas explícitas requieren redeploy y verificación en producción.
 - Decidir si se limpian de forma controlada duplicados antiguos del bucket.
 - Probar la pantalla del banco contra Supabase real, incluyendo candidatos sin CV procesado y reutilización de un CV en otro puesto.
 - Implementar eliminación autorizada de candidatos y documentos desde la aplicación.
@@ -71,7 +71,7 @@ No se considera OCR de CVs escaneados como una capacidad implementada: el flujo 
 |---|---|
 | `npm run lint` | Finalizó correctamente. Oxlint informa una advertencia preexistente `react(set-state-in-effect)` en `src/App.tsx`. |
 | `npm run build` | Finalizó correctamente. Vite informó chunks mayores a 500 kB: bundle principal de aproximadamente 919 kB y worker PDF de aproximadamente 1.265 kB. |
-| `npm run test:server` | 15 pruebas backend aprobadas; incluyen reutilización de resultados nuevos e históricos sin llamar a Azure y nueva evaluación al cambiar requisitos. |
+| `npm run test:server` | 16 pruebas backend aprobadas en la última ejecución; incluyen rutas con formato catch-all y reutilización de resultados nuevos e históricos sin llamar a Azure. |
 | `npx playwright test --reporter=line` | 13 pruebas E2E aprobadas en Chromium; cubren carga masiva con errores independientes, ranking ordenado, reevaluación de un CV guardado y acceso a Postulaciones desde el detalle con posición preseleccionada. |
 
 Las pruebas automatizadas usan respuestas simuladas de Supabase y Azure OpenAI; las de evaluación/persistencia en Playwright simulan API y Storage. Por lo tanto, no verifican conectividad real del banco nuevo ni autorización entre cuentas reales. El usuario confirmó una carga real exitosa del PDF, la aplicación de las migraciones de deduplicación y reutilización, la reutilización real de una evaluación existente, y que el análisis funcionó al iniciar la API local.
