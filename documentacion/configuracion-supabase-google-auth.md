@@ -6,14 +6,14 @@ Esta guía documenta el primer bloque a implementar para dejar la autenticación
 
 1. Crear un proyecto nuevo en Supabase.
 2. Tomar la URL del proyecto y la `anon` key pública.
-3. Guardarlas en `.env` usando las variables:
+3. Guardarlas en `.env` para el frontend usando las variables:
 
 ```env
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_ANON_KEY=<anon-key>
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon-key>
 ```
 
-`SUPABASE_ANON_KEY` es una clave pública que se incluye en el cliente web. No almacenar `service_role` ni secretos OAuth en variables expuestas al frontend.
+`VITE_SUPABASE_ANON_KEY` es una clave pública que se incluye en el cliente web. El backend usa variables separadas `SUPABASE_URL` y `SUPABASE_ANON_KEY`; nunca configurar `SUPABASE_SERVICE_ROLE_KEY` con el prefijo `VITE_` ni exponerla al frontend.
 
 ## 2. Habilitar Google como proveedor de autenticación
 

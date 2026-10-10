@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { after, before, test } from 'node:test'
-import { createApiServer } from './server.mjs'
+import { createApiServer, handleApiRequest } from './server.mjs'
 
 const serverEnv = {
   SUPABASE_URL: 'https://supabase.example.com',
@@ -218,6 +218,38 @@ const validEvaluationRunRequest = {
     gaps: [],
   },
 }
+
+test('handles parsed JSON request bodies from Vercel Node functions', async () => {
+  const request = {
+    method: 'POST',
+    url: '/api/evaluate-candidate',
+    headers: { authorization: 'Bearer vercel-test-token' },
+    body: {
+      requirements: { skills: [] },
+      resumeText: 'Candidate resume',
+      positionId: validRequest.positionId,
+    },
+  }
+  const response = {
+    writeHead(statusCode, headers) {
+      this.statusCode = statusCode
+      this.headers = headers
+    },
+    end(body) {
+      this.body = body
+    },
+  }
+
+  await handleApiRequest(request, response, {
+    env: serverEnv,
+    fetchImpl: async () => Response.json({ id: 'authenticated-recruiter' }),
+  })
+
+  assert.equal(response.statusCode, 400)
+  assert.deepEqual(JSON.parse(response.body), {
+    error: 'El puesto, los requisitos o el texto del CV no son válidos.',
+  })
+})
 
 test('requires a valid Supabase access token before evaluating a CV', async () => {
   const response = await fetch(`${apiUrl}/api/evaluate-candidate`, {

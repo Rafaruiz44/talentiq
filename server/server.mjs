@@ -59,6 +59,27 @@ const sendJson = (response, statusCode, body, origin, allowedOrigin) => {
 }
 
 const readRequestBody = async (request) => {
+  if (request.body !== undefined) {
+    const serializedBody =
+      typeof request.body === 'string'
+        ? request.body
+        : JSON.stringify(request.body)
+    if (
+      typeof serializedBody !== 'string' ||
+      Buffer.byteLength(serializedBody) > maxBodyLength
+    ) {
+      throw new ApiError(413, 'El cuerpo de la solicitud es demasiado grande.')
+    }
+
+    try {
+      return typeof request.body === 'string'
+        ? JSON.parse(request.body)
+        : request.body
+    } catch {
+      throw new ApiError(400, 'El cuerpo de la solicitud no es JSON válido.')
+    }
+  }
+
   let body = ''
   let bodyLength = 0
 
@@ -695,11 +716,11 @@ const parseModelJson = (content, message) => {
   }
 }
 
-export const createApiServer = ({
+const createApiHandler = ({
   env = process.env,
   fetchImpl = fetch,
 } = {}) =>
-  createServer(async (request, response) => {
+  async (request, response) => {
     const origin = request.headers.origin
     const allowedOrigin = env.APP_ORIGIN ?? 'http://localhost:5173'
 
@@ -905,7 +926,13 @@ export const createApiServer = ({
       }
       sendJson(response, status, { error: message }, origin, allowedOrigin)
     }
-  })
+  }
+
+export const handleApiRequest = (request, response, options = {}) =>
+  createApiHandler(options)(request, response)
+
+export const createApiServer = (options = {}) =>
+  createServer(createApiHandler(options))
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT ?? 3001)
