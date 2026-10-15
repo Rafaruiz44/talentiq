@@ -10,6 +10,8 @@ export interface SavedCandidateDocument {
 export interface SavedCandidate {
   id: string
   name: string
+  email?: string | null
+  phone?: string | null
   createdAt: string
   documents: SavedCandidateDocument[]
 }
@@ -24,6 +26,8 @@ export interface SavedCandidateResume {
 interface SaveCandidateDocumentInput {
   accessToken: string
   candidateName: string
+  candidateEmail?: string | null
+  candidatePhone?: string | null
   extractedText: string
   file: File
   recruiterId: string
@@ -76,6 +80,11 @@ const parseSavedCandidate = (value: unknown): SavedCandidate => {
     throw new Error('Supabase devolvió un candidato con formato inválido.')
   }
 
+  const email =
+    typeof row.email === 'string' && row.email.trim() ? row.email.trim() : null
+  const phone =
+    typeof row.phone === 'string' && row.phone.trim() ? row.phone.trim() : null
+
   const documents = row.candidate_documents.map((documentValue) => {
     const document = asRecord(documentValue)
     if (
@@ -97,6 +106,8 @@ const parseSavedCandidate = (value: unknown): SavedCandidate => {
   return {
     id: row.id,
     name: row.full_name,
+    email,
+    phone,
     createdAt: row.created_at,
     documents,
   }
@@ -109,22 +120,38 @@ export async function listSavedCandidates(
     throw new Error('Supabase no está configurado.')
   }
 
+  let rawCandidates: unknown[] | null = null
   const { data, error } = await supabaseClient
     .from('candidates')
     .select(
-      'id, full_name, created_at, candidate_documents(id, original_file_name, processing_status, created_at)',
+      'id, full_name, email, phone, created_at, candidate_documents(id, original_file_name, processing_status, created_at)',
     )
     .eq('recruiter_id', recruiterId)
     .order('full_name', { ascending: true })
 
-  if (error) {
-    throw new Error(`No se pudieron cargar los candidatos: ${error.message}`)
+  rawCandidates = data
+  let queryError = error
+
+  if (queryError && (queryError.code === '42703' || queryError.message.includes('phone'))) {
+    const fallback = await supabaseClient
+      .from('candidates')
+      .select(
+        'id, full_name, email, created_at, candidate_documents(id, original_file_name, processing_status, created_at)',
+      )
+      .eq('recruiter_id', recruiterId)
+      .order('full_name', { ascending: true })
+    rawCandidates = fallback.data
+    queryError = fallback.error
   }
-  if (!Array.isArray(data)) {
+
+  if (queryError) {
+    throw new Error(`No se pudieron cargar los candidatos: ${queryError.message}`)
+  }
+  if (!Array.isArray(rawCandidates)) {
     throw new Error('Supabase devolvió una lista de candidatos inválida.')
   }
 
-  return data.map(parseSavedCandidate)
+  return rawCandidates.map(parseSavedCandidate)
 }
 
 export async function getSavedCandidateResume({
@@ -171,9 +198,51 @@ export async function getSavedCandidateResume({
   }
 }
 
+export async function updateCandidateContactInfo({
+  candidateId,
+  email,
+  phone,
+}: {
+  candidateId: string
+  email?: string | null
+  phone?: string | null
+}): Promise<void> {
+  if (!supabaseClient || (!email && !phone)) {
+    return
+  }
+
+  const payload: { email?: string; phone?: string } = {}
+  if (email) {
+    payload.email = email
+  }
+  if (phone) {
+    payload.phone = phone
+  }
+
+  try {
+    const { error } = await supabaseClient
+      .from('candidates')
+      .update(payload)
+      .eq('id', candidateId)
+
+    if (error && (error.code === '42703' || error.message.includes('phone'))) {
+      if (payload.email) {
+        await supabaseClient
+          .from('candidates')
+          .update({ email: payload.email })
+          .eq('id', candidateId)
+      }
+    }
+  } catch (err) {
+    console.warn('No se pudo actualizar el contacto del candidato en Supabase:', err)
+  }
+}
+
 export async function saveCandidateDocument({
   accessToken,
   candidateName,
+  candidateEmail,
+  candidatePhone,
   extractedText,
   file,
   recruiterId,
@@ -225,6 +294,14 @@ export async function saveCandidateDocument({
       throw new Error('El servidor devolvió identificadores de CV inválidos.')
     }
 
+    if (candidateEmail || candidatePhone) {
+      void updateCandidateContactInfo({
+        candidateId: lookupResult.candidateId,
+        email: candidateEmail,
+        phone: candidatePhone,
+      })
+    }
+
     return {
       candidateId: lookupResult.candidateId,
       candidateDocumentId: lookupResult.candidateDocumentId,
@@ -253,6 +330,8 @@ export async function saveCandidateDocument({
       },
       body: JSON.stringify({
         candidateName,
+        candidateEmail,
+        candidatePhone,
         extractedText,
         fileName: file.name,
         mimeType: file.type,
@@ -277,6 +356,14 @@ export async function saveCandidateDocument({
       typeof result.reusedExisting !== 'boolean'
     ) {
       throw new Error('El servidor devolvió identificadores de CV inválidos.')
+    }
+
+    if (candidateEmail || candidatePhone) {
+      void updateCandidateContactInfo({
+        candidateId: result.candidateId,
+        email: candidateEmail,
+        phone: candidatePhone,
+      })
     }
 
     let cleanupWarning: string | undefined

@@ -3,6 +3,7 @@ import type {
   CandidateResume,
   JobRequirements,
 } from '../types'
+import { extractContactInfo } from './contactInfo'
 
 export const SENIORITY_RANGES = [
   'Trainee: hasta 1 año',
@@ -336,6 +337,12 @@ const isCandidateEvaluation = (
 
   return (
     typeof candidate.candidateName === 'string' &&
+    (candidate.candidateEmail === undefined ||
+      candidate.candidateEmail === null ||
+      typeof candidate.candidateEmail === 'string') &&
+    (candidate.candidatePhone === undefined ||
+      candidate.candidatePhone === null ||
+      typeof candidate.candidatePhone === 'string') &&
     typeof candidate.earnedPoints === 'number' &&
     candidate.earnedPoints >= 0 &&
     typeof candidate.totalPoints === 'number' &&
@@ -385,8 +392,17 @@ export async function inferCandidateEvaluation(
   if (!isCandidateEvaluation(result)) {
     throw new Error('La respuesta de evaluación tiene un formato inválido.')
   }
+
+  const contactInfo = extractContactInfo(resume.text)
+  const candidateEmail = result.candidateEmail || contactInfo.email
+  const candidatePhone = result.candidatePhone || contactInfo.phone
+
   if (result.reusedExistingEvaluation) {
-    return result
+    return {
+      ...result,
+      candidateEmail,
+      candidatePhone,
+    }
   }
 
   const senioritySummary = getSenioritySummary(normalizeText(resume.text), requirements)
@@ -435,6 +451,8 @@ export async function inferCandidateEvaluation(
 
   return {
     ...result,
+    candidateEmail,
+    candidatePhone,
     strengths: verifiedStrengths.slice(0, 4),
     gaps: [
       ...nonSeniorityGaps,

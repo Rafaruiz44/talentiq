@@ -161,6 +161,8 @@ const createCandidateDocument = async (
 ) => {
   const {
     candidateName,
+    candidateEmail,
+    candidatePhone,
     extractedText,
     fileName,
     mimeType,
@@ -271,6 +273,49 @@ const createCandidateDocument = async (
       502,
       'Supabase no confirmó si se reutilizó o creó el CV.',
     )
+  }
+
+  if (
+    (typeof candidateEmail === 'string' && candidateEmail.trim()) ||
+    (typeof candidatePhone === 'string' && candidatePhone.trim())
+  ) {
+    try {
+      const updatePayload = {}
+      if (typeof candidateEmail === 'string' && candidateEmail.trim()) {
+        updatePayload.email = candidateEmail.trim()
+      }
+      if (typeof candidatePhone === 'string' && candidatePhone.trim()) {
+        updatePayload.phone = candidatePhone.trim()
+      }
+      const patchRes = await fetchImpl(
+        `${url}/rest/v1/candidates?id=eq.${candidateId}&recruiter_id=eq.${userId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatePayload),
+        },
+      )
+      if (!patchRes.ok && updatePayload.phone && updatePayload.email) {
+        await fetchImpl(
+          `${url}/rest/v1/candidates?id=eq.${candidateId}&recruiter_id=eq.${userId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              apikey: serviceRoleKey,
+              Authorization: `Bearer ${serviceRoleKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: updatePayload.email }),
+          },
+        )
+      }
+    } catch (contactError) {
+      console.warn('No se pudo guardar datos de contacto en Supabase:', contactError)
+    }
   }
 
   return { candidateId, candidateDocumentId, reusedExisting }
@@ -464,6 +509,12 @@ const isCandidateEvaluation = (value) =>
     value &&
       typeof value === 'object' &&
       typeof value.candidateName === 'string' &&
+      (value.candidateEmail === undefined ||
+        value.candidateEmail === null ||
+        typeof value.candidateEmail === 'string') &&
+      (value.candidatePhone === undefined ||
+        value.candidatePhone === null ||
+        typeof value.candidatePhone === 'string') &&
       typeof value.earnedPoints === 'number' &&
       Number.isFinite(value.earnedPoints) &&
       value.earnedPoints >= 0 &&
@@ -794,7 +845,7 @@ export const createApiRequestHandler = ({
             {
               role: 'system',
               content:
-                'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Cada habilidad de skills tiene un peso points independiente entre 1 y 10; el seniority tiene seniorityPoints. Para seniority, analizá únicamente las experiencias laborales cuyo título corresponda al role solicitado; no uses la experiencia total de otros roles, educación ni certificaciones. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Si el CV declara un seniority pero no informa años de experiencia relacionada con el role, usá ese nivel. Un candidato con un nivel superior al requerido está calificado igualmente y debe sumar los seniorityPoints; no lo penalices por sobrecalificación. Un candidato con un nivel inferior no cumple el seniority. Sumá los pesos de todas las habilidades y del seniority para obtener totalPoints, sin aplicar un límite máximo al total. earnedPoints debe ser la suma de los pesos de los requisitos cumplidos. Respondé Apto si la proporción de puntos obtenidos es igual o mayor al 70%, y No Apto si es menor. Para cada fortaleza, indicá la habilidad, el nivel o tipo de experiencia y la evidencia concreta encontrada en el CV; no escribas únicamente el nombre de la habilidad. Para cada brecha, indicá la habilidad faltante y explicá qué evidencia no aparece o qué requisito no queda acreditado. No inventes años, proyectos, responsabilidades ni tecnologías. Evitá duplicar una misma habilidad entre fortalezas y brechas. Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
+                'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Cada habilidad de skills tiene un peso points independiente entre 1 y 10; el seniority tiene seniorityPoints. Para seniority, analizá únicamente las experiencias laborales cuyo título corresponda al role solicitado; no uses la experiencia total de otros roles, educación ni certificaciones. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Si el CV declara un seniority pero no informa años de experiencia relacionada con el role, usá ese nivel. Un candidato con un nivel superior al requerido está calificado igualmente y debe sumar los seniorityPoints; no lo penalices por sobrecalificación. Un candidato con un nivel inferior no cumple el seniority. Sumá los pesos de todas las habilidades y del seniority para obtener totalPoints, sin aplicar un límite máximo al total. earnedPoints debe ser la suma de los pesos de los requisitos cumplidos. Respondé Apto si la proporción de puntos obtenidos es igual o mayor al 70%, y No Apto si es menor. Para cada fortaleza, indicá la habilidad, el nivel o tipo de experiencia y la evidencia concreta encontrada en el CV; no escribas únicamente el nombre de la habilidad. Para cada brecha, indicá la habilidad faltante y explicá qué evidencia no aparece o qué requisito no queda acreditado. No inventes años, proyectos, responsabilidades ni tecnologías. Evitá duplicar una misma habilidad entre fortalezas y brechas. Extraé también los datos de contacto si están presentes (candidateEmail y candidatePhone; de lo contrario null). Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "candidateEmail": string | null, "candidatePhone": string | null, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
             },
             {
               role: 'user',

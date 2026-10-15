@@ -46,6 +46,10 @@ export function CandidateBank({
     return candidates.filter(
       (candidate) =>
         candidate.name.toLocaleLowerCase('es-AR').includes(query) ||
+        (candidate.email &&
+          candidate.email.toLocaleLowerCase('es-AR').includes(query)) ||
+        (candidate.phone &&
+          candidate.phone.toLocaleLowerCase('es-AR').includes(query)) ||
         candidate.documents.some((document) =>
           document.fileName.toLocaleLowerCase('es-AR').includes(query),
         ),
@@ -155,6 +159,31 @@ export function CandidateBank({
                   </span>
                   <div>
                     <h3>{candidate.name}</h3>
+                    {(candidate.email || candidate.phone) && (
+                      <div
+                        className="candidate-card-contact"
+                        data-testid={`candidate-contact-${candidate.id}`}
+                      >
+                        {candidate.email && (
+                          <span
+                            className="contact-badge contact-email"
+                            title="Correo electrónico"
+                            data-testid={`candidate-email-${candidate.id}`}
+                          >
+                            ✉️ {candidate.email}
+                          </span>
+                        )}
+                        {candidate.phone && (
+                          <span
+                            className="contact-badge contact-phone"
+                            title="Teléfono"
+                            data-testid={`candidate-phone-${candidate.id}`}
+                          >
+                            📞 {candidate.phone}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <p>
                       {usableDocuments.length}{' '}
                       {usableDocuments.length === 1 ? 'CV procesado' : 'CVs procesados'}

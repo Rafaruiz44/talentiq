@@ -256,3 +256,146 @@ test('ordena el ranking por compatibilidad y muestra solo el resultado más reci
     'eq.position-1',
   )
 })
+
+test('muestra los datos de contacto del candidato en el ranking', async ({
+  page,
+}) => {
+  await page.route('**/rest/v1/evaluation_runs?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          application_id: 'app-contact-1',
+          candidate_id: 'cand-contact-1',
+          candidate_document_id: 'doc-contact-1',
+          earned_points: 10,
+          total_points: 10,
+          verdict: 'Apto',
+          strengths: ['React'],
+          gaps: [],
+          evaluated_at: '2026-10-04T18:00:00.000Z',
+          applications: {
+            position_id: 'position-1',
+            candidates: {
+              full_name: 'Lucía Desarrolladora',
+              email: 'lucia@example.com',
+              phone: '+54 11 3333-4444',
+            },
+          },
+          candidate_documents: { original_file_name: 'lucia-cv.pdf' },
+        },
+      ]),
+    })
+  })
+
+  await page.goto('/ranking')
+  await page.getByTestId('ranking-position').selectOption('position-1')
+  await expect(page.getByRole('heading', { name: 'Lucía Desarrolladora' })).toBeVisible()
+  await expect(page.getByTestId('ranking-email-cand-contact-1')).toContainText('lucia@example.com')
+  await expect(page.getByTestId('ranking-phone-cand-contact-1')).toContainText('+54 11 3333-4444')
+})
+
+test('permite seleccionar y evaluar candidatos existentes de la base en una postulación', async ({
+  page,
+}) => {
+  let evaluationCalls = 0
+  let evaluationRunCalls = 0
+
+  await page.route('**/rest/v1/candidates?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: 'existing-candidate-1',
+          full_name: 'Esteban Base',
+          email: 'esteban@db.com',
+          phone: '+54 9 11 5555-6666',
+          created_at: '2026-10-01T10:00:00.000Z',
+          candidate_documents: [
+            {
+              id: 'doc-existing-1',
+              original_file_name: 'esteban-cv.pdf',
+              processing_status: 'processed',
+              created_at: '2026-10-02T10:00:00.000Z',
+            },
+          ],
+        },
+      ]),
+    })
+  })
+
+  await page.route('**/rest/v1/candidate_documents?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        candidate_id: 'existing-candidate-1',
+        id: 'doc-existing-1',
+        original_file_name: 'esteban-cv.pdf',
+        extracted_text: 'Desarrollador React con 4 años de experiencia',
+        processing_status: 'processed',
+      }),
+    })
+  })
+
+  await page.route('**/api/evaluate-candidate', async (route) => {
+    evaluationCalls += 1
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        candidateName: 'Esteban Base',
+        candidateEmail: 'esteban@db.com',
+        candidatePhone: '+54 9 11 5555-6666',
+        earnedPoints: 10,
+        totalPoints: 10,
+        verdict: 'Apto',
+        strengths: ['Experiencia sólida con React'],
+        gaps: [],
+        reusedExistingEvaluation: false,
+      }),
+    })
+  })
+
+  await page.route('**/api/evaluation-runs', async (route) => {
+    evaluationRunCalls += 1
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        applicationId: 'app-esteban-1',
+        evaluationRunId: 'run-esteban-1',
+        reusedExisting: false,
+      }),
+    })
+  })
+
+  await page.goto('/postulaciones')
+  await page.getByTestId('application-position').selectOption('position-1')
+
+  // Cambiar a la pestaña de candidatos de la base
+  await page.getByTestId('mode-existing').click()
+
+  // Verificar que se liste el candidato con sus datos de contacto
+  await expect(page.getByTestId('existing-candidate-item-existing-candidate-1')).toBeVisible()
+  await expect(page.getByText('Esteban Base')).toBeVisible()
+  await expect(page.getByText('esteban@db.com')).toBeVisible()
+  await expect(page.getByText('+54 9 11 5555-6666')).toBeVisible()
+
+  // Seleccionar el candidato y ejecutar la evaluación
+  await page.getByTestId('select-candidate-existing-candidate-1').check()
+  await page.getByTestId('evaluate-existing-candidates').click()
+
+  // Verificar progreso y resultado
+  await expect(page.getByTestId('existing-candidates-progress')).toContainText(
+    'Evaluación terminada: 1 de 1 candidatos evaluados.',
+  )
+  await expect(page.getByTestId('existing-candidate-status-0')).toContainText(
+    'Apto · 100% de compatibilidad',
+  )
+  expect(evaluationCalls).toBe(1)
+  expect(evaluationRunCalls).toBe(1)
+})
+

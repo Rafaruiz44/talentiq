@@ -25,6 +25,8 @@ export interface CandidateResume {
 
 export interface CandidateEvaluation {
   candidateName: string
+  candidateEmail?: string | null
+  candidatePhone?: string | null
   earnedPoints: number
   totalPoints: number
   verdict: 'Apto' | 'No Apto'

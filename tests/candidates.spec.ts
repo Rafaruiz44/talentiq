@@ -136,3 +136,39 @@ test('lista candidatos propios y reevalúa un CV guardado en otra posición sin 
   })
   expect(candidateUploadCalls).toBe(0)
 })
+
+test('muestra los datos de contacto del candidato en la pestaña Candidatos', async ({
+  page,
+}) => {
+  await mockAuthenticatedSession(page, [])
+
+  await page.route('**/rest/v1/candidates?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: candidateId,
+          full_name: 'Carlos Contacto',
+          email: 'carlos@example.com',
+          phone: '+54 11 9876-5432',
+          created_at: '2026-10-01T12:00:00.000Z',
+          candidate_documents: [
+            {
+              id: candidateDocumentId,
+              original_file_name: 'carlos-cv.pdf',
+              processing_status: 'processed',
+              created_at: '2026-10-02T12:00:00.000Z',
+            },
+          ],
+        },
+      ]),
+    })
+  })
+
+  await page.goto('/candidatos')
+  await expect(page.getByRole('heading', { name: 'Carlos Contacto' })).toBeVisible()
+  await expect(page.getByTestId(`candidate-email-${candidateId}`)).toContainText('carlos@example.com')
+  await expect(page.getByTestId(`candidate-phone-${candidateId}`)).toContainText('+54 11 9876-5432')
+})
+

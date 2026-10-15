@@ -4,6 +4,8 @@ export interface RankedApplication {
   applicationId: string
   candidateId: string
   candidateName: string
+  candidateEmail?: string | null
+  candidatePhone?: string | null
   candidateDocumentId: string
   fileName: string
   earnedPoints: number
@@ -45,10 +47,21 @@ const parseRankedApplication = (value: unknown): RankedApplication => {
     throw new Error('Supabase devolvió una evaluación con formato inválido.')
   }
 
+  const candidateEmail =
+    typeof candidate.email === 'string' && candidate.email.trim()
+      ? candidate.email.trim()
+      : null
+  const candidatePhone =
+    typeof candidate.phone === 'string' && candidate.phone.trim()
+      ? candidate.phone.trim()
+      : null
+
   return {
     applicationId: row.application_id,
     candidateId: row.candidate_id,
     candidateName: candidate.full_name,
+    candidateEmail,
+    candidatePhone,
     candidateDocumentId: row.candidate_document_id,
     fileName: document.original_file_name,
     earnedPoints: row.earned_points,
@@ -68,15 +81,29 @@ export async function listRankedApplications(
     throw new Error('Supabase no está configurado.')
   }
 
-  const { data, error } = await supabaseClient
+  let { data, error } = await supabaseClient
     .from('evaluation_runs')
     .select(
-      'application_id, candidate_id, candidate_document_id, earned_points, total_points, verdict, strengths, gaps, evaluated_at, applications!inner(position_id, candidates!inner(full_name)), candidate_documents!inner(original_file_name)',
+      'application_id, candidate_id, candidate_document_id, earned_points, total_points, verdict, strengths, gaps, evaluated_at, applications!inner(position_id, candidates!inner(full_name, email, phone)), candidate_documents!inner(original_file_name)',
     )
     .eq('recruiter_id', recruiterId)
     .eq('status', 'completed')
     .eq('applications.position_id', positionId)
     .order('evaluated_at', { ascending: false })
+
+  if (error && (error.code === '42703' || error.message.includes('phone'))) {
+    const fallback = await supabaseClient
+      .from('evaluation_runs')
+      .select(
+        'application_id, candidate_id, candidate_document_id, earned_points, total_points, verdict, strengths, gaps, evaluated_at, applications!inner(position_id, candidates!inner(full_name, email)), candidate_documents!inner(original_file_name)',
+      )
+      .eq('recruiter_id', recruiterId)
+      .eq('status', 'completed')
+      .eq('applications.position_id', positionId)
+      .order('evaluated_at', { ascending: false })
+    data = fallback.data
+    error = fallback.error
+  }
 
   if (error) {
     throw new Error(`No se pudo cargar el ranking: ${error.message}`)

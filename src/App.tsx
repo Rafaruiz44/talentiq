@@ -7,6 +7,7 @@ import { PositionRanking } from './components/PositionRanking'
 import {
   getSavedCandidateResume,
   listSavedCandidates,
+  updateCandidateContactInfo,
   type SavedCandidate,
 } from './services/candidates'
 import { saveEvaluationRun } from './services/evaluations'
@@ -348,13 +349,20 @@ export function App() {
       )
       if (!evaluation.reusedExistingEvaluation) {
         await saveEvaluationRun({
-        accessToken,
-        candidateDocumentId: resume.candidateDocumentId,
-        candidateId: resume.candidateId,
-        evaluation,
-        positionId: position.id,
-        requirements: position.requirements,
-        resumeText: resume.text,
+          accessToken,
+          candidateDocumentId: resume.candidateDocumentId,
+          candidateId: resume.candidateId,
+          evaluation,
+          positionId: position.id,
+          requirements: position.requirements,
+          resumeText: resume.text,
+        })
+      }
+      if (evaluation.candidateEmail || evaluation.candidatePhone) {
+        void updateCandidateContactInfo({
+          candidateId: resume.candidateId,
+          email: evaluation.candidateEmail,
+          phone: evaluation.candidatePhone,
         })
       }
       if (activeUserId.current === recruiterId) {
@@ -685,6 +693,7 @@ export function App() {
           <section className="page-surface">
             <ApplicationIntake
               positions={savedPositions}
+              candidates={savedCandidates}
               session={session}
               requestedPositionId={
                 new URLSearchParams(window.location.search).get('positionId') ?? ''

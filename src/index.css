@@ -2005,3 +2005,259 @@ main.dark-mode .verdict-approved {
 main.dark-mode [role='status'] {
   color: #4ade80;
 }
+
+/* ==========================================================================
+   Badges y Datos de Contacto (Candidatos y Ranking)
+   ========================================================================== */
+.contact-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  font-size: 0.76rem;
+  font-weight: 550;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  white-space: nowrap;
+}
+
+main[data-theme='dark'] .contact-badge {
+  background: #1e293b;
+  color: #cbd5e1;
+  border-color: #334155;
+}
+
+.contact-email {
+  color: #1e40af;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+main[data-theme='dark'] .contact-email {
+  color: #93c5fd;
+  background: #172554;
+  border-color: #1e3a8a;
+}
+
+.contact-phone {
+  color: #065f46;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+main[data-theme='dark'] .contact-phone {
+  color: #6ee7b7;
+  background: #064e3b;
+  border-color: #047857;
+}
+
+.candidate-card-contact,
+.ranking-candidate-contact,
+.candidate-inline-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 5px 0 3px;
+}
+
+/* ==========================================================================
+   Selector de Modo y Panel de Candidatos Existentes en Postulaciones
+   ========================================================================== */
+.application-mode-selector {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 16px;
+  padding: 4px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+}
+
+[data-theme='dark'] .application-mode-selector,
+main[data-theme='dark'] .application-mode-selector {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+.application-mode-button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #475569;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.application-mode-button span {
+  color: inherit;
+}
+
+.application-mode-button:hover:not(:disabled) {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.application-mode-button.active {
+  color: #4338ca;
+  background: #ffffff;
+  border-color: #e0e7ff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Modo oscuro explícito y de alto contraste para botones de modo */
+[data-theme='dark'] .application-mode-button,
+main[data-theme='dark'] .application-mode-button {
+  color: #94a3b8;
+  background: transparent;
+  border-color: transparent;
+}
+
+[data-theme='dark'] .application-mode-button:hover:not(:disabled),
+main[data-theme='dark'] .application-mode-button:hover:not(:disabled) {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .application-mode-button.active,
+main[data-theme='dark'] .application-mode-button.active {
+  color: #ffffff;
+  background: #312e81;
+  border-color: #4f46e5;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.application-existing-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 6px;
+  padding: 20px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+}
+
+.application-existing-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.application-existing-search {
+  flex: 1 1 260px;
+  padding: 9px 12px;
+  font-size: 0.86rem;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: var(--input-bg);
+  color: var(--heading-text);
+}
+
+[data-theme='dark'] .application-existing-search,
+main[data-theme='dark'] .application-existing-search {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.application-existing-actions-row {
+  display: flex;
+  gap: 12px;
+}
+
+.application-existing-list {
+  display: grid;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.application-candidate-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+[data-theme='dark'] .application-candidate-item,
+main[data-theme='dark'] .application-candidate-item {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.application-candidate-item:hover {
+  border-color: #6366f1;
+}
+
+.application-candidate-item.selected {
+  border-color: #6366f1;
+  background: #f5f3ff;
+}
+
+[data-theme='dark'] .application-candidate-item.selected,
+main[data-theme='dark'] .application-candidate-item.selected {
+  background: #1e1b4b;
+  border-color: #818cf8;
+}
+
+.application-candidate-item input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
+.application-candidate-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.application-candidate-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.application-candidate-doc {
+  font-size: 0.78rem;
+  color: var(--label-text);
+}
+
+.application-existing-submit-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.application-empty-existing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+  text-align: center;
+}
+

@@ -1,4 +1,5 @@
 import {
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -9,12 +10,18 @@ import type { Session } from '@supabase/supabase-js'
 import type { SavedPosition } from '../services/positions'
 import { extractPdfText } from '../services/extractPdfText'
 import { inferCandidateEvaluation } from '../services/inferCandidateEvaluation'
-import { saveCandidateDocument } from '../services/candidates'
+import {
+  getSavedCandidateResume,
+  saveCandidateDocument,
+  updateCandidateContactInfo,
+  type SavedCandidate,
+} from '../services/candidates'
 import { saveEvaluationRun } from '../services/evaluations'
 import type { CandidateResume } from '../types'
 
 interface ApplicationIntakeProps {
   positions: SavedPosition[]
+  candidates?: SavedCandidate[]
   session: Session
   onSaved: () => void
   requestedPositionId: string
@@ -22,6 +29,14 @@ interface ApplicationIntakeProps {
 
 interface FileProcessingState {
   file: File
+  state: 'queued' | 'processing' | 'completed' | 'failed'
+  message: string
+}
+
+interface CandidateProcessingState {
+  candidateId: string
+  candidateName: string
+  fileName: string
   state: 'queued' | 'processing' | 'completed' | 'failed'
   message: string
 }
@@ -42,17 +57,72 @@ const validatePdf = (file: File): string | null => {
   return null
 }
 
+const formatDate = (value: string): string => {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? 'Fecha no disponible'
+    : new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium' }).format(date)
+}
+
 export function ApplicationIntake({
   positions,
+  candidates = [],
   session,
   onSaved,
   requestedPositionId,
 }: ApplicationIntakeProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [positionId, setPositionId] = useState(requestedPositionId)
+  const [intakeMode, setIntakeMode] = useState<'upload' | 'existing'>('upload')
   const [files, setFiles] = useState<FileProcessingState[]>([])
+  const [candidateProcessingList, setCandidateProcessingList] = useState<
+    CandidateProcessingState[]
+  >([])
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([])
+  const [candidateSearch, setCandidateSearch] = useState('')
   const [processing, setProcessing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+
+  // Candidatos que tienen al menos un documento CV procesado y disponible
+  const usableCandidates = useMemo(() => {
+    return candidates.filter((candidate) =>
+      candidate.documents.some((document) => document.status === 'processed'),
+    )
+  }, [candidates])
+
+  const filteredCandidates = useMemo(() => {
+    const query = candidateSearch.trim().toLocaleLowerCase('es-AR')
+    if (!query) {
+      return usableCandidates
+    }
+    return usableCandidates.filter(
+      (candidate) =>
+        candidate.name.toLocaleLowerCase('es-AR').includes(query) ||
+        (candidate.email &&
+          candidate.email.toLocaleLowerCase('es-AR').includes(query)) ||
+        (candidate.phone &&
+          candidate.phone.toLocaleLowerCase('es-AR').includes(query)) ||
+        candidate.documents.some((document) =>
+          document.fileName.toLocaleLowerCase('es-AR').includes(query),
+        ),
+    )
+  }, [usableCandidates, candidateSearch])
+
+  const handleToggleCandidate = (candidateIdToToggle: string) => {
+    setSelectedCandidateIds((current) =>
+      current.includes(candidateIdToToggle)
+        ? current.filter((id) => id !== candidateIdToToggle)
+        : [...current, candidateIdToToggle],
+    )
+  }
+
+  const handleSelectAllCandidates = () => {
+    setSelectedCandidateIds(filteredCandidates.map((candidate) => candidate.id))
+  }
+
+  const handleDeselectAllCandidates = () => {
+    setSelectedCandidateIds([])
+  }
 
   const processFiles = async (selectedFiles: File[], selectedPositionId: string) => {
     const selectedPosition = positions.find(
@@ -116,6 +186,8 @@ export function ApplicationIntake({
         const savedCandidate = await saveCandidateDocument({
           accessToken: session.access_token,
           candidateName: evaluation.candidateName,
+          candidateEmail: evaluation.candidateEmail,
+          candidatePhone: evaluation.candidatePhone,
           extractedText: resumeText,
           file,
           recruiterId: session.user.id,
@@ -171,6 +243,148 @@ export function ApplicationIntake({
     }
   }
 
+  const processExistingCandidates = async (
+    candidateIdsToProcess: string[],
+    selectedPositionId: string,
+  ) => {
+    const selectedPosition = positions.find(
+      (position) => position.id === selectedPositionId,
+    )
+    if (!selectedPosition) {
+      return
+    }
+
+    const targetCandidates = usableCandidates.filter((candidate) =>
+      candidateIdsToProcess.includes(candidate.id),
+    )
+    if (!targetCandidates.length) {
+      return
+    }
+
+    setProcessing(true)
+    const initialStates: CandidateProcessingState[] = targetCandidates.map(
+      (candidate) => {
+        const latestDoc = candidate.documents
+          .filter((document) => document.status === 'processed')
+          .sort(
+            (left, right) =>
+              new Date(right.createdAt).getTime() -
+              new Date(left.createdAt).getTime(),
+          )[0]
+
+        return {
+          candidateId: candidate.id,
+          candidateName: candidate.name,
+          fileName: latestDoc?.fileName ?? 'CV',
+          state: 'queued',
+          message: 'En espera',
+        }
+      },
+    )
+    setCandidateProcessingList(initialStates)
+
+    for (const [index, candidate] of targetCandidates.entries()) {
+      const usableDocuments = candidate.documents
+        .filter((document) => document.status === 'processed')
+        .sort(
+          (left, right) =>
+            new Date(right.createdAt).getTime() -
+            new Date(left.createdAt).getTime(),
+        )
+      const latestDocument = usableDocuments[0]
+      if (!latestDocument) {
+        setCandidateProcessingList((current) =>
+          current.map((item, itemIndex) =>
+            itemIndex === index
+              ? { ...item, state: 'failed', message: 'No hay CV disponible.' }
+              : item,
+          ),
+        )
+        continue
+      }
+
+      setCandidateProcessingList((current) =>
+        current.map((item, itemIndex) =>
+          itemIndex === index
+            ? { ...item, state: 'processing', message: 'Analizando en esta posición...' }
+            : item,
+        ),
+      )
+
+      try {
+        const resume = await getSavedCandidateResume({
+          recruiterId: session.user.id,
+          candidateId: candidate.id,
+          candidateDocumentId: latestDocument.id,
+        })
+
+        const evaluation = await inferCandidateEvaluation(
+          selectedPosition.requirements,
+          {
+            text: resume.text,
+            fileName: resume.fileName,
+            candidateId: candidate.id,
+            candidateDocumentId: latestDocument.id,
+          },
+          session.access_token,
+          selectedPosition.id,
+        )
+
+        if (!evaluation.reusedExistingEvaluation) {
+          await saveEvaluationRun({
+            accessToken: session.access_token,
+            candidateDocumentId: latestDocument.id,
+            candidateId: candidate.id,
+            evaluation,
+            positionId: selectedPosition.id,
+            requirements: selectedPosition.requirements,
+            resumeText: resume.text,
+          })
+        }
+
+        if (evaluation.candidateEmail || evaluation.candidatePhone) {
+          void updateCandidateContactInfo({
+            candidateId: candidate.id,
+            email: evaluation.candidateEmail,
+            phone: evaluation.candidatePhone,
+          })
+        }
+
+        setCandidateProcessingList((current) =>
+          current.map((item, itemIndex) =>
+            itemIndex === index
+              ? {
+                  ...item,
+                  state: 'completed',
+                  message: `${evaluation.verdict} · ${Math.round(
+                    (evaluation.earnedPoints / evaluation.totalPoints) * 100,
+                  )}% de compatibilidad`,
+                }
+              : item,
+          ),
+        )
+        onSaved()
+      } catch (error: unknown) {
+        setCandidateProcessingList((current) =>
+          current.map((item, itemIndex) =>
+            itemIndex === index
+              ? {
+                  ...item,
+                  state: 'failed',
+                  message:
+                    error instanceof Error
+                      ? error.message
+                      : 'Error al evaluar este candidato.',
+                }
+              : item,
+          ),
+        )
+      }
+    }
+
+    setProcessing(false)
+  }
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? [])
     if (!selectedFiles.length) {
@@ -202,9 +416,16 @@ export function ApplicationIntake({
 
   const isUploadDisabled = processing || !positionId
   const completedCount = files.filter((item) => item.state === 'completed').length
+  const completedCandidatesCount = candidateProcessingList.filter(
+    (item) => item.state === 'completed',
+  ).length
 
   return (
-    <section className="application-intake" aria-labelledby="application-intake-title" data-testid="application-intake">
+    <section
+      className="application-intake"
+      aria-labelledby="application-intake-title"
+      data-testid="application-intake"
+    >
       <label className="application-position-select">
         <span>Postulación / posición</span>
         <select
@@ -221,59 +442,241 @@ export function ApplicationIntake({
           ))}
         </select>
       </label>
-      <div className="application-cv-panel">
-        <div className="step-heading">
-          <h2 id="application-intake-title">Currículum</h2>
-        </div>
-        <div
-          className={`application-file-dropzone${isDragging ? ' application-file-dropzone-active' : ''}${isUploadDisabled ? ' application-file-dropzone-disabled' : ''}`}
-          role="button"
-          tabIndex={isUploadDisabled ? -1 : 0}
-          aria-disabled={isUploadDisabled}
-          aria-label="Arrastrá los CVs acá o hacé clic para elegirlos. PDF, máximo 5 MB por archivo."
-          onClick={() => {
-            if (!isUploadDisabled) {
-              inputRef.current?.click()
-            }
-          }}
-          onKeyDown={handleDropzoneKeyDown}
-          onDragOver={(event) => {
-            event.preventDefault()
-            if (!isUploadDisabled) {
-              setIsDragging(true)
-            }
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          data-testid="application-cv-dropzone"
+
+      {/* Selector de modo de postulación */}
+      <div
+        className="application-mode-selector"
+        role="group"
+        aria-label="Origen de los currículums"
+        data-testid="application-mode-selector"
+      >
+        <button
+          type="button"
+          className={`application-mode-button ${intakeMode === 'upload' ? 'active' : ''}`}
+          onClick={() => setIntakeMode('upload')}
+          disabled={processing}
+          data-testid="mode-upload"
         >
-          <span className="application-file-dropzone-icon" aria-hidden="true">
-            📄
-          </span>
+          <span aria-hidden="true">📄</span>
+          <span>Cargar masivamente CVs</span>
+        </button>
+        <button
+          type="button"
+          className={`application-mode-button ${intakeMode === 'existing' ? 'active' : ''}`}
+          onClick={() => setIntakeMode('existing')}
+          disabled={processing}
+          data-testid="mode-existing"
+        >
+          <span aria-hidden="true">👥</span>
           <span>
-            {isUploadDisabled && processing
-              ? 'Se están procesando los CVs'
-              : 'Arrastrá los CV acá o hacé clic para elegirlos'}
+            Usar candidatos de la base ({usableCandidates.length})
           </span>
-          <small>PDF · máx. 5 MB por archivo</small>
-          <input
-            ref={inputRef}
-            id="application-cv-files"
-            name="application-cv-files"
-            type="file"
-            accept=".pdf,application/pdf"
-            multiple
-            disabled={isUploadDisabled}
-            onChange={handleFileChange}
-            data-testid="application-cv-files"
-            hidden
-          />
-        </div>
+        </button>
       </div>
+
+      {intakeMode === 'upload' ? (
+        <div className="application-cv-panel">
+          <div className="step-heading">
+            <h2 id="application-intake-title">Currículum</h2>
+          </div>
+          <div
+            className={`application-file-dropzone${isDragging ? ' application-file-dropzone-active' : ''}${isUploadDisabled ? ' application-file-dropzone-disabled' : ''}`}
+            role="button"
+            tabIndex={isUploadDisabled ? -1 : 0}
+            aria-disabled={isUploadDisabled}
+            aria-label="Arrastrá los CVs acá o hacé clic para elegirlos. PDF, máximo 5 MB por archivo."
+            onClick={() => {
+              if (!isUploadDisabled) {
+                inputRef.current?.click()
+              }
+            }}
+            onKeyDown={handleDropzoneKeyDown}
+            onDragOver={(event) => {
+              event.preventDefault()
+              if (!isUploadDisabled) {
+                setIsDragging(true)
+              }
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            data-testid="application-cv-dropzone"
+          >
+            <span className="application-file-dropzone-icon" aria-hidden="true">
+              📄
+            </span>
+            <span>
+              {isUploadDisabled && processing
+                ? 'Se están procesando los CVs'
+                : 'Arrastrá los CV acá o hacé clic para elegirlos'}
+            </span>
+            <small>PDF · máx. 5 MB por archivo</small>
+            <input
+              ref={inputRef}
+              id="application-cv-files"
+              name="application-cv-files"
+              type="file"
+              accept=".pdf,application/pdf"
+              multiple
+              disabled={isUploadDisabled}
+              onChange={handleFileChange}
+              data-testid="application-cv-files"
+              hidden
+            />
+          </div>
+        </div>
+      ) : (
+        <div
+          className="application-existing-panel"
+          data-testid="application-existing-panel"
+        >
+          <div className="step-heading">
+            <h2 id="application-intake-title">Candidatos guardados en la base</h2>
+            <p>
+              Seleccioná uno o más candidatos para evaluarlos en la posición
+              elegida utilizando su CV ya procesado.
+            </p>
+          </div>
+
+          {usableCandidates.length === 0 ? (
+            <div className="application-empty-existing" role="status">
+              <p>Todavía no tenés candidatos con CVs procesados en tu base.</p>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setIntakeMode('upload')}
+              >
+                Cargar CVs ahora
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="application-existing-toolbar">
+                <input
+                  type="search"
+                  className="application-existing-search"
+                  placeholder="Buscar por nombre, archivo o contacto..."
+                  value={candidateSearch}
+                  onChange={(e) => setCandidateSearch(e.target.value)}
+                  disabled={processing}
+                  data-testid="existing-candidate-search"
+                />
+                <div className="application-existing-actions-row">
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={handleSelectAllCandidates}
+                    disabled={processing || filteredCandidates.length === 0}
+                    data-testid="select-all-candidates"
+                  >
+                    Seleccionar todos ({filteredCandidates.length})
+                  </button>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={handleDeselectAllCandidates}
+                    disabled={processing || selectedCandidateIds.length === 0}
+                    data-testid="deselect-all-candidates"
+                  >
+                    Deseleccionar
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className="application-existing-list"
+                data-testid="existing-candidates-list"
+              >
+                {filteredCandidates.map((candidate) => {
+                  const isChecked = selectedCandidateIds.includes(candidate.id)
+                  const latestDocument = candidate.documents
+                    .filter((doc) => doc.status === 'processed')
+                    .sort(
+                      (left, right) =>
+                        new Date(right.createdAt).getTime() -
+                        new Date(left.createdAt).getTime(),
+                    )[0]
+
+                  return (
+                    <label
+                      key={candidate.id}
+                      className={`application-candidate-item ${isChecked ? 'selected' : ''}`}
+                      data-testid={`existing-candidate-item-${candidate.id}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleCandidate(candidate.id)}
+                        disabled={processing}
+                        data-testid={`select-candidate-${candidate.id}`}
+                      />
+                      <div className="application-candidate-details">
+                        <div className="application-candidate-name-row">
+                          <strong>{candidate.name}</strong>
+                          {(candidate.email || candidate.phone) && (
+                            <div className="candidate-inline-contact">
+                              {candidate.email && (
+                                <span className="contact-badge contact-email">
+                                  ✉️ {candidate.email}
+                                </span>
+                              )}
+                              {candidate.phone && (
+                                <span className="contact-badge contact-phone">
+                                  📞 {candidate.phone}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {latestDocument && (
+                          <span className="application-candidate-doc">
+                            📄 {latestDocument.fileName} · {formatDate(latestDocument.createdAt)}
+                          </span>
+                        )}
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+
+              <div className="application-existing-submit-bar">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={
+                    processing ||
+                    !positionId ||
+                    selectedCandidateIds.length === 0
+                  }
+                  onClick={() =>
+                    void processExistingCandidates(selectedCandidateIds, positionId)
+                  }
+                  data-testid="evaluate-existing-candidates"
+                >
+                  {processing
+                    ? 'Evaluando candidatos...'
+                    : `Evaluar ${selectedCandidateIds.length} candidato${
+                        selectedCandidateIds.length === 1 ? '' : 's'
+                      } seleccionado${
+                        selectedCandidateIds.length === 1 ? '' : 's'
+                      }`}
+                </button>
+                {!positionId && (
+                  <span className="submit-hint">
+                    Elegí una posición arriba antes de evaluar.
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {!positions.length && (
         <p role="status">Primero creá una posición para cargar postulaciones.</p>
       )}
-      {files.length > 0 && (
+
+      {/* Progreso de carga de archivos */}
+      {intakeMode === 'upload' && files.length > 0 && (
         <div className="application-processing-list" aria-live="polite">
           <p role="status" data-testid="application-progress">
             {processing
@@ -288,6 +691,43 @@ export function ApplicationIntake({
                 data-testid={`application-file-${index}`}
               >
                 <strong>{item.file.name}</strong>
+                <span>
+                  {item.state === 'queued'
+                    ? 'En espera'
+                    : item.state === 'processing'
+                      ? 'Procesando'
+                      : item.state === 'completed'
+                        ? item.message
+                        : `Error: ${item.message}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Progreso de evaluación de candidatos existentes */}
+      {intakeMode === 'existing' && candidateProcessingList.length > 0 && (
+        <div
+          className="application-processing-list"
+          aria-live="polite"
+          data-testid="existing-candidates-progress-list"
+        >
+          <p role="status" data-testid="existing-candidates-progress">
+            {processing
+              ? `Procesando ${completedCandidatesCount} de ${candidateProcessingList.length} candidatos...`
+              : `Evaluación terminada: ${completedCandidatesCount} de ${candidateProcessingList.length} candidatos evaluados.`}
+          </p>
+          <ul>
+            {candidateProcessingList.map((item, index) => (
+              <li
+                key={`${item.candidateId}-${index}`}
+                className={`application-file-status application-file-${item.state}`}
+                data-testid={`existing-candidate-status-${index}`}
+              >
+                <strong>
+                  {item.candidateName} ({item.fileName})
+                </strong>
                 <span>
                   {item.state === 'queued'
                     ? 'En espera'

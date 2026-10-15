@@ -124,6 +124,31 @@ export function PositionRanking({
                 </span>
                 <div className="ranking-candidate">
                   <h3>{result.candidateName}</h3>
+                  {(result.candidateEmail || result.candidatePhone) && (
+                    <div
+                      className="ranking-candidate-contact"
+                      data-testid={`ranking-contact-${result.candidateId}`}
+                    >
+                      {result.candidateEmail && (
+                        <span
+                          className="contact-badge contact-email"
+                          title="Correo electrónico"
+                          data-testid={`ranking-email-${result.candidateId}`}
+                        >
+                          ✉️ {result.candidateEmail}
+                        </span>
+                      )}
+                      {result.candidatePhone && (
+                        <span
+                          className="contact-badge contact-phone"
+                          title="Teléfono"
+                          data-testid={`ranking-phone-${result.candidateId}`}
+                        >
+                          📞 {result.candidatePhone}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <p>{result.fileName} · Evaluado {formatDate(result.evaluatedAt)}</p>
                   <details className="ranking-evaluation-details">
                     <summary>Ver fortalezas y brechas</summary>

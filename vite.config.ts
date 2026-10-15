@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [react()],
   envPrefix: ['VITE_', 'SUPABASE_'],
   server: {
+    watch: {
+      ignored: ['**/*.csv', '**/Resume.csv', '**/base-de-CVs/**', '**/*.pdf'],
+    },
     proxy: {
       '/api': 'http://localhost:3001',
     },
