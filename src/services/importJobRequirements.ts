@@ -24,6 +24,7 @@ const isJobRequirementsImport = (
     typeof jobRequirements.seniorityPoints === 'number' &&
     jobRequirements.seniorityPoints >= 1 &&
     jobRequirements.seniorityPoints <= 10 &&
+    jobRequirements.acceptanceThreshold === 70 &&
     Array.isArray(skills) &&
     skills.every((skill) => {
       if (typeof skill !== 'object' || skill === null) {

@@ -1,7 +1,7 @@
 import type { JobRequirements } from '../types'
 import { supabaseClient } from './supabaseClient'
 
-export type PositionStatus = 'Nueva' | 'Abierta' | 'Cubierta' | 'Cancelada'
+export type PositionStatus = 'Abierta' | 'Cerrada'
 
 export interface SavedPosition {
   id: string
@@ -19,10 +19,7 @@ const asRecord = (value: unknown): Record<string, unknown> => {
 }
 
 const isPositionStatus = (value: unknown): value is PositionStatus =>
-  value === 'Nueva' ||
-  value === 'Abierta' ||
-  value === 'Cubierta' ||
-  value === 'Cancelada'
+  value === 'Abierta' || value === 'Cerrada'
 
 const parsePosition = (value: unknown): SavedPosition => {
   const row = asRecord(value)
@@ -33,6 +30,10 @@ const parsePosition = (value: unknown): SavedPosition => {
     typeof row.title !== 'string' ||
     typeof row.seniority !== 'string' ||
     typeof row.seniority_points !== 'number' ||
+    typeof row.acceptance_threshold !== 'number' ||
+    row.acceptance_threshold < 50 ||
+    row.acceptance_threshold > 100 ||
+    row.acceptance_threshold % 5 !== 0 ||
     !isPositionStatus(row.status) ||
     !Array.isArray(skillsValue)
   ) {
@@ -61,6 +62,7 @@ const parsePosition = (value: unknown): SavedPosition => {
       role: row.title,
       seniority: row.seniority,
       seniorityPoints: row.seniority_points,
+      acceptanceThreshold: row.acceptance_threshold,
       skills,
     },
   }
@@ -76,7 +78,7 @@ export const listSavedPositions = async (
   const { data, error } = await supabaseClient
     .from('positions')
     .select(
-      'id, title, seniority, seniority_points, status, position_skills(name, points)',
+      'id, title, seniority, seniority_points, acceptance_threshold, status, position_skills(name, points)',
     )
     .eq('recruiter_id', recruiterId)
     .order('created_at', { ascending: false })
@@ -90,6 +92,35 @@ export const listSavedPositions = async (
   }
 
   return data.map(parsePosition)
+}
+
+export const updatePositionStatus = async ({
+  positionId,
+  recruiterId,
+  status,
+}: {
+  positionId: string
+  recruiterId: string
+  status: PositionStatus
+}): Promise<void> => {
+  if (!supabaseClient) {
+    throw new Error('Supabase no está configurado.')
+  }
+
+  const { data, error } = await supabaseClient
+    .from('positions')
+    .update({ status })
+    .eq('id', positionId)
+    .eq('recruiter_id', recruiterId)
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`No se pudo actualizar la postulación: ${error.message}`)
+  }
+  if (!data || data.id !== positionId) {
+    throw new Error('La postulación no existe o no pertenece a tu cuenta.')
+  }
 }
 
 export const savePosition = async ({
@@ -108,6 +139,7 @@ export const savePosition = async ({
     p_title: requirements.role.trim(),
     p_seniority: requirements.seniority,
     p_seniority_points: requirements.seniorityPoints,
+    p_acceptance_threshold: requirements.acceptanceThreshold,
     p_skills: requirements.skills.map(({ name, points }) => ({
       name,
       points,

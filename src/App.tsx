@@ -15,6 +15,8 @@ import { inferCandidateEvaluation } from './services/inferCandidateEvaluation'
 import {
   listSavedPositions,
   savePosition,
+  updatePositionStatus,
+  type PositionStatus,
   type SavedPosition,
 } from './services/positions'
 import {
@@ -52,6 +54,7 @@ export function App() {
     skills: [],
     seniority: '',
     seniorityPoints: 5,
+    acceptanceThreshold: 70,
   })
   const [savedPositions, setSavedPositions] = useState<SavedPosition[]>([])
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(
@@ -75,8 +78,14 @@ export function App() {
     string | null
   >(null)
   const [positionSaving, setPositionSaving] = useState(false)
+  const [positionStatusSavingId, setPositionStatusSavingId] = useState<
+    string | null
+  >(null)
   const [positionError, setPositionError] = useState<string | null>(null)
   const [positionNotice, setPositionNotice] = useState<string | null>(null)
+  const [applicationStatusError, setApplicationStatusError] = useState<
+    string | null
+  >(null)
   const navigate = (path: string) => {
     window.history.pushState(null, '', path)
     setCurrentPath(path)
@@ -91,6 +100,7 @@ export function App() {
         skills: [],
         seniority: '',
         seniorityPoints: 5,
+        acceptanceThreshold: 70,
       })
       setSavedPositions([])
       setSelectedPositionId(null)
@@ -100,8 +110,10 @@ export function App() {
       setCandidateBankError(null)
       setCandidateBankNotice(null)
       setLoadingCandidateDocumentId(null)
+      setPositionStatusSavingId(null)
       setPositionError(null)
       setPositionNotice(null)
+      setApplicationStatusError(null)
       if (activeUserId.current === null || !nextUserId) {
         window.history.replaceState(null, '', '/puestos')
         setCurrentPath('/puestos')
@@ -300,10 +312,64 @@ export function App() {
       skills: [],
       seniority: '',
       seniorityPoints: 5,
+        acceptanceThreshold: 70,
     })
     setPositionError(null)
     setPositionNotice(null)
     navigate('/puestos/nuevo')
+  }
+
+  const handleUpdatePositionStatus = async (
+    positionId: string,
+    status: PositionStatus,
+  ) => {
+    const recruiterId = session?.user.id
+    if (!recruiterId) {
+      setApplicationStatusError(
+        'Iniciá sesión nuevamente para actualizar la postulación.',
+      )
+      return
+    }
+
+    const previousStatus = savedPositions.find(
+      (position) => position.id === positionId,
+    )?.status
+    if (!previousStatus) {
+      setApplicationStatusError(
+        'La postulación seleccionada ya no está disponible.',
+      )
+      return
+    }
+
+    setPositionStatusSavingId(positionId)
+    setApplicationStatusError(null)
+    setSavedPositions((current) =>
+      current.map((position) =>
+        position.id === positionId ? { ...position, status } : position,
+      ),
+    )
+    try {
+      await updatePositionStatus({ positionId, recruiterId, status })
+    } catch (statusError: unknown) {
+      if (activeUserId.current === recruiterId) {
+        setSavedPositions((current) =>
+          current.map((position) =>
+            position.id === positionId
+              ? { ...position, status: previousStatus }
+              : position,
+          ),
+        )
+        setApplicationStatusError(
+          statusError instanceof Error
+            ? statusError.message
+            : 'No se pudo actualizar la postulación.',
+        )
+      }
+    } finally {
+      if (activeUserId.current === recruiterId) {
+        setPositionStatusSavingId(null)
+      }
+    }
   }
 
   const handleUseSavedCandidate = async (
@@ -320,6 +386,10 @@ export function App() {
     const position = savedPositions.find((item) => item.id === positionId)
     if (!position) {
       setCandidateBankError('El puesto seleccionado ya no está disponible.')
+      return
+    }
+    if (position.status === 'Cerrada') {
+      setCandidateBankError('Abrir postulación para cargar CVs')
       return
     }
 
@@ -429,7 +499,7 @@ export function App() {
           ...jobRequirements,
           role: jobRequirements.role.trim(),
         },
-        status: existingPosition?.status ?? 'Nueva',
+        status: existingPosition?.status ?? 'Abierta',
       }
 
       setSavedPositions((current) =>
@@ -698,6 +768,11 @@ export function App() {
               requestedPositionId={
                 new URLSearchParams(window.location.search).get('positionId') ?? ''
               }
+              statusUpdatingPositionId={positionStatusSavingId}
+              statusError={applicationStatusError}
+              onUpdatePositionStatus={(positionId, status) =>
+                void handleUpdatePositionStatus(positionId, status)
+              }
               onSaved={() => {
                 setCandidateBankError(null)
                 setCandidateBankNotice(null)
@@ -835,6 +910,12 @@ export function App() {
                 <div>
                   <dt>Habilidades requeridas</dt>
                   <dd>{currentPosition.requirements.skills.length}</dd>
+                </div>
+                <div>
+                  <dt>Porcentaje mínimo de aceptación</dt>
+                  <dd data-testid="position-acceptance-threshold">
+                    {currentPosition.requirements.acceptanceThreshold}%
+                  </dd>
                 </div>
               </dl>
               <div className="detail-skills">

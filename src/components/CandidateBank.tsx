@@ -38,6 +38,10 @@ export function CandidateBank({
 }: CandidateBankProps) {
   const [search, setSearch] = useState('')
   const [positionId, setPositionId] = useState('')
+  const selectedPosition = positions.find(
+    (position) => position.id === positionId,
+  )
+  const isSelectedPositionClosed = selectedPosition?.status === 'Cerrada'
   const filteredCandidates = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('es-AR')
     if (!query) {
@@ -107,6 +111,12 @@ export function CandidateBank({
           </select>
         </label>
       </div>
+
+      {isSelectedPositionClosed && (
+        <p role="status" className="application-closed-message">
+          Abrir postulación para cargar CVs
+        </p>
+      )}
 
       {error && (
         <div className="candidate-bank-error" role="alert">
@@ -218,6 +228,7 @@ export function CandidateBank({
                     disabled={
                       !latestDocument ||
                       !positionId ||
+                      isSelectedPositionClosed ||
                       loadingDocumentId !== null
                     }
                     onClick={() =>

@@ -177,6 +177,24 @@ export function PositionRanking({
                           <p>No se registraron brechas.</p>
                         )}
                       </div>
+                      {result.verdict === 'Apto' && (
+                        <div>
+                          <h4>Preguntas de entrevista</h4>
+                          {result.interviewQuestions.length > 0 ? (
+                            <ul>
+                              {result.interviewQuestions.map(
+                                (question, questionIndex) => (
+                                  <li key={`${question}-${questionIndex}`}>
+                                    {question}
+                                  </li>
+                                ),
+                              )}
+                            </ul>
+                          ) : (
+                            <p>No se registraron preguntas de entrevista.</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </details>
                 </div>

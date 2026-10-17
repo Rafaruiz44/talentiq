@@ -11,6 +11,9 @@ const sanitizeSkillName = (name: string): string => name.replace(/[<>&"]/g, '').
 const getRangeProgress = (points: number): CSSProperties => ({
   '--range-progress': `${((points - 1) / 9) * 100}%`,
 } as CSSProperties)
+const getThresholdRangeProgress = (threshold: number): CSSProperties => ({
+  '--range-progress': `${((threshold - 50) / 50) * 100}%`,
+} as CSSProperties)
 
 export function JobRequirementsForm({ value, onChange }: JobRequirementsFormProps) {
   const [submitted, setSubmitted] = useState(false)
@@ -66,6 +69,10 @@ export function JobRequirementsForm({ value, onChange }: JobRequirementsFormProp
     onChange({ ...value, seniorityPoints: Number(points) })
   }
 
+  const handleAcceptanceThresholdChange = (threshold: string) => {
+    onChange({ ...value, acceptanceThreshold: Number(threshold) })
+  }
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitted(true)
@@ -112,6 +119,29 @@ export function JobRequirementsForm({ value, onChange }: JobRequirementsFormProp
       <p className="field-help" data-testid="seniority-ranges">
         Criterios actuales: {SENIORITY_RANGES.join(' | ')}
       </p>
+
+      <div className="step-heading"><span className="step-number">4</span><h2>Criterio de aceptación</h2></div>
+      <div className="field-row">
+        <label htmlFor="acceptance-threshold">
+          Porcentaje mínimo de aceptación{' '}
+          <output htmlFor="acceptance-threshold" className="range-value">
+            {value.acceptanceThreshold}%
+          </output>
+        </label>
+        <input
+          id="acceptance-threshold"
+          name="acceptance-threshold"
+          className="acceptance-threshold-range"
+          type="range"
+          min="50"
+          max="100"
+          step="5"
+          value={value.acceptanceThreshold}
+          onChange={(event) => handleAcceptanceThresholdChange(event.target.value)}
+          style={getThresholdRangeProgress(value.acceptanceThreshold)}
+          data-testid="acceptance-threshold"
+        />
+      </div>
 
       {isInvalid && <p role="status">Completá todos los campos obligatorios.</p>}
     </form>

@@ -7,7 +7,8 @@ test.beforeEach(async ({ page }) => {
       title: 'Desarrollador Backend',
       seniority: 'Semi Senior',
       seniority_points: 5,
-      status: 'Nueva',
+      acceptance_threshold: 70,
+      status: 'Abierta',
       position_skills: [{ name: 'SQL', points: 5 }],
     },
   ])

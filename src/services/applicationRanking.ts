@@ -13,6 +13,7 @@ export interface RankedApplication {
   verdict: 'Apto' | 'No Apto'
   strengths: string[]
   gaps: string[]
+  interviewQuestions: string[]
   evaluatedAt: string
 }
 
@@ -23,12 +24,34 @@ const asRecord = (value: unknown): Record<string, unknown> => {
   return value as Record<string, unknown>
 }
 
+const parseInterviewQuestions = (
+  value: unknown,
+  evaluationRunId: string,
+): string[] => {
+  if (!Array.isArray(value)) {
+    throw new Error('Supabase devolvió preguntas de entrevista con formato inválido.')
+  }
+
+  return value.map((item) => {
+    const questionRow = asRecord(item)
+    if (
+      questionRow.evaluation_run_id !== evaluationRunId ||
+      typeof questionRow.question !== 'string' ||
+      !questionRow.question.trim()
+    ) {
+      throw new Error('Supabase devolvió preguntas de entrevista con formato inválido.')
+    }
+    return questionRow.question.trim()
+  })
+}
+
 const parseRankedApplication = (value: unknown): RankedApplication => {
   const row = asRecord(value)
   const application = asRecord(row.applications)
   const candidate = asRecord(application.candidates)
   const document = asRecord(row.candidate_documents)
   if (
+    typeof row.id !== 'string' ||
     typeof row.application_id !== 'string' ||
     typeof row.candidate_id !== 'string' ||
     typeof row.candidate_document_id !== 'string' ||
@@ -69,6 +92,10 @@ const parseRankedApplication = (value: unknown): RankedApplication => {
     verdict: row.verdict,
     strengths: row.strengths,
     gaps: row.gaps,
+    interviewQuestions:
+      row.verdict === 'Apto'
+        ? parseInterviewQuestions(row.interview_questions, row.id)
+        : [],
     evaluatedAt: row.evaluated_at,
   }
 }
@@ -84,7 +111,7 @@ export async function listRankedApplications(
   let { data, error } = await supabaseClient
     .from('evaluation_runs')
     .select(
-      'application_id, candidate_id, candidate_document_id, earned_points, total_points, verdict, strengths, gaps, evaluated_at, applications!inner(position_id, candidates!inner(full_name, email, phone)), candidate_documents!inner(original_file_name)',
+      'id, application_id, candidate_id, candidate_document_id, earned_points, total_points, verdict, strengths, gaps, evaluated_at, applications!inner(position_id, candidates!inner(full_name, email, phone)), candidate_documents!inner(original_file_name), interview_questions(evaluation_run_id, question)',
     )
     .eq('recruiter_id', recruiterId)
     .eq('status', 'completed')
@@ -95,7 +122,7 @@ export async function listRankedApplications(
     const fallback = await supabaseClient
       .from('evaluation_runs')
       .select(
-        'application_id, candidate_id, candidate_document_id, earned_points, total_points, verdict, strengths, gaps, evaluated_at, applications!inner(position_id, candidates!inner(full_name, email)), candidate_documents!inner(original_file_name)',
+        'id, application_id, candidate_id, candidate_document_id, earned_points, total_points, verdict, strengths, gaps, evaluated_at, applications!inner(position_id, candidates!inner(full_name, email)), candidate_documents!inner(original_file_name), interview_questions(evaluation_run_id, question)',
       )
       .eq('recruiter_id', recruiterId)
       .eq('status', 'completed')

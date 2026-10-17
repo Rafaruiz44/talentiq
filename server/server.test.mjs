@@ -19,11 +19,12 @@ const getEvaluationFingerprint = (requirements, resumeText) =>
   createHash('sha256')
     .update(
       JSON.stringify({
-        evaluatorVersion: 'candidate-evaluation-v1',
+        evaluatorVersion: 'candidate-evaluation-v5',
         requirements: {
           role: requirements.role,
           seniority: requirements.seniority,
           seniorityPoints: requirements.seniorityPoints,
+          acceptanceThreshold: requirements.acceptanceThreshold,
           skills: requirements.skills.map(({ name, points }) => ({
             name,
             points,
@@ -38,6 +39,7 @@ const getEvaluationFingerprint = (requirements, resumeText) =>
 let apiServer
 let apiUrl
 let azureCalls
+let azureRequests
 let candidateWrites
 let candidateLookups
 let evaluationWrites
@@ -45,6 +47,7 @@ let evaluationLookups
 
 before(async () => {
   azureCalls = 0
+  azureRequests = []
   candidateWrites = []
   candidateLookups = []
   evaluationWrites = []
@@ -93,9 +96,11 @@ before(async () => {
         const lookup = JSON.parse(init.body)
         candidateLookups.push(lookup)
         return Response.json(
-          ['Existing candidate resume', 'Legacy candidate resume'].includes(
-            lookup.p_extracted_text,
-          )
+          [
+            'Existing candidate resume',
+            'Legacy candidate resume',
+            'Existing candidate scoring 75 percent',
+          ].includes(lookup.p_extracted_text)
             ? [
                 {
                   candidate_id: '66666666-6666-4666-8666-666666666666',
@@ -134,15 +139,27 @@ before(async () => {
                   validRequest.requirements,
                   'Existing candidate resume',
                 )) ||
-              lookup.p_resume_text === 'Legacy candidate resume')
+              lookup.p_resume_text === 'Legacy candidate resume' ||
+              lookup.p_resume_text === 'Existing candidate scoring 75 percent')
             ? [
                 {
                   candidate_name: 'Existing candidate',
-                  earned_points: 10,
-                  total_points: 10,
+                  earned_points:
+                    lookup.p_resume_text === 'Existing candidate scoring 75 percent'
+                      ? 75
+                      : 10,
+                  total_points:
+                    lookup.p_resume_text === 'Existing candidate scoring 75 percent'
+                      ? 100
+                      : 10,
                   verdict: 'Apto',
                   strengths: ['Existing result'],
                   gaps: [],
+                  interview_questions: [
+                    '¿Cómo aplicaste React en el proyecto mencionado?',
+                    '¿Qué decisiones técnicas tomaste con React?',
+                    '¿Cómo validarías la calidad de esa implementación?',
+                  ],
                   evaluation_run_id:
                     '77777777-7777-4777-8777-777777777777',
                 },
@@ -153,18 +170,36 @@ before(async () => {
       }
 
       azureCalls += 1
+      const azureRequest = JSON.parse(init.body)
+      azureRequests.push(azureRequest)
       assert.equal(init.headers['api-key'], serverEnv.AZURE_OPENAI_KEY)
+      const candidateResume = JSON.parse(
+        azureRequest.messages[1].content,
+      ).candidateResume
+      const earnedPoints = candidateResume === 'Candidate scoring 75 percent'
+        ? 75
+        : candidateResume === 'Candidate scoring exactly 80 percent'
+          ? 80
+          : 10
+      const totalPoints = candidateResume.startsWith('Candidate scoring')
+        ? 100
+        : 10
       return Response.json({
         choices: [
           {
             message: {
               content: JSON.stringify({
                 candidateName: 'Candidate',
-                earnedPoints: 10,
-                totalPoints: 10,
+                earnedPoints,
+                totalPoints,
                 verdict: 'Apto',
                 strengths: ['React experience'],
                 gaps: [],
+                interviewQuestions: [
+                  '¿Cómo aplicaste React en tu experiencia más relevante?',
+                  '¿Qué desafío técnico resolviste con React?',
+                  '¿Cómo asegurarías la calidad del código React?',
+                ],
               }),
             },
           },
@@ -188,6 +223,7 @@ const validRequest = {
     role: 'Frontend Developer',
     seniority: 'Semi Senior',
     seniorityPoints: 5,
+    acceptanceThreshold: 70,
     skills: [{ name: 'React', points: 5 }],
   },
   resumeText: 'Candidate with React experience',
@@ -216,6 +252,11 @@ const validEvaluationRunRequest = {
     verdict: 'Apto',
     strengths: ['Experiencia con React'],
     gaps: [],
+    interviewQuestions: [
+      '¿Cómo aplicaste React en tu experiencia más relevante?',
+      '¿Qué desafío técnico resolviste con React?',
+      '¿Cómo asegurarías la calidad del código React?',
+    ],
   },
 }
 
@@ -296,12 +337,86 @@ test('validates the Supabase session before calling Azure with server credential
     verdict: 'Apto',
     strengths: ['React experience'],
     gaps: [],
+    interviewQuestions: [
+      '¿Cómo aplicaste React en tu experiencia más relevante?',
+      '¿Qué desafío técnico resolviste con React?',
+      '¿Cómo asegurarías la calidad del código React?',
+    ],
     reusedExistingEvaluation: false,
   })
   assert.equal(azureCalls, 1)
+  assert.match(
+    azureRequests.at(-1).messages[0].content,
+    /igual o mayor al 70%/,
+  )
+})
+
+test('uses the configured acceptance threshold in the evaluation prompt', async () => {
+  const response = await fetch(`${apiUrl}/api/evaluate-candidate`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer candidate-lookup-test-token',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...validRequest,
+      requirements: { ...validRequest.requirements, acceptanceThreshold: 85 },
+    }),
+  })
+
+  assert.equal(response.status, 200)
+  assert.match(
+    azureRequests.at(-1).messages[0].content,
+    /igual o mayor al 85%/,
+  )
+})
+
+test('overrides an apt model verdict when the score is below the configured threshold', async () => {
+  const response = await fetch(`${apiUrl}/api/evaluate-candidate`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer candidate-lookup-test-token',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...validRequest,
+      requirements: { ...validRequest.requirements, acceptanceThreshold: 80 },
+      resumeText: 'Candidate scoring 75 percent',
+    }),
+  })
+
+  assert.equal(response.status, 200)
+  const evaluation = await response.json()
+  assert.equal(evaluation.earnedPoints, 75)
+  assert.equal(evaluation.totalPoints, 100)
+  assert.equal(evaluation.verdict, 'No Apto')
+  assert.deepEqual(evaluation.interviewQuestions, [])
+})
+
+test('keeps the candidate apt when the score equals the configured threshold', async () => {
+  const response = await fetch(`${apiUrl}/api/evaluate-candidate`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer candidate-lookup-test-token',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...validRequest,
+      requirements: { ...validRequest.requirements, acceptanceThreshold: 80 },
+      resumeText: 'Candidate scoring exactly 80 percent',
+    }),
+  })
+
+  assert.equal(response.status, 200)
+  const evaluation = await response.json()
+  assert.equal(evaluation.earnedPoints, 80)
+  assert.equal(evaluation.totalPoints, 100)
+  assert.equal(evaluation.verdict, 'Apto')
+  assert.equal(evaluation.interviewQuestions.length, 3)
 })
 
 test('requires authentication for the Azure-backed offer import route too', async () => {
+  const azureCallsBeforeRequest = azureCalls
   const response = await fetch(`${apiUrl}/api/import-job-requirements`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -309,7 +424,7 @@ test('requires authentication for the Azure-backed offer import route too', asyn
   })
 
   assert.equal(response.status, 401)
-  assert.equal(azureCalls, 1)
+  assert.equal(azureCalls, azureCallsBeforeRequest)
 })
 
 test('rejects candidate documents whose storage path belongs to another recruiter', async () => {
@@ -421,6 +536,26 @@ test('rejects invalid evaluation history data before writing to Supabase', async
   assert.equal(evaluationWrites.length, 0)
 })
 
+test('rejects interview questions for a candidate who is not apt', async () => {
+  const response = await fetch(`${apiUrl}/api/evaluation-runs`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer evaluation-test-token',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...validEvaluationRunRequest,
+      evaluation: {
+        ...validEvaluationRunRequest.evaluation,
+        verdict: 'No Apto',
+        interviewQuestions: ['Esta pregunta no debe persistirse.'],
+      },
+    }),
+  })
+
+  assert.equal(response.status, 400)
+})
+
 test('stores an evaluation run under the authenticated recruiter', async () => {
   const response = await fetch(`${apiUrl}/api/evaluation-runs`, {
     method: 'POST',
@@ -449,7 +584,8 @@ test('stores an evaluation run under the authenticated recruiter', async () => {
     p_verdict: 'Apto',
     p_strengths: ['Experiencia con React'],
     p_gaps: [],
-    p_evaluator_version: 'candidate-evaluation-v1',
+    p_interview_questions: validEvaluationRunRequest.evaluation.interviewQuestions,
+    p_evaluator_version: 'candidate-evaluation-v5',
   })
   assert.match(p_request_fingerprint, /^[0-9a-f]{64}$/)
 })
@@ -476,6 +612,11 @@ test('reuses a matching evaluation without calling Azure OpenAI', async () => {
     verdict: 'Apto',
     strengths: ['Existing result'],
     gaps: [],
+    interviewQuestions: [
+      '¿Cómo aplicaste React en el proyecto mencionado?',
+      '¿Qué decisiones técnicas tomaste con React?',
+      '¿Cómo validarías la calidad de esa implementación?',
+    ],
     reusedExistingEvaluation: true,
   })
   assert.equal(azureCalls, azureCallsBeforeLookup)
@@ -493,7 +634,7 @@ test('reuses a matching evaluation without calling Azure OpenAI', async () => {
       p_recruiter_id: 'authenticated-recruiter',
       p_candidate_id: '66666666-6666-4666-8666-666666666666',
       p_position_id: validRequest.positionId,
-      p_evaluator_version: 'candidate-evaluation-v1',
+      p_evaluator_version: 'candidate-evaluation-v5',
       p_requirements: validRequest.requirements,
       p_resume_text: 'Existing candidate resume',
     },
@@ -501,12 +642,35 @@ test('reuses a matching evaluation without calling Azure OpenAI', async () => {
   assert.match(evaluationLookup.p_request_fingerprint, /^[0-9a-f]{64}$/)
 })
 
+test('recalculates a reused evaluation against the requested threshold', async () => {
+  const azureCallsBeforeLookup = azureCalls
+  const response = await fetch(`${apiUrl}/api/evaluate-candidate`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer candidate-lookup-test-token',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...validRequest,
+      requirements: { ...validRequest.requirements, acceptanceThreshold: 80 },
+      resumeText: 'Existing candidate scoring 75 percent',
+    }),
+  })
+
+  assert.equal(response.status, 200)
+  const evaluation = await response.json()
+  assert.equal(evaluation.reusedExistingEvaluation, true)
+  assert.equal(evaluation.verdict, 'No Apto')
+  assert.deepEqual(evaluation.interviewQuestions, [])
+  assert.equal(azureCalls, azureCallsBeforeLookup)
+})
+
 test('checks legacy evaluations before calling Azure OpenAI', async () => {
   const azureCallsBeforeLookup = azureCalls
   const response = await fetch(`${apiUrl}/api/evaluate-candidate`, {
     method: 'POST',
     headers: {
-      Authorization: 'Bearer evaluation-test-token',
+      Authorization: 'Bearer candidate-lookup-test-token',
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({

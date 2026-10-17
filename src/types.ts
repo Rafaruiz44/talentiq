@@ -8,6 +8,7 @@ export interface JobRequirements {
   skills: SkillRequirement[]
   seniority: string
   seniorityPoints: number
+  acceptanceThreshold: number
 }
 
 export interface JobRequirementsImport {
@@ -32,5 +33,6 @@ export interface CandidateEvaluation {
   verdict: 'Apto' | 'No Apto'
   strengths: string[]
   gaps: string[]
+  interviewQuestions: string[]
   reusedExistingEvaluation?: boolean
 }

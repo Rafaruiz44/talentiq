@@ -9,6 +9,7 @@ test('carga un puesto guardado con las ponderaciones de sus habilidades', async 
       title: 'Desarrollador Backend',
       seniority: 'Semi Senior',
       seniority_points: 7,
+      acceptance_threshold: 70,
       status: 'Abierta',
       position_skills: [{ name: 'SQL', points: 9 }],
     },
@@ -91,6 +92,7 @@ test('actualiza las habilidades del puesto seleccionado', async ({ page }) => {
       title: 'Desarrollador Backend',
       seniority: 'Semi Senior',
       seniority_points: 7,
+      acceptance_threshold: 70,
       status: 'Abierta',
       position_skills: [{ name: 'SQL', points: 5 }],
     },
@@ -150,6 +152,7 @@ test('guarda el puesto y sus habilidades mediante la operación autenticada', as
   expect(JSON.parse(rpcRequestBody)).toEqual({
     p_position_id: null,
     p_title: 'Backend',
+    p_acceptance_threshold: 70,
     p_seniority: 'Senior',
     p_seniority_points: 6,
     p_skills: [{ name: 'PostgreSQL', points: 8 }],

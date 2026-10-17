@@ -7,7 +7,10 @@ import {
   type KeyboardEvent,
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import type { SavedPosition } from '../services/positions'
+import type {
+  PositionStatus,
+  SavedPosition,
+} from '../services/positions'
 import { extractPdfText } from '../services/extractPdfText'
 import { inferCandidateEvaluation } from '../services/inferCandidateEvaluation'
 import {
@@ -24,7 +27,13 @@ interface ApplicationIntakeProps {
   candidates?: SavedCandidate[]
   session: Session
   onSaved: () => void
+  onUpdatePositionStatus: (
+    positionId: string,
+    status: PositionStatus,
+  ) => void
   requestedPositionId: string
+  statusError: string | null
+  statusUpdatingPositionId: string | null
 }
 
 interface FileProcessingState {
@@ -69,7 +78,10 @@ export function ApplicationIntake({
   candidates = [],
   session,
   onSaved,
+  onUpdatePositionStatus,
   requestedPositionId,
+  statusError,
+  statusUpdatingPositionId,
 }: ApplicationIntakeProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [positionId, setPositionId] = useState(requestedPositionId)
@@ -82,6 +94,11 @@ export function ApplicationIntake({
   const [candidateSearch, setCandidateSearch] = useState('')
   const [processing, setProcessing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const selectedPosition = positions.find(
+    (position) => position.id === positionId,
+  )
+  const isPositionClosed = selectedPosition?.status === 'Cerrada'
+  const isStatusUpdating = statusUpdatingPositionId === positionId
 
   // Candidatos que tienen al menos un documento CV procesado y disponible
   const usableCandidates = useMemo(() => {
@@ -134,6 +151,16 @@ export function ApplicationIntake({
           file,
           state: 'failed',
           message: 'Elegí una postulación antes de cargar los CVs.',
+        })),
+      )
+      return
+    }
+    if (selectedPosition.status === 'Cerrada') {
+      setFiles(
+        selectedFiles.map((file) => ({
+          file,
+          state: 'failed',
+          message: 'Abrir postulación para cargar CVs',
         })),
       )
       return
@@ -250,7 +277,7 @@ export function ApplicationIntake({
     const selectedPosition = positions.find(
       (position) => position.id === selectedPositionId,
     )
-    if (!selectedPosition) {
+    if (!selectedPosition || selectedPosition.status === 'Cerrada') {
       return
     }
 
@@ -396,7 +423,7 @@ export function ApplicationIntake({
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     setIsDragging(false)
-    if (processing || !positionId) {
+    if (processing || !positionId || isPositionClosed) {
       return
     }
     const selectedFiles = Array.from(event.dataTransfer.files)
@@ -408,13 +435,13 @@ export function ApplicationIntake({
   const handleDropzoneKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      if (!processing && positionId) {
+      if (!processing && positionId && !isPositionClosed) {
         inputRef.current?.click()
       }
     }
   }
 
-  const isUploadDisabled = processing || !positionId
+  const isUploadDisabled = processing || !positionId || isPositionClosed
   const completedCount = files.filter((item) => item.state === 'completed').length
   const completedCandidatesCount = candidateProcessingList.filter(
     (item) => item.state === 'completed',
@@ -426,22 +453,63 @@ export function ApplicationIntake({
       aria-labelledby="application-intake-title"
       data-testid="application-intake"
     >
-      <label className="application-position-select">
-        <span>Postulación / posición</span>
-        <select
-          value={positionId}
-          onChange={(event) => setPositionId(event.target.value)}
-          disabled={processing}
-          data-testid="application-position"
+      <div className="application-position-toolbar">
+        <label className="application-position-select">
+          <span>Postulación / posición</span>
+          <select
+            value={positionId}
+            onChange={(event) => setPositionId(event.target.value)}
+            disabled={processing || isStatusUpdating}
+            data-testid="application-position"
+          >
+            <option value="">Elegí una posición</option>
+            {positions.map((position) => (
+              <option key={position.id} value={position.id}>
+                {position.title} — {position.status}
+              </option>
+            ))}
+          </select>
+        </label>
+        {selectedPosition && (
+          <button
+            type="button"
+            className={
+              isPositionClosed
+                ? 'position-status-button position-status-open'
+                : 'position-status-button position-status-close'
+            }
+            disabled={processing || isStatusUpdating}
+            onClick={() =>
+              onUpdatePositionStatus(
+                selectedPosition.id,
+                isPositionClosed ? 'Abierta' : 'Cerrada',
+              )
+            }
+            aria-label={`${isPositionClosed ? 'Abrir' : 'Cerrar'} postulación ${selectedPosition.title}`}
+            data-testid="toggle-application-status"
+          >
+            {isStatusUpdating
+              ? 'Actualizando...'
+              : isPositionClosed
+                ? 'Abrir postulación'
+                : 'Cerrar postulación'}
+          </button>
+        )}
+      </div>
+      {statusError && (
+        <p role="alert" data-testid="application-status-error">
+          {statusError}
+        </p>
+      )}
+      {isPositionClosed && (
+        <p
+          className="application-closed-message"
+          role="status"
+          data-testid="application-closed-message"
         >
-          <option value="">Elegí una posición</option>
-          {positions.map((position) => (
-            <option key={position.id} value={position.id}>
-              {position.title} — {position.status}
-            </option>
-          ))}
-        </select>
-      </label>
+          Abrir postulación para cargar CVs
+        </p>
+      )}
 
       {/* Selector de modo de postulación */}
       <div
@@ -645,6 +713,7 @@ export function ApplicationIntake({
                   disabled={
                     processing ||
                     !positionId ||
+                    isPositionClosed ||
                     selectedCandidateIds.length === 0
                   }
                   onClick={() =>

@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 const maxBodyLength = 3_000_000
 const maxSourceLength = 500_000
 const maxResumeLength = 600_000
-const evaluatorVersion = 'candidate-evaluation-v1'
+const evaluatorVersion = 'candidate-evaluation-v5'
 const getContentFingerprint = (text) =>
   createHash('md5').update(text, 'utf8').digest('hex')
 const getEvaluationFingerprint = (requirements, resumeText) =>
@@ -17,6 +17,7 @@ const getEvaluationFingerprint = (requirements, resumeText) =>
           role: requirements.role,
           seniority: requirements.seniority,
           seniorityPoints: requirements.seniorityPoints,
+          acceptanceThreshold: requirements.acceptanceThreshold,
           skills: requirements.skills.map(({ name, points }) => ({
             name,
             points,
@@ -488,6 +489,10 @@ const isJobRequirements = (value) =>
       Number.isInteger(value.seniorityPoints) &&
       value.seniorityPoints >= 1 &&
       value.seniorityPoints <= 10 &&
+      Number.isInteger(value.acceptanceThreshold) &&
+      value.acceptanceThreshold >= 50 &&
+      value.acceptanceThreshold <= 100 &&
+      value.acceptanceThreshold % 5 === 0 &&
       Array.isArray(value.skills) &&
       value.skills.length > 0 &&
       value.skills.length <= 100 &&
@@ -526,7 +531,12 @@ const isCandidateEvaluation = (value) =>
       Array.isArray(value.strengths) &&
       value.strengths.every((item) => typeof item === 'string') &&
       Array.isArray(value.gaps) &&
-      value.gaps.every((item) => typeof item === 'string'),
+      value.gaps.every((item) => typeof item === 'string') &&
+      Array.isArray(value.interviewQuestions) &&
+      value.interviewQuestions.every((item) => typeof item === 'string') &&
+      (value.verdict === 'Apto'
+        ? value.interviewQuestions.length === 3
+        : value.interviewQuestions.length === 0),
   )
 
 const isUuid = (value) =>
@@ -559,6 +569,9 @@ const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
     evaluation.gaps.length > 100 ||
     [...evaluation.strengths, ...evaluation.gaps].some(
       (item) => item.length > 1000,
+    ) ||
+    evaluation.interviewQuestions.some(
+      (item) => !item.trim() || item.length > 1000,
     )
   ) {
     throw new ApiError(400, 'Los datos del análisis no son válidos.')
@@ -592,6 +605,7 @@ const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
         p_verdict: evaluation.verdict,
         p_strengths: evaluation.strengths,
         p_gaps: evaluation.gaps,
+        p_interview_questions: evaluation.interviewQuestions,
         p_request_fingerprint: getEvaluationFingerprint(
           requirements,
           resumeText,
@@ -719,6 +733,11 @@ const findExistingEvaluationRun = async (
     !savedRun.strengths.every((item) => typeof item === 'string') ||
     !Array.isArray(savedRun.gaps) ||
     !savedRun.gaps.every((item) => typeof item === 'string') ||
+    !Array.isArray(savedRun.interview_questions) ||
+    !savedRun.interview_questions.every((item) => typeof item === 'string') ||
+    (savedRun.verdict === 'Apto'
+      ? savedRun.interview_questions.length !== 3
+      : savedRun.interview_questions.length !== 0) ||
     !isUuid(savedRun.evaluation_run_id)
   ) {
     throw new ApiError(
@@ -727,13 +746,21 @@ const findExistingEvaluationRun = async (
     )
   }
 
+  const calculatedVerdict =
+    (savedRun.earned_points / savedRun.total_points) * 100 >=
+    requirements.acceptanceThreshold
+      ? 'Apto'
+      : 'No Apto'
+
   return {
     candidateName: savedRun.candidate_name,
     earnedPoints: savedRun.earned_points,
     totalPoints: savedRun.total_points,
-    verdict: savedRun.verdict,
+    verdict: calculatedVerdict,
     strengths: savedRun.strengths,
     gaps: savedRun.gaps,
+    interviewQuestions:
+      calculatedVerdict === 'Apto' ? savedRun.interview_questions : [],
     reusedExistingEvaluation: true,
   }
 }
@@ -845,7 +872,7 @@ export const createApiRequestHandler = ({
             {
               role: 'system',
               content:
-                'Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Cada habilidad de skills tiene un peso points independiente entre 1 y 10; el seniority tiene seniorityPoints. Para seniority, analizá únicamente las experiencias laborales cuyo título corresponda al role solicitado; no uses la experiencia total de otros roles, educación ni certificaciones. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Si el CV declara un seniority pero no informa años de experiencia relacionada con el role, usá ese nivel. Un candidato con un nivel superior al requerido está calificado igualmente y debe sumar los seniorityPoints; no lo penalices por sobrecalificación. Un candidato con un nivel inferior no cumple el seniority. Sumá los pesos de todas las habilidades y del seniority para obtener totalPoints, sin aplicar un límite máximo al total. earnedPoints debe ser la suma de los pesos de los requisitos cumplidos. Respondé Apto si la proporción de puntos obtenidos es igual o mayor al 70%, y No Apto si es menor. Para cada fortaleza, indicá la habilidad, el nivel o tipo de experiencia y la evidencia concreta encontrada en el CV; no escribas únicamente el nombre de la habilidad. Para cada brecha, indicá la habilidad faltante y explicá qué evidencia no aparece o qué requisito no queda acreditado. No inventes años, proyectos, responsabilidades ni tecnologías. Evitá duplicar una misma habilidad entre fortalezas y brechas. Extraé también los datos de contacto si están presentes (candidateEmail y candidatePhone; de lo contrario null). Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "candidateEmail": string | null, "candidatePhone": string | null, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[]}.',
+                `Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Cada habilidad de skills tiene un peso points independiente entre 1 y 10; el seniority tiene seniorityPoints. Para seniority, analizá únicamente las experiencias laborales cuyo título corresponda al role solicitado; no uses la experiencia total de otros roles, educación ni certificaciones. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Si el CV declara un seniority pero no informa años de experiencia relacionada con el role, usá ese nivel. Un candidato con un nivel superior al requerido está calificado igualmente y debe sumar los seniorityPoints; no lo penalices por sobrecalificación. Un candidato con un nivel inferior no cumple el seniority. Sumá los pesos de todas las habilidades y del seniority para obtener totalPoints, sin aplicar un límite máximo al total. earnedPoints debe ser la suma de los pesos de los requisitos cumplidos. Respondé Apto si la proporción de puntos obtenidos es igual o mayor al ${requirements.acceptanceThreshold}%, y No Apto si es menor. Para cada fortaleza, indicá la habilidad, el nivel o tipo de experiencia y la evidencia concreta encontrada en el CV; no escribas únicamente el nombre de la habilidad. Para cada brecha, indicá la habilidad faltante y explicá qué evidencia no aparece o qué requisito no queda acreditado. No inventes años, proyectos, responsabilidades ni tecnologías. Evitá duplicar una misma habilidad entre fortalezas y brechas. Si el veredicto es Apto, generá exactamente 3 preguntas de entrevista relevantes para los requisitos de la posición y la evidencia, fortalezas o brechas del candidato; deben permitir profundizar su experiencia concreta y no repetir la misma idea. Si el veredicto es No Apto, interviewQuestions debe ser un arreglo vacío. Extraé también los datos de contacto si están presentes (candidateEmail y candidatePhone; de lo contrario null). Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "candidateEmail": string | null, "candidatePhone": string | null, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[], "interviewQuestions": string[]}.`,
             },
             {
               role: 'user',
@@ -867,10 +894,22 @@ export const createApiRequestHandler = ({
           throw new ApiError(502, 'La respuesta de evaluación tiene un formato inválido.')
         }
 
+        const calculatedVerdict =
+          (evaluation.earnedPoints / evaluation.totalPoints) * 100 >=
+          requirements.acceptanceThreshold
+            ? 'Apto'
+            : 'No Apto'
+        const normalizedEvaluation = {
+          ...evaluation,
+          verdict: calculatedVerdict,
+          interviewQuestions:
+            calculatedVerdict === 'Apto' ? evaluation.interviewQuestions : [],
+        }
+
         sendJson(
           response,
           200,
-          { ...evaluation, reusedExistingEvaluation: false },
+          { ...normalizedEvaluation, reusedExistingEvaluation: false },
           origin,
           allowedOrigin,
         )

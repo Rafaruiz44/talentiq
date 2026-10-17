@@ -8,6 +8,7 @@ interface PositionFixture {
   title: string
   seniority: string
   seniority_points: number
+  acceptance_threshold: number
   status: string
   position_skills: Array<{ name: string; points: number }>
 }

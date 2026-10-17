@@ -354,7 +354,12 @@ const isCandidateEvaluation = (
     Array.isArray(candidate.strengths) &&
     candidate.strengths.every((item) => typeof item === 'string') &&
     Array.isArray(candidate.gaps) &&
-    candidate.gaps.every((item) => typeof item === 'string')
+    candidate.gaps.every((item) => typeof item === 'string') &&
+    Array.isArray(candidate.interviewQuestions) &&
+    candidate.interviewQuestions.every((item) => typeof item === 'string') &&
+    (candidate.verdict === 'Apto'
+      ? candidate.interviewQuestions.length === 3
+      : candidate.interviewQuestions.length === 0)
   )
 }
 

@@ -86,6 +86,13 @@ test('analiza y guarda varios CVs de forma individual en una postulación', asyn
         verdict: isFirst ? 'Apto' : 'No Apto',
         strengths: ['Experiencia con React en proyectos'],
         gaps: [],
+        interviewQuestions: isFirst
+          ? [
+              '¿Cómo aplicaste React en un proyecto relevante?',
+              '¿Qué desafío técnico resolviste con React?',
+              '¿Cómo aseguraste la calidad de esa implementación?',
+            ]
+          : [],
         reusedExistingEvaluation: false,
       }),
     })
@@ -165,6 +172,7 @@ test('ordena el ranking por compatibilidad y muestra solo el resultado más reci
       contentType: 'application/json',
       body: JSON.stringify([
         {
+          id: 'run-top-current',
           application_id: 'application-top',
           candidate_id: 'candidate-top',
           candidate_document_id: 'document-top',
@@ -173,6 +181,12 @@ test('ordena el ranking por compatibilidad y muestra solo el resultado más reci
           verdict: 'Apto',
           strengths: ['React en producción'],
           gaps: [],
+          interview_questions: [
+            {
+              evaluation_run_id: 'run-top-current',
+              question: '¿Cómo aplicarías React en este puesto?',
+            },
+          ],
           evaluated_at: '2026-10-04T18:00:00.000Z',
           applications: {
             position_id: 'position-1',
@@ -181,6 +195,7 @@ test('ordena el ranking por compatibilidad y muestra solo el resultado más reci
           candidate_documents: { original_file_name: 'mejor.pdf' },
         },
         {
+          id: 'run-second',
           application_id: 'application-second',
           candidate_id: 'candidate-second',
           candidate_document_id: 'document-second',
@@ -189,6 +204,7 @@ test('ordena el ranking por compatibilidad y muestra solo el resultado más reci
           verdict: 'Apto',
           strengths: ['React en proyectos'],
           gaps: [],
+          interview_questions: [],
           evaluated_at: '2026-10-04T17:00:00.000Z',
           applications: {
             position_id: 'position-1',
@@ -197,6 +213,7 @@ test('ordena el ranking por compatibilidad y muestra solo el resultado más reci
           candidate_documents: { original_file_name: 'intermedio.pdf' },
         },
         {
+          id: 'run-third',
           application_id: 'application-third',
           candidate_id: 'candidate-third',
           candidate_document_id: 'document-third',
@@ -205,6 +222,7 @@ test('ordena el ranking por compatibilidad y muestra solo el resultado más reci
           verdict: 'No Apto',
           strengths: [],
           gaps: ['Seniority no acreditado'],
+          interview_questions: [],
           evaluated_at: '2026-10-04T16:00:00.000Z',
           applications: {
             position_id: 'position-1',
@@ -213,6 +231,7 @@ test('ordena el ranking por compatibilidad y muestra solo el resultado más reci
           candidate_documents: { original_file_name: 'no-apto.pdf' },
         },
         {
+          id: 'run-top-previous',
           application_id: 'application-top',
           candidate_id: 'candidate-top',
           candidate_document_id: 'document-top',
@@ -221,6 +240,7 @@ test('ordena el ranking por compatibilidad y muestra solo el resultado más reci
           verdict: 'No Apto',
           strengths: [],
           gaps: [],
+          interview_questions: [],
           evaluated_at: '2026-10-03T16:00:00.000Z',
           applications: {
             position_id: 'position-1',
@@ -249,6 +269,19 @@ test('ordena el ranking por compatibilidad y muestra solo el resultado más reci
   await expect(evaluationDetails).toContainText(
     'No se registraron brechas.',
   )
+  await expect(evaluationDetails).toContainText('Preguntas de entrevista')
+  await expect(evaluationDetails).toContainText(
+    '¿Cómo aplicarías React en este puesto?',
+  )
+  await expect(
+    page.getByTestId('ranking-item').nth(1).locator('details'),
+  ).toContainText('No se registraron preguntas de entrevista.')
+  await expect(
+    page.getByTestId('ranking-item').nth(2).locator('details'),
+  ).not.toContainText('Preguntas de entrevista')
+  expect(new URL(rankingUrl).searchParams.get('select')).toContain(
+    'interview_questions(evaluation_run_id,question)',
+  )
   expect(new URL(rankingUrl).searchParams.get('recruiter_id')).toBe(
     'eq.11111111-1111-4111-8111-111111111111',
   )
@@ -266,6 +299,7 @@ test('muestra los datos de contacto del candidato en el ranking', async ({
       contentType: 'application/json',
       body: JSON.stringify([
         {
+          id: 'run-contact-1',
           application_id: 'app-contact-1',
           candidate_id: 'cand-contact-1',
           candidate_document_id: 'doc-contact-1',
@@ -274,6 +308,7 @@ test('muestra los datos de contacto del candidato en el ranking', async ({
           verdict: 'Apto',
           strengths: ['React'],
           gaps: [],
+          interview_questions: [],
           evaluated_at: '2026-10-04T18:00:00.000Z',
           applications: {
             position_id: 'position-1',
@@ -354,6 +389,11 @@ test('permite seleccionar y evaluar candidatos existentes de la base en una post
         verdict: 'Apto',
         strengths: ['Experiencia sólida con React'],
         gaps: [],
+        interviewQuestions: [
+          '¿Cómo aplicaste React en tu experiencia más relevante?',
+          '¿Qué desafío técnico resolviste con React?',
+          '¿Cómo asegurarías la calidad del código React?',
+        ],
         reusedExistingEvaluation: false,
       }),
     })
