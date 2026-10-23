@@ -15,7 +15,7 @@ export default defineConfig({
     {
       command: 'node server/server.mjs',
       url: 'http://localhost:3001/health',
-      reuseExistingServer: false,
+      reuseExistingServer: true,
       env: {
         SUPABASE_URL: 'https://test-project.supabase.co',
         SUPABASE_ANON_KEY: 'test-publishable-key',
@@ -28,7 +28,7 @@ export default defineConfig({
     {
       command: 'npm run dev -- --port 5174 --strictPort',
       url: 'http://localhost:5174',
-      reuseExistingServer: false,
+      reuseExistingServer: true,
       env: {
         VITE_SUPABASE_URL: 'https://test-project.supabase.co',
         VITE_SUPABASE_ANON_KEY: 'test-publishable-key',

@@ -5,6 +5,7 @@ const createPosition = (status: 'Abierta' | 'Cerrada') => ({
   title: 'Desarrollador Frontend',
   seniority: 'Semi Senior',
   seniority_points: 5,
+  acceptance_threshold: 70,
   status,
   position_skills: [{ name: 'React', points: 5 }],
 })
@@ -64,18 +65,23 @@ test('cerrar persiste el estado Cerrada, muestra el aviso y bloquea carga y eval
 }) => {
   const { persistedUpdates } = await mockApplicationStatus(page, 'Abierta')
 
+  // El botón de cerrar postulación ahora está en el detalle del puesto
+  await page.goto('/puestos/position-1')
+  await page
+    .getByRole('button', { name: 'Cerrar postulación Desarrollador Frontend' })
+    .click()
+  expect(persistedUpdates).toEqual(['Cerrada'])
+
+  // Al ir a postulaciones para esa posición, debe mostrarse cerrada
   await page.goto('/postulaciones')
   await page
     .getByRole('combobox', { name: 'Postulación / posición' })
     .selectOption('position-1')
-  await page
-    .getByRole('button', { name: 'Cerrar postulación Desarrollador Frontend' })
-    .click()
 
   await expect(
     page.getByRole('combobox', { name: 'Postulación / posición' }),
   ).toHaveValue('position-1')
-  await expect(page.getByRole('status')).toContainText(
+  await expect(page.getByTestId('application-closed-message')).toContainText(
     'Abrir postulación para cargar CVs',
   )
   await page.getByRole('button', { name: 'Cargar masivamente CVs' }).click()
@@ -88,15 +94,8 @@ test('cerrar persiste el estado Cerrada, muestra el aviso y bloquea carga y eval
   await expect(
     page.getByRole('button', { name: 'Evaluar 1 candidato seleccionado' }),
   ).toBeDisabled()
-  expect(persistedUpdates).toEqual(['Cerrada'])
 
-  await page.reload()
-  await page
-    .getByRole('combobox', { name: 'Postulación / posición' })
-    .selectOption('position-1')
-  await expect(
-    page.getByRole('combobox', { name: 'Postulación / posición' }),
-  ).toHaveValue('position-1')
+  await page.goto('/puestos/position-1')
   await expect(
     page.getByRole('button', { name: 'Abrir postulación Desarrollador Frontend' }),
   ).toBeVisible()
@@ -107,13 +106,18 @@ test('abrir persiste el estado Abierta y rehabilita los controles', async ({
 }) => {
   const { persistedUpdates } = await mockApplicationStatus(page, 'Cerrada')
 
+  // Abrir la postulación desde el detalle del puesto
+  await page.goto('/puestos/position-1')
+  await page
+    .getByRole('button', { name: 'Abrir postulación Desarrollador Frontend' })
+    .click()
+  expect(persistedUpdates).toEqual(['Abierta'])
+
+  // Al ir a postulaciones para esa posición, debe estar habilitada
   await page.goto('/postulaciones')
   await page
     .getByRole('combobox', { name: 'Postulación / posición' })
     .selectOption('position-1')
-  await page
-    .getByRole('button', { name: 'Abrir postulación Desarrollador Frontend' })
-    .click()
 
   await expect(
     page.getByRole('combobox', { name: 'Postulación / posición' }),
@@ -128,15 +132,8 @@ test('abrir persiste el estado Abierta y rehabilita los controles', async ({
   await expect(
     page.getByRole('button', { name: 'Evaluar 1 candidato seleccionado' }),
   ).toBeEnabled()
-  expect(persistedUpdates).toEqual(['Abierta'])
 
-  await page.reload()
-  await page
-    .getByRole('combobox', { name: 'Postulación / posición' })
-    .selectOption('position-1')
-  await expect(
-    page.getByRole('combobox', { name: 'Postulación / posición' }),
-  ).toHaveValue('position-1')
+  await page.goto('/puestos/position-1')
   await expect(
     page.getByRole('button', { name: 'Cerrar postulación Desarrollador Frontend' }),
   ).toBeVisible()

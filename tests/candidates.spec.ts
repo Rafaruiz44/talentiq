@@ -15,6 +15,7 @@ test('lista candidatos propios y reevalúa un CV guardado en otra posición sin 
       seniority: 'Semi Senior',
       seniority_points: 5,
       status: 'Abierta',
+      acceptance_threshold: 70,
       position_skills: [
         { name: 'React', points: 5 },
         { name: 'TypeScript', points: 5 },
@@ -81,6 +82,11 @@ test('lista candidatos propios y reevalúa un CV guardado en otra posición sin 
           'Conocimientos alineados con desarrollo frontend',
         ],
         gaps: [],
+        interviewQuestions: [
+          '¿Cómo aplicaste React en tus proyectos anteriores?',
+          '¿Qué experiencia tenés con TypeScript?',
+          '¿Cómo estructurás tus componentes?',
+        ],
         reusedExistingEvaluation: false,
       }),
     })

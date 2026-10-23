@@ -36,8 +36,11 @@ export function PositionRanking({
       return
     }
 
+    const selectedPosition = positions.find((item) => item.id === positionId)
+    const threshold = selectedPosition?.requirements.acceptanceThreshold
+
     let isActive = true
-    void listRankedApplications(recruiterId, positionId)
+    void listRankedApplications(recruiterId, positionId, threshold)
       .then((ranking) => {
         if (isActive) {
           setResults(ranking)
@@ -61,7 +64,7 @@ export function PositionRanking({
     return () => {
       isActive = false
     }
-  }, [positionId, recruiterId])
+  }, [positionId, recruiterId, positions])
 
   return (
     <section className="position-ranking" aria-labelledby="position-ranking-title" data-testid="position-ranking">

@@ -1,4 +1,6 @@
 import {
+  useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -8,7 +10,6 @@ import {
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import type {
-  PositionStatus,
   SavedPosition,
 } from '../services/positions'
 import { extractPdfText } from '../services/extractPdfText'
@@ -20,6 +21,10 @@ import {
   type SavedCandidate,
 } from '../services/candidates'
 import { saveEvaluationRun } from '../services/evaluations'
+import {
+  listRankedApplications,
+  type RankedApplication,
+} from '../services/applicationRanking'
 import type { CandidateResume } from '../types'
 
 interface ApplicationIntakeProps {
@@ -27,19 +32,16 @@ interface ApplicationIntakeProps {
   candidates?: SavedCandidate[]
   session: Session
   onSaved: () => void
-  onUpdatePositionStatus: (
-    positionId: string,
-    status: PositionStatus,
-  ) => void
   requestedPositionId: string
-  statusError: string | null
-  statusUpdatingPositionId: string | null
+  statusError?: string | null
+  statusUpdatingPositionId?: string | null
 }
 
 interface FileProcessingState {
   file: File
   state: 'queued' | 'processing' | 'completed' | 'failed'
   message: string
+  isBelowThreshold?: boolean
 }
 
 interface CandidateProcessingState {
@@ -48,6 +50,7 @@ interface CandidateProcessingState {
   fileName: string
   state: 'queued' | 'processing' | 'completed' | 'failed'
   message: string
+  isBelowThreshold?: boolean
 }
 
 const validatePdf = (file: File): string | null => {
@@ -78,7 +81,6 @@ export function ApplicationIntake({
   candidates = [],
   session,
   onSaved,
-  onUpdatePositionStatus,
   requestedPositionId,
   statusError,
   statusUpdatingPositionId,
@@ -94,11 +96,48 @@ export function ApplicationIntake({
   const [candidateSearch, setCandidateSearch] = useState('')
   const [processing, setProcessing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [evaluatedApplications, setEvaluatedApplications] = useState<
+    RankedApplication[]
+  >([])
+  const [loadingEvaluated, setLoadingEvaluated] = useState(false)
+
   const selectedPosition = positions.find(
     (position) => position.id === positionId,
   )
   const isPositionClosed = selectedPosition?.status === 'Cerrada'
   const isStatusUpdating = statusUpdatingPositionId === positionId
+
+  const loadEvaluatedCandidates = useCallback(
+    async (targetPositionId: string) => {
+      if (!targetPositionId || !session?.user?.id) {
+        setEvaluatedApplications([])
+        return
+      }
+      const pos = positions.find((p) => p.id === targetPositionId)
+      setLoadingEvaluated(true)
+      try {
+        const list = await listRankedApplications(
+          session.user.id,
+          targetPositionId,
+          pos?.requirements.acceptanceThreshold,
+        )
+        setEvaluatedApplications(list)
+      } catch {
+        setEvaluatedApplications([])
+      } finally {
+        setLoadingEvaluated(false)
+      }
+    },
+    [session, positions],
+  )
+
+  useEffect(() => {
+    void loadEvaluatedCandidates(positionId)
+  }, [positionId, loadEvaluatedCandidates])
+
+  const evaluatedCandidateIds = useMemo(() => {
+    return new Set(evaluatedApplications.map((app) => app.candidateId))
+  }, [evaluatedApplications])
 
   // Candidatos que tienen al menos un documento CV procesado y disponible
   const usableCandidates = useMemo(() => {
@@ -107,12 +146,19 @@ export function ApplicationIntake({
     )
   }, [candidates])
 
+  // Candidatos de la base que NO han sido evaluados aún para este puesto
+  const candidatesNotEvaluated = useMemo(() => {
+    return usableCandidates.filter(
+      (candidate) => !evaluatedCandidateIds.has(candidate.id),
+    )
+  }, [usableCandidates, evaluatedCandidateIds])
+
   const filteredCandidates = useMemo(() => {
     const query = candidateSearch.trim().toLocaleLowerCase('es-AR')
     if (!query) {
-      return usableCandidates
+      return candidatesNotEvaluated
     }
-    return usableCandidates.filter(
+    return candidatesNotEvaluated.filter(
       (candidate) =>
         candidate.name.toLocaleLowerCase('es-AR').includes(query) ||
         (candidate.email &&
@@ -123,7 +169,7 @@ export function ApplicationIntake({
           document.fileName.toLocaleLowerCase('es-AR').includes(query),
         ),
     )
-  }, [usableCandidates, candidateSearch])
+  }, [candidatesNotEvaluated, candidateSearch])
 
   const handleToggleCandidate = (candidateIdToToggle: string) => {
     setSelectedCandidateIds((current) =>
@@ -232,20 +278,26 @@ export function ApplicationIntake({
           })
         }
 
+        const percentage = Math.round(
+          (evaluation.earnedPoints / evaluation.totalPoints) * 100,
+        )
+        const isBelowThreshold =
+          percentage < selectedPosition.requirements.acceptanceThreshold
+
         setFiles((current) =>
           current.map((item, itemIndex) =>
             itemIndex === index
               ? {
                   ...item,
                   state: 'completed',
-                  message: `${evaluation.verdict} · ${Math.round(
-                    (evaluation.earnedPoints / evaluation.totalPoints) * 100,
-                  )}% de compatibilidad`,
+                  isBelowThreshold,
+                  message: `${evaluation.verdict} · ${percentage}% de compatibilidad`,
                 }
               : item,
           ),
         )
         onSaved()
+        void loadEvaluatedCandidates(positionId)
       } catch (error: unknown) {
         setFiles((current) =>
           current.map((item, itemIndex) =>
@@ -377,20 +429,26 @@ export function ApplicationIntake({
           })
         }
 
+        const percentage = Math.round(
+          (evaluation.earnedPoints / evaluation.totalPoints) * 100,
+        )
+        const isBelowThreshold =
+          percentage < selectedPosition.requirements.acceptanceThreshold
+
         setCandidateProcessingList((current) =>
           current.map((item, itemIndex) =>
             itemIndex === index
               ? {
                   ...item,
                   state: 'completed',
-                  message: `${evaluation.verdict} · ${Math.round(
-                    (evaluation.earnedPoints / evaluation.totalPoints) * 100,
-                  )}% de compatibilidad`,
+                  isBelowThreshold,
+                  message: `${evaluation.verdict} · ${percentage}% de compatibilidad`,
                 }
               : item,
           ),
         )
         onSaved()
+        void loadEvaluatedCandidates(positionId)
       } catch (error: unknown) {
         setCandidateProcessingList((current) =>
           current.map((item, itemIndex) =>
@@ -470,31 +528,6 @@ export function ApplicationIntake({
             ))}
           </select>
         </label>
-        {selectedPosition && (
-          <button
-            type="button"
-            className={
-              isPositionClosed
-                ? 'position-status-button position-status-open'
-                : 'position-status-button position-status-close'
-            }
-            disabled={processing || isStatusUpdating}
-            onClick={() =>
-              onUpdatePositionStatus(
-                selectedPosition.id,
-                isPositionClosed ? 'Abierta' : 'Cerrada',
-              )
-            }
-            aria-label={`${isPositionClosed ? 'Abrir' : 'Cerrar'} postulación ${selectedPosition.title}`}
-            data-testid="toggle-application-status"
-          >
-            {isStatusUpdating
-              ? 'Actualizando...'
-              : isPositionClosed
-                ? 'Abrir postulación'
-                : 'Cerrar postulación'}
-          </button>
-        )}
       </div>
       {statusError && (
         <p role="alert" data-testid="application-status-error">
@@ -537,7 +570,7 @@ export function ApplicationIntake({
         >
           <span aria-hidden="true">👥</span>
           <span>
-            Usar candidatos de la base ({usableCandidates.length})
+            Usar candidatos de la base ({candidatesNotEvaluated.length})
           </span>
         </button>
       </div>
@@ -615,6 +648,10 @@ export function ApplicationIntake({
               >
                 Cargar CVs ahora
               </button>
+            </div>
+          ) : candidatesNotEvaluated.length === 0 ? (
+            <div className="application-empty-existing" role="status">
+              <p>Todos los candidatos con CV procesado ya fueron evaluados para este puesto.</p>
             </div>
           ) : (
             <>
@@ -760,7 +797,9 @@ export function ApplicationIntake({
                 data-testid={`application-file-${index}`}
               >
                 <strong>{item.file.name}</strong>
-                <span>
+                <span
+                  className={item.isBelowThreshold ? 'compatibility-below-threshold' : undefined}
+                >
                   {item.state === 'queued'
                     ? 'En espera'
                     : item.state === 'processing'
@@ -797,7 +836,9 @@ export function ApplicationIntake({
                 <strong>
                   {item.candidateName} ({item.fileName})
                 </strong>
-                <span>
+                <span
+                  className={item.isBelowThreshold ? 'compatibility-below-threshold' : undefined}
+                >
                   {item.state === 'queued'
                     ? 'En espera'
                     : item.state === 'processing'
@@ -809,6 +850,78 @@ export function ApplicationIntake({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Candidatos ya evaluados para el puesto seleccionado */}
+      {positionId && (
+        <div
+          className="application-evaluated-section"
+          data-testid="application-evaluated-section"
+        >
+          <div className="step-heading">
+            <h3 id="evaluated-candidates-heading">
+              Candidatos ya evaluados para este puesto ({evaluatedApplications.length})
+            </h3>
+            <p>
+              Listado de todos los candidatos que ya cuentan con una evaluación registrada en este puesto.
+            </p>
+          </div>
+
+          {loadingEvaluated ? (
+            <p role="status">Cargando candidatos evaluados...</p>
+          ) : evaluatedApplications.length === 0 ? (
+            <p className="empty-state-text" role="status" data-testid="no-evaluated-candidates">
+              Aún no hay candidatos evaluados para este puesto.
+            </p>
+          ) : (
+            <ul
+              className="application-evaluated-list"
+              aria-labelledby="evaluated-candidates-heading"
+              data-testid="application-evaluated-list"
+            >
+              {evaluatedApplications.map((app) => {
+                const threshold = selectedPosition?.requirements.acceptanceThreshold ?? 70
+                const percentage =
+                  app.totalPoints > 0
+                    ? Math.round((app.earnedPoints / app.totalPoints) * 100)
+                    : 0
+                const isBelow = percentage < threshold
+                return (
+                  <li
+                    key={app.applicationId}
+                    className="application-evaluated-item"
+                    data-testid={`evaluated-candidate-item-${app.applicationId}`}
+                  >
+                    <div className="application-evaluated-identity">
+                      <strong>{app.candidateName}</strong>
+                      <span className="application-evaluated-doc">
+                        📄 {app.fileName} · {formatDate(app.evaluatedAt)}
+                        {(app.candidateEmail || app.candidatePhone) && (
+                          <>
+                            {app.candidateEmail && ` · ✉️ ${app.candidateEmail}`}
+                            {app.candidatePhone && ` · 📞 ${app.candidatePhone}`}
+                          </>
+                        )}
+                      </span>
+                    </div>
+                    <div className="application-evaluated-score">
+                      <span className={isBelow ? 'compatibility-below-threshold' : undefined}>
+                        {percentage}% de compatibilidad
+                      </span>
+                      <span
+                        className={`verdict-tag ${
+                          app.verdict === 'Apto' ? 'verdict-pass' : 'verdict-fail'
+                        }`}
+                      >
+                        {app.verdict}
+                      </span>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </div>
       )}
     </section>

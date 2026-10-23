@@ -2,6 +2,14 @@ import { useMemo, useState } from 'react'
 import type { SavedCandidate } from '../services/candidates'
 import type { SavedPosition } from '../services/positions'
 
+export interface CandidateEvaluationFeedback {
+  candidateId: string
+  candidateName: string
+  verdict: 'Apto' | 'No Apto'
+  percentage: number
+  positionTitle: string
+}
+
 interface CandidateBankProps {
   candidates: SavedCandidate[]
   positions: SavedPosition[]
@@ -9,6 +17,7 @@ interface CandidateBankProps {
   loadingDocumentId: string | null
   error: string | null
   notice: string | null
+  evaluationResult?: CandidateEvaluationFeedback | null
   onRetry: () => void
   onUseCandidate: (
     candidateId: string,
@@ -31,7 +40,8 @@ export function CandidateBank({
   loading,
   loadingDocumentId,
   error,
-  notice,
+  notice: _notice,
+  evaluationResult,
   onRetry,
   onUseCandidate,
   onCreatePosition,
@@ -126,11 +136,7 @@ export function CandidateBank({
           </button>
         </div>
       )}
-      {notice && (
-        <p role="status" className="candidate-bank-notice" data-testid="candidate-bank-notice">
-          {notice}
-        </p>
-      )}
+
 
       {loading ? (
         <p role="status">Cargando candidatos...</p>
@@ -242,6 +248,28 @@ export function CandidateBank({
                       : 'Analizar en esta posición'}
                   </button>
                 </div>
+                {evaluationResult && evaluationResult.candidateId === candidate.id && (
+                  <div
+                    className="candidate-card-evaluation-feedback"
+                    role="status"
+                    data-testid="candidate-bank-notice"
+                  >
+                    <div className="evaluation-feedback-header">
+                      <span
+                        className={`status-badge ${
+                          evaluationResult.verdict === 'Apto'
+                            ? 'status-abierta'
+                            : 'status-cancelada'
+                        }`}
+                      >
+                        {evaluationResult.verdict}
+                      </span>
+                      <strong>
+                        {evaluationResult.verdict}, {evaluationResult.percentage}% de compatibilidad para {evaluationResult.positionTitle}
+                      </strong>
+                    </div>
+                  </div>
+                )}
               </article>
             )
           })}

@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { JobRequirementsForm } from './components/JobRequirementsForm'
 import { PositionList } from './components/PositionList'
-import { CandidateBank } from './components/CandidateBank'
+import {
+  CandidateBank,
+  type CandidateEvaluationFeedback,
+} from './components/CandidateBank'
 import { ApplicationIntake } from './components/ApplicationIntake'
 import { PositionRanking } from './components/PositionRanking'
 import {
@@ -74,6 +77,8 @@ export function App() {
   const [candidateBankNotice, setCandidateBankNotice] = useState<string | null>(
     null,
   )
+  const [candidateEvaluationResult, setCandidateEvaluationResult] =
+    useState<CandidateEvaluationFeedback | null>(null)
   const [loadingCandidateDocumentId, setLoadingCandidateDocumentId] = useState<
     string | null
   >(null)
@@ -109,6 +114,7 @@ export function App() {
       setCandidatesLoadedForUserId(null)
       setCandidateBankError(null)
       setCandidateBankNotice(null)
+      setCandidateEvaluationResult(null)
       setLoadingCandidateDocumentId(null)
       setPositionStatusSavingId(null)
       setPositionError(null)
@@ -436,10 +442,18 @@ export function App() {
         })
       }
       if (activeUserId.current === recruiterId) {
-        setCandidateBankNotice(
-        `${evaluation.candidateName}: ${evaluation.verdict}, ${Math.round(
+        const percentage = Math.round(
           (evaluation.earnedPoints / evaluation.totalPoints) * 100,
-        )}% de compatibilidad para ${position.title}.`,
+        )
+        setCandidateEvaluationResult({
+          candidateId: resume.candidateId,
+          candidateName: evaluation.candidateName,
+          verdict: evaluation.verdict,
+          percentage,
+          positionTitle: position.title,
+        })
+        setCandidateBankNotice(
+          `${evaluation.candidateName}: ${evaluation.verdict}, ${percentage}% de compatibilidad para ${position.title}.`,
         )
       }
     } catch (resumeError: unknown) {
@@ -741,9 +755,11 @@ export function App() {
               loadingDocumentId={loadingCandidateDocumentId}
               error={candidateBankError}
               notice={candidateBankNotice}
+              evaluationResult={candidateEvaluationResult}
               onRetry={() => {
                 setCandidateBankError(null)
                 setCandidateBankNotice(null)
+                setCandidateEvaluationResult(null)
                 setCandidatesLoadedForUserId(null)
                 setCandidateListRefreshKey((current) => current + 1)
               }}
@@ -770,9 +786,6 @@ export function App() {
               }
               statusUpdatingPositionId={positionStatusSavingId}
               statusError={applicationStatusError}
-              onUpdatePositionStatus={(positionId, status) =>
-                void handleUpdatePositionStatus(positionId, status)
-              }
               onSaved={() => {
                 setCandidateBankError(null)
                 setCandidateBankNotice(null)
@@ -930,6 +943,29 @@ export function App() {
                 </ul>
               </div>
               <div className="position-detail-actions">
+                <button
+                  type="button"
+                  className={
+                    currentPosition.status === 'Cerrada'
+                      ? 'position-status-button position-status-open'
+                      : 'position-status-button position-status-close'
+                  }
+                  disabled={positionStatusSavingId === currentPosition.id}
+                  onClick={() =>
+                    void handleUpdatePositionStatus(
+                      currentPosition.id,
+                      currentPosition.status === 'Cerrada' ? 'Abierta' : 'Cerrada',
+                    )
+                  }
+                  aria-label={`${currentPosition.status === 'Cerrada' ? 'Abrir' : 'Cerrar'} postulación ${currentPosition.title}`}
+                  data-testid="toggle-application-status"
+                >
+                  {positionStatusSavingId === currentPosition.id
+                    ? 'Actualizando...'
+                    : currentPosition.status === 'Cerrada'
+                      ? 'Abrir postulación'
+                      : 'Cerrar postulación'}
+                </button>
                 <button
                   type="button"
                   onClick={() =>

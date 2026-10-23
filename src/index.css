@@ -294,9 +294,32 @@ input[type='range']::-moz-range-thumb {
 }
 
 .acceptance-threshold-range {
-  --range-fill: #15803d;
-  --range-track: #bbf7d0;
+  --range-fill: #4f46e5;
+  --range-track: #e0e7ff;
 }
+
+.acceptance-threshold-range::-webkit-slider-thumb,
+.app-shell .acceptance-threshold-range::-webkit-slider-thumb,
+.acceptance-threshold-range::-moz-range-thumb,
+.app-shell .acceptance-threshold-range::-moz-range-thumb {
+  background: #4f46e5 !important;
+  background-color: #4f46e5 !important;
+}
+
+[data-theme='dark'] .acceptance-threshold-range,
+.app-shell[data-theme='dark'] .acceptance-threshold-range {
+  --range-fill: #6366f1;
+  --range-track: #312e81;
+}
+
+[data-theme='dark'] .acceptance-threshold-range::-webkit-slider-thumb,
+.app-shell[data-theme='dark'] .acceptance-threshold-range::-webkit-slider-thumb,
+[data-theme='dark'] .acceptance-threshold-range::-moz-range-thumb,
+.app-shell[data-theme='dark'] .acceptance-threshold-range::-moz-range-thumb {
+  background: #6366f1 !important;
+  background-color: #6366f1 !important;
+}
+
 input,
 textarea {
   width: 100%;
@@ -1381,6 +1404,8 @@ ul {
 .position-detail-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
   padding-top: 14px;
   border-top: 1px solid var(--panel-border);
 }
@@ -2328,4 +2353,131 @@ main[data-theme='dark'] .application-candidate-item.selected {
     width: 100%;
   }
 }
+
+/* Compatibilidad por debajo del umbral de aceptación (rojo claro/oscuro) */
+.compatibility-below-threshold {
+  color: #dc2626 !important;
+  font-weight: 600;
+}
+
+[data-theme='dark'] .compatibility-below-threshold,
+.app-shell[data-theme='dark'] .compatibility-below-threshold,
+main.dark-mode .compatibility-below-threshold {
+  color: #f87171 !important;
+}
+
+/* Devolución de evaluación dentro de la tarjeta del candidato */
+.candidate-card-evaluation-feedback {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--surface-bg, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.candidate-card-evaluation-feedback .evaluation-feedback-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.candidate-card-evaluation-feedback .evaluation-feedback-message {
+  font-size: 0.9rem;
+  color: var(--text-secondary, #475569);
+  margin: 0;
+}
+
+[data-theme='dark'] .candidate-card-evaluation-feedback,
+.app-shell[data-theme='dark'] .candidate-card-evaluation-feedback {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme='dark'] .candidate-card-evaluation-feedback .evaluation-feedback-message,
+.app-shell[data-theme='dark'] .candidate-card-evaluation-feedback .evaluation-feedback-message {
+  color: #94a3b8;
+}
+
+/* Sección de candidatos ya evaluados en Postulaciones */
+.application-evaluated-section {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+}
+
+[data-theme='dark'] .application-evaluated-section,
+.app-shell[data-theme='dark'] .application-evaluated-section {
+  border-top-color: #334155;
+}
+
+.application-evaluated-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.application-evaluated-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: var(--surface-bg, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+[data-theme='dark'] .application-evaluated-item,
+.app-shell[data-theme='dark'] .application-evaluated-item {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.application-evaluated-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.application-evaluated-identity strong {
+  font-size: 1rem;
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme='dark'] .application-evaluated-identity strong,
+.app-shell[data-theme='dark'] .application-evaluated-identity strong {
+  color: #f8fafc;
+}
+
+.application-evaluated-doc {
+  font-size: 0.825rem;
+  color: var(--text-secondary, #64748b);
+}
+
+[data-theme='dark'] .application-evaluated-doc,
+.app-shell[data-theme='dark'] .application-evaluated-doc {
+  color: #94a3b8;
+}
+
+.application-evaluated-score {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .application-evaluated-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 

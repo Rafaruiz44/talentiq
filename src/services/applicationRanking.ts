@@ -28,8 +28,8 @@ const parseInterviewQuestions = (
   value: unknown,
   evaluationRunId: string,
 ): string[] => {
-  if (!Array.isArray(value)) {
-    throw new Error('Supabase devolvió preguntas de entrevista con formato inválido.')
+  if (!value || !Array.isArray(value)) {
+    return []
   }
 
   return value.map((item) => {
@@ -45,7 +45,10 @@ const parseInterviewQuestions = (
   })
 }
 
-const parseRankedApplication = (value: unknown): RankedApplication => {
+const parseRankedApplication = (
+  value: unknown,
+  acceptanceThreshold?: number,
+): RankedApplication => {
   const row = asRecord(value)
   const application = asRecord(row.applications)
   const candidate = asRecord(application.candidates)
@@ -79,6 +82,14 @@ const parseRankedApplication = (value: unknown): RankedApplication => {
       ? candidate.phone.trim()
       : null
 
+  const percentage = Math.round((row.earned_points / row.total_points) * 100)
+  const verdict =
+    typeof acceptanceThreshold === 'number'
+      ? percentage >= acceptanceThreshold
+        ? 'Apto'
+        : 'No Apto'
+      : row.verdict
+
   return {
     applicationId: row.application_id,
     candidateId: row.candidate_id,
@@ -89,11 +100,11 @@ const parseRankedApplication = (value: unknown): RankedApplication => {
     fileName: document.original_file_name,
     earnedPoints: row.earned_points,
     totalPoints: row.total_points,
-    verdict: row.verdict,
+    verdict,
     strengths: row.strengths,
     gaps: row.gaps,
     interviewQuestions:
-      row.verdict === 'Apto'
+      verdict === 'Apto'
         ? parseInterviewQuestions(row.interview_questions, row.id)
         : [],
     evaluatedAt: row.evaluated_at,
@@ -103,6 +114,7 @@ const parseRankedApplication = (value: unknown): RankedApplication => {
 export async function listRankedApplications(
   recruiterId: string,
   positionId: string,
+  acceptanceThreshold?: number,
 ): Promise<RankedApplication[]> {
   if (!supabaseClient) {
     throw new Error('Supabase no está configurado.')
@@ -140,11 +152,13 @@ export async function listRankedApplications(
   }
 
   const latestByApplication = new Map<string, RankedApplication>()
-  data.map(parseRankedApplication).forEach((run) => {
-    if (!latestByApplication.has(run.applicationId)) {
-      latestByApplication.set(run.applicationId, run)
-    }
-  })
+  data
+    .map((item) => parseRankedApplication(item, acceptanceThreshold))
+    .forEach((run) => {
+      if (!latestByApplication.has(run.applicationId)) {
+        latestByApplication.set(run.applicationId, run)
+      }
+    })
 
   return [...latestByApplication.values()].sort((left, right) => {
     const scoreDifference =

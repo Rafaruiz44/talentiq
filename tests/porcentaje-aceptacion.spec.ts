@@ -89,3 +89,43 @@ test('muestra el porcentaje mínimo de aceptación en el detalle', async ({ page
   await expect(page.getByText('Porcentaje mínimo de aceptación')).toBeVisible()
   await expect(page.getByText('85%', { exact: true })).toBeVisible()
 })
+
+test('actualiza el veredicto en el ranking cuando el porcentaje de aceptación del puesto es menor', async ({
+  page,
+}) => {
+  await mockAuthenticatedSession(page, [positionWithThreshold(60)])
+  await page.route('**/rest/v1/evaluation_runs?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: 'run-1',
+          application_id: 'app-1',
+          candidate_id: 'cand-1',
+          candidate_document_id: 'doc-1',
+          earned_points: 68,
+          total_points: 100,
+          verdict: 'No Apto',
+          strengths: ['Experiencia sólida'],
+          gaps: [],
+          interview_questions: [],
+          evaluated_at: '2026-10-04T18:00:00.000Z',
+          applications: {
+            position_id: 'position-1',
+            candidates: { full_name: 'Candidato 68%' },
+          },
+          candidate_documents: { original_file_name: 'cv.pdf' },
+        },
+      ]),
+    })
+  })
+
+  await page.goto('/ranking')
+  await page.getByTestId('ranking-position').selectOption('position-1')
+  await expect(page.getByTestId('ranking-item')).toHaveCount(1)
+  await expect(page.getByTestId('ranking-list')).toContainText('68%')
+  await expect(page.getByTestId('ranking-list')).toContainText('Apto')
+  await expect(page.getByTestId('ranking-item').locator('.status-badge')).toHaveText('Apto')
+})
+

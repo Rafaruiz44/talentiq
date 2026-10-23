@@ -5,6 +5,7 @@ const position = {
   title: 'Desarrollador Frontend',
   seniority: 'Semi Senior',
   seniority_points: 5,
+  acceptance_threshold: 70,
   status: 'Abierta',
   position_skills: [{ name: 'React', points: 5 }],
 }
