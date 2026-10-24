@@ -19,7 +19,7 @@ const getEvaluationFingerprint = (requirements, resumeText) =>
   createHash('sha256')
     .update(
       JSON.stringify({
-        evaluatorVersion: 'candidate-evaluation-v6',
+        evaluatorVersion: 'candidate-evaluation-v18',
         requirements: {
           role: requirements.role,
           seniority: requirements.seniority,
@@ -186,12 +186,15 @@ before(async () => {
       const candidateResume = JSON.parse(
         azureRequest.messages[1].content,
       ).candidateResume
-      const earnedPoints = candidateResume === 'Candidate scoring 75 percent'
+      const missingPython = candidateResume === 'Candidate missing Python'
+      const earnedPoints = missingPython
+        ? 29
+        : candidateResume === 'Candidate scoring 75 percent'
         ? 75
         : candidateResume === 'Candidate scoring exactly 80 percent'
           ? 80
           : 10
-      const totalPoints = candidateResume.startsWith('Candidate scoring')
+      const totalPoints = missingPython || candidateResume.startsWith('Candidate scoring')
         ? 100
         : 10
       return Response.json({
@@ -204,7 +207,7 @@ before(async () => {
                 totalPoints,
                 verdict: 'Apto',
                 strengths: ['React experience'],
-                gaps: [],
+                gaps: missingPython ? ['Python: no se encontró evidencia.'] : [],
                 interviewQuestions: [
                   '¿Cómo aplicaste React en tu experiencia más relevante?',
                   '¿Qué desafío técnico resolviste con React?',
@@ -595,7 +598,7 @@ test('stores an evaluation run under the authenticated recruiter', async () => {
     p_strengths: ['Experiencia con React'],
     p_gaps: [],
     p_interview_questions: validEvaluationRunRequest.evaluation.interviewQuestions,
-    p_evaluator_version: 'candidate-evaluation-v6',
+    p_evaluator_version: 'candidate-evaluation-v18',
   })
   assert.match(p_request_fingerprint, /^[0-9a-f]{64}$/)
 })
@@ -644,7 +647,7 @@ test('reuses a matching evaluation without calling Azure OpenAI', async () => {
       p_recruiter_id: 'authenticated-recruiter',
       p_candidate_id: '66666666-6666-4666-8666-666666666666',
       p_position_id: validRequest.positionId,
-      p_evaluator_version: 'candidate-evaluation-v6',
+      p_evaluator_version: 'candidate-evaluation-v18',
       p_requirements: validRequest.requirements,
       p_resume_text: 'Existing candidate resume',
     },

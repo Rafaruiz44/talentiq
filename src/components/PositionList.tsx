@@ -5,6 +5,7 @@ interface PositionListProps {
   loading: boolean
   onCreate: () => void
   onOpen: (positionId: string) => void
+  onEdit: (positionId: string) => void
   onUpdateStatus?: (positionId: string, status: PositionStatus) => void
   statusUpdatingPositionId?: string | null
 }
@@ -14,6 +15,7 @@ export function PositionList({
   loading,
   onCreate,
   onOpen,
+  onEdit,
   onUpdateStatus,
   statusUpdatingPositionId,
 }: PositionListProps) {
@@ -58,6 +60,9 @@ export function PositionList({
                 <th scope="col">
                   <span className="visually-hidden">Detalle</span>
                 </th>
+                <th scope="col">
+                  <span className="visually-hidden">Edición</span>
+                </th>
                 <th scope="col" className="position-col-toggle">
                   <span className="visually-hidden">Acciones de puesto</span>
                 </th>
@@ -91,6 +96,17 @@ export function PositionList({
                       data-testid={`view-position-${position.id}`}
                     >
                       Ver puesto
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="table-action"
+                      onClick={() => onEdit(position.id)}
+                      aria-label={`Editar ${position.title}`}
+                      data-testid={`edit-position-${position.id}`}
+                    >
+                      Editar puesto
                     </button>
                   </td>
                   <td className="position-status-cell">

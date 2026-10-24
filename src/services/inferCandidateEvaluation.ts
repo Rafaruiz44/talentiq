@@ -301,15 +301,25 @@ const normalizeStrengths = (
   skillNames: string[] = [],
   seniorityQualified = true,
 ): string[] => {
+  const seniorityTerms = [
+    'seniority',
+    'trainee',
+    'junior',
+    'semi senior',
+    'senior',
+    'lead',
+  ]
   const normalized = strengths.map((item) =>
     normalizeStrength(item, senioritySummary, skillNames),
   ).filter(
     (item): item is string =>
-      item !== null && (seniorityQualified || !item.toLowerCase().includes('seniority')),
+      item !== null &&
+      (seniorityQualified ||
+        !seniorityTerms.some((term) => normalizeText(item).includes(term))),
   )
 
   const ordered = [
-    ...skillNames.slice(0, 2).map(
+    ...skillNames.map(
       (skillName) =>
         normalized.find(
           (item) =>
@@ -337,6 +347,18 @@ const isCandidateEvaluation = (
 
   return (
     typeof candidate.candidateName === 'string' &&
+    (candidate.experienceArea === undefined ||
+      (typeof candidate.experienceArea === 'string' &&
+        candidate.experienceArea.trim().length > 0)) &&
+    (candidate.experienceAreas === undefined ||
+      (Array.isArray(candidate.experienceAreas) &&
+        candidate.experienceAreas.length > 0 &&
+        candidate.experienceAreas.every(
+          (area) => typeof area === 'string' && area.trim().length > 0,
+        ))) &&
+    (candidate.roleArea === undefined ||
+      (typeof candidate.roleArea === 'string' &&
+        candidate.roleArea.trim().length > 0)) &&
     (candidate.candidateEmail === undefined ||
       candidate.candidateEmail === null ||
       typeof candidate.candidateEmail === 'string') &&
@@ -443,6 +465,13 @@ export async function inferCandidateEvaluation(
   const nonSeniorityGaps = normalizedGaps.filter(
     (gap) => !gap.toLowerCase().includes('seniority'),
   )
+  const roleMismatchGap = seniorityMatches
+    ? []
+    : [
+        result.seniorityMatchesRole === false
+          ? `Seniority: la experiencia acreditada no corresponde al área del puesto "${requirements.role}".`
+          : senioritySummary,
+      ]
   const missingSkillGaps = requirements.skills
     .filter((skill) => !skillMatchesText(skill.name, resume.text))
     .filter(
@@ -461,9 +490,7 @@ export async function inferCandidateEvaluation(
     strengths: verifiedStrengths.slice(0, 4),
     gaps: [
       ...nonSeniorityGaps,
-      ...(seniorityMatches
-        ? []
-        : [senioritySummary]),
+      ...roleMismatchGap,
       ...missingSkillGaps,
     ],
   }

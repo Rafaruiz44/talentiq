@@ -44,8 +44,23 @@ const getInitialTheme = (): 'light' | 'dark' => {
 const getInitialPath = (): string =>
   window.location.pathname === '/' ? '/puestos' : window.location.pathname
 
+const normalizeSkills = (requirements: JobRequirements) =>
+  [...requirements.skills]
+    .map(({ name, points }) => ({ name: name.trim(), points }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'es-AR'))
+
+const haveSameEvaluationRequirements = (
+  previous: JobRequirements,
+  next: JobRequirements,
+) =>
+  previous.seniority === next.seniority &&
+  previous.seniorityPoints === next.seniorityPoints &&
+  JSON.stringify(normalizeSkills(previous)) ===
+    JSON.stringify(normalizeSkills(next))
+
 export function App() {
   const [currentPath, setCurrentPath] = useState(getInitialPath)
+  const currentPathRef = useRef(currentPath)
   const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme)
   const [session, setSession] = useState<Session | null>(null)
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured)
@@ -85,6 +100,7 @@ export function App() {
   >(null)
   const [positionSaving, setPositionSaving] = useState(false)
   const savePositionRequested = useRef(false)
+  const positionReevaluationInProgress = useRef(false)
   const [positionStatusSavingId, setPositionStatusSavingId] = useState<
     string | null
   >(null)
@@ -93,7 +109,16 @@ export function App() {
   const [applicationStatusError, setApplicationStatusError] = useState<
     string | null
   >(null)
+  currentPathRef.current = currentPath
   const navigate = (path: string) => {
+    if (
+      positionReevaluationInProgress.current &&
+      !window.confirm(
+        'Hay una actualización de candidatos en curso. Si salís ahora, se perderán los cambios que todavía no se hayan guardado. ¿Querés salir?',
+      )
+    ) {
+      return
+    }
     window.history.pushState(null, '', path)
     setCurrentPath(path)
   }
@@ -139,7 +164,17 @@ export function App() {
       window.history.replaceState(null, '', '/puestos')
     }
     const handlePopState = () => {
-      setCurrentPath(window.location.pathname)
+      const nextPath = window.location.pathname
+      if (
+        positionReevaluationInProgress.current &&
+        !window.confirm(
+          'Hay una actualización de candidatos en curso. Si salís ahora, se perderán los cambios que todavía no se hayan guardado. ¿Querés salir?',
+        )
+      ) {
+        window.history.pushState(null, '', currentPathRef.current)
+        return
+      }
+      setCurrentPath(nextPath)
     }
     window.addEventListener('popstate', handlePopState)
 
@@ -220,6 +255,23 @@ export function App() {
     }
   }, [session?.user.id])
 
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!positionReevaluationInProgress.current) {
+        return
+      }
+
+      event.preventDefault()
+      event.returnValue =
+        'Hay una actualización de candidatos en curso. Si salís ahora, se perderán los cambios que todavía no se hayan guardado.'
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
+
   const routePath = currentPath.split(/[?#]/, 1)[0]
   const isPositionsList = routePath === '/puestos'
   const isCandidatesList = routePath === '/candidatos'
@@ -252,6 +304,37 @@ export function App() {
             : editingPositionId
               ? 'Editar puesto'
               : currentPosition?.title ?? 'Puesto'
+  const breadcrumbItems = [
+    { label: 'Talentiq', path: '/puestos' },
+    ...(isPositionsList || isPositionEditor || currentPosition
+      ? [{ label: 'Puestos', path: '/puestos' }]
+      : []),
+    ...(currentPosition
+      ? [
+          {
+            label: currentPosition.title,
+            path: `/puestos/${encodeURIComponent(currentPosition.id)}`,
+          },
+        ]
+      : []),
+    ...(isNewPosition ? [{ label: 'Crear puesto', path: null }] : []),
+    ...(editingPositionId
+      ? [{ label: 'Editar puesto', path: null }]
+      : []),
+    ...(!isPositionsList &&
+    !isCandidatesList &&
+    !isApplicationsPage &&
+    !isRankingPage &&
+    !isPositionEditor &&
+    !currentPosition
+      ? [{ label: pageTitle, path: null }]
+      : []),
+    ...(isCandidatesList ? [{ label: 'Candidatos', path: null }] : []),
+    ...(isApplicationsPage
+      ? [{ label: 'Postulaciones', path: null }]
+      : []),
+    ...(isRankingPage ? [{ label: 'Ranking', path: null }] : []),
+  ]
 
   useEffect(() => {
     const recruiterId = session?.user.id
@@ -534,7 +617,20 @@ export function App() {
 
       if (existingPosition) {
         setPositionNotice('Puesto actualizado.')
-        // Re-analizar todos los CVs que ya habían sido analizados para este puesto
+        const requirementsChanged = !haveSameEvaluationRequirements(
+          existingPosition.requirements,
+          savedPosition.requirements,
+        )
+        const thresholdChanged =
+          existingPosition.requirements.acceptanceThreshold !==
+          savedPosition.requirements.acceptanceThreshold
+
+        if (!requirementsChanged && !thresholdChanged) {
+          return
+        }
+
+        const isThresholdOnlyChange = !requirementsChanged && thresholdChanged
+        positionReevaluationInProgress.current = true
         try {
           const evaluatedApps = await listRankedApplications(
             session.user.id,
@@ -543,61 +639,95 @@ export function App() {
 
           if (evaluatedApps.length > 0) {
             setPositionNotice(
-              `Puesto actualizado. Re-analizando ${evaluatedApps.length} candidato${
-                evaluatedApps.length === 1 ? '' : 's'
-              } previamente evaluado${evaluatedApps.length === 1 ? '' : 's'}...`,
+              isThresholdOnlyChange
+                ? `Puesto actualizado. Actualizando la compatibilidad de ${
+                    evaluatedApps.length
+                  } candidato${evaluatedApps.length === 1 ? '' : 's'}...`
+                : `Puesto actualizado. Re-analizando ${
+                    evaluatedApps.length
+                  } candidato${
+                    evaluatedApps.length === 1 ? '' : 's'
+                  } previamente evaluado${
+                    evaluatedApps.length === 1 ? '' : 's'
+                  }...`,
             )
 
-            const failedCandidates: string[] = []
-            let reEvaluatedCount = 0
-            for (const app of evaluatedApps) {
-              try {
-                const resume = await getSavedCandidateResume({
-                  recruiterId: session.user.id,
-                  candidateId: app.candidateId,
-                  candidateDocumentId: app.candidateDocumentId,
-                })
-
-                const evaluation = await inferCandidateEvaluation(
-                  savedPosition.requirements,
-                  {
-                    text: resume.text,
-                    fileName: resume.fileName,
+            const results: Array<
+              | { candidateName: string; success: true }
+              | { candidateName: string; success: false; error: string }
+            > = []
+            for (let index = 0; index < evaluatedApps.length; index += 5) {
+              const batch = evaluatedApps.slice(index, index + 5)
+              const batchResults = await Promise.all(
+                batch.map(async (app) => {
+                try {
+                  const resume = await getSavedCandidateResume({
+                    recruiterId: session.user.id,
                     candidateId: app.candidateId,
                     candidateDocumentId: app.candidateDocumentId,
-                  },
-                  session.access_token,
-                  positionId,
-                )
-
-                await saveEvaluationRun({
-                  accessToken: session.access_token,
-                  candidateDocumentId: app.candidateDocumentId,
-                  candidateId: app.candidateId,
-                  evaluation,
-                  positionId,
-                  requirements: savedPosition.requirements,
-                  resumeText: resume.text,
-                })
-
-                if (evaluation.candidateEmail || evaluation.candidatePhone) {
-                  void updateCandidateContactInfo({
-                    candidateId: app.candidateId,
-                    email: evaluation.candidateEmail,
-                    phone: evaluation.candidatePhone,
                   })
+
+                  const evaluation = await inferCandidateEvaluation(
+                    savedPosition.requirements,
+                    {
+                      text: resume.text,
+                      fileName: resume.fileName,
+                      candidateId: app.candidateId,
+                      candidateDocumentId: app.candidateDocumentId,
+                    },
+                    session.access_token,
+                    positionId,
+                  )
+
+                  await saveEvaluationRun({
+                    accessToken: session.access_token,
+                    candidateDocumentId: app.candidateDocumentId,
+                    candidateId: app.candidateId,
+                    evaluation,
+                    positionId,
+                    requirements: savedPosition.requirements,
+                    resumeText: resume.text,
+                  })
+
+                  if (evaluation.candidateEmail || evaluation.candidatePhone) {
+                    void updateCandidateContactInfo({
+                      candidateId: app.candidateId,
+                      email: evaluation.candidateEmail,
+                      phone: evaluation.candidatePhone,
+                    })
+                  }
+
+                  return { candidateName: app.candidateName, success: true as const }
+                } catch (reEvalErr) {
+                  return {
+                    candidateName: app.candidateName,
+                    success: false as const,
+                    error:
+                      reEvalErr instanceof Error
+                        ? reEvalErr.message
+                        : 'error desconocido',
+                  }
                 }
-                reEvaluatedCount += 1
-              } catch (reEvalErr) {
-                failedCandidates.push(
-                  `${app.candidateName}: ${
-                    reEvalErr instanceof Error
-                      ? reEvalErr.message
-                      : 'error desconocido'
-                  }`,
-                )
-              }
+                }),
+              )
+              results.push(...batchResults)
             }
+            const reEvaluatedCount = results.filter(
+              (result) => result.success,
+            ).length
+            const failedCandidates = results
+              .filter(
+                (
+                  result,
+                ): result is {
+                  candidateName: string
+                  success: false
+                  error: string
+                } => !result.success,
+              )
+              .map(
+                (result) => `${result.candidateName}: ${result.error}`,
+              )
 
             if (failedCandidates.length > 0) {
               setPositionError(
@@ -619,6 +749,8 @@ export function App() {
               ? `Puesto actualizado, pero no se pudieron re-analizar los candidatos: ${fetchEvaluatedErr.message}`
               : 'Puesto actualizado, pero no se pudieron re-analizar los candidatos.',
           )
+        } finally {
+          positionReevaluationInProgress.current = false
         }
       } else {
         setPositionNotice('Puesto guardado.')
@@ -773,10 +905,28 @@ export function App() {
 
       <main className="app-main" id="page-top" data-theme={theme}>
         <header className="app-header">
-          <p className="header-breadcrumb">
-            Talentiq <span aria-hidden="true">/</span>{' '}
-            <strong>{pageTitle}</strong>
-          </p>
+          <nav className="header-breadcrumb" aria-label="Migas de pan">
+            <ol>
+              {breadcrumbItems.map((item, index) => (
+                <li key={`${item.label}-${index}`}>
+                  {item.path ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(item.path ?? '/puestos')}
+                      data-testid={`breadcrumb-${index}`}
+                    >
+                      {item.label}
+                    </button>
+                  ) : (
+                    <strong>{item.label}</strong>
+                  )}
+                  {index < breadcrumbItems.length - 1 && (
+                    <span aria-hidden="true">/</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </nav>
           <button
             type="button"
             className="theme-toggle-button"
@@ -834,6 +984,7 @@ export function App() {
               }
               onCreate={handleNewPosition}
               onOpen={handleSelectPosition}
+              onEdit={handleEditPosition}
               onUpdateStatus={(positionId, status) =>
                 void handleUpdatePositionStatus(positionId, status)
               }

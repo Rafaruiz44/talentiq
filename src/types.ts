@@ -28,6 +28,10 @@ export interface CandidateEvaluation {
   candidateName: string
   candidateEmail?: string | null
   candidatePhone?: string | null
+  experienceArea?: string
+  experienceAreas?: string[]
+  roleArea?: string
+  seniorityMatchesRole?: boolean
   earnedPoints: number
   totalPoints: number
   verdict: 'Apto' | 'No Apto'

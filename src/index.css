@@ -747,7 +747,34 @@ ul {
   font-size: 0.85rem;
 }
 
-.header-breadcrumb span {
+.header-breadcrumb ol {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.header-breadcrumb li {
+  display: inline-flex;
+  align-items: center;
+}
+
+.header-breadcrumb button {
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
+.header-breadcrumb button:hover {
+  color: var(--heading-text);
+  background: transparent;
+  text-decoration: underline;
+}
+
+.header-breadcrumb li > span {
   padding: 0 8px;
   color: #c0c6d1;
 }
@@ -1488,8 +1515,24 @@ ul {
 }
 
 .table-action {
-  color: #596579;
+  padding: 6px 10px;
+  color: #176b9e;
+  background: #e7f5ff;
+  border: 1px solid #b9e3fb;
+  border-radius: 6px;
   font-size: 0.82rem;
+  font-weight: 650;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.table-action:hover {
+  color: #0f4f78;
+  background: #d5efff;
+  border-color: #8ed0f5;
+  text-decoration: none;
 }
 
 .status-badge {
@@ -1775,7 +1818,15 @@ ul {
 }
 
 .app-shell[data-theme='dark'] .table-action {
-  color: #cbd5e1;
+  color: #d7efff;
+  background: #16415b;
+  border-color: #276b8f;
+}
+
+.app-shell[data-theme='dark'] .table-action:hover {
+  color: #ffffff;
+  background: #1d5878;
+  border-color: #4a9bc4;
 }
 
 .app-shell[data-theme='dark'] .secondary-button {

@@ -131,9 +131,9 @@ begin
     where id = v_evaluation_run_id
       and recruiter_id = p_recruiter_id;
 
-    delete from public.interview_questions
-    where evaluation_run_id = v_evaluation_run_id
-      and recruiter_id = p_recruiter_id;
+    delete from public.interview_questions as questions
+    where questions.evaluation_run_id = v_evaluation_run_id
+      and questions.recruiter_id = p_recruiter_id;
 
     insert into public.interview_questions (
       recruiter_id,

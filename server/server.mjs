@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 const maxBodyLength = 3_000_000
 const maxSourceLength = 500_000
 const maxResumeLength = 600_000
-const evaluatorVersion = 'candidate-evaluation-v6'
+const evaluatorVersion = 'candidate-evaluation-v18'
 const getContentFingerprint = (text) =>
   createHash('md5').update(text, 'utf8').digest('hex')
 const getEvaluationFingerprint = (requirements, resumeText) =>
@@ -514,6 +514,31 @@ const isCandidateEvaluation = (value) =>
     value &&
       typeof value === 'object' &&
       typeof value.candidateName === 'string' &&
+      (value.experienceArea === undefined ||
+        (typeof value.experienceArea === 'string' &&
+          value.experienceArea.trim().length > 0)) &&
+      (value.experienceAreas === undefined ||
+        (Array.isArray(value.experienceAreas) &&
+          value.experienceAreas.length > 0 &&
+          value.experienceAreas.every(
+            (area) => typeof area === 'string' && area.trim().length > 0,
+          ))) &&
+      (value.seniorityAnalysis === undefined ||
+        (typeof value.seniorityAnalysis === 'object' &&
+          value.seniorityAnalysis !== null &&
+          Array.isArray(value.seniorityAnalysis.relevantExperiences) &&
+          value.seniorityAnalysis.relevantExperiences.every(
+            (item) => typeof item === 'string',
+          ) &&
+          (value.seniorityAnalysis.relevantYears === null ||
+            typeof value.seniorityAnalysis.relevantYears === 'number') &&
+          (value.seniorityAnalysis.detectedLevel === null ||
+            typeof value.seniorityAnalysis.detectedLevel === 'string') &&
+          typeof value.seniorityAnalysis.explanation === 'string')) &&
+      (value.roleArea === undefined ||
+        (typeof value.roleArea === 'string' && value.roleArea.trim().length > 0)) &&
+      (value.seniorityMatchesRole === undefined ||
+        typeof value.seniorityMatchesRole === 'boolean') &&
       (value.candidateEmail === undefined ||
         value.candidateEmail === null ||
         typeof value.candidateEmail === 'string') &&
@@ -544,6 +569,66 @@ const isUuid = (value) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
   )
+
+const normalizeEvaluationText = (value) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
+const normalizeEvaluationScore = (evaluation, requirements) => {
+  if (evaluation.gaps.length === 0 && evaluation.seniorityMatchesRole !== false) {
+    return evaluation
+  }
+
+  const hasSkillEvidence = (skill, entries) => {
+    const skillName = normalizeEvaluationText(skill.name)
+    return entries.some((entry) =>
+      normalizeEvaluationText(entry).includes(skillName),
+    )
+  }
+  const isSeniorityEntry = (entry) => {
+    const normalizedEntry = normalizeEvaluationText(entry)
+    return [
+      'seniority',
+      'trainee',
+      'junior',
+      'semi senior',
+      'senior',
+      'lead',
+      normalizeEvaluationText(requirements.seniority),
+    ].some((term) => normalizedEntry.includes(term))
+  }
+  const hasSeniorityEvidence = evaluation.strengths.some((strength) => {
+    const normalizedStrength = normalizeEvaluationText(strength)
+    return (
+      normalizedStrength.includes('seniority') ||
+      normalizedStrength.includes(normalizeEvaluationText(requirements.seniority))
+    ) && evaluation.seniorityMatchesRole !== false
+  })
+  const supportedPoints = requirements.skills
+    .filter((skill) => hasSkillEvidence(skill, evaluation.strengths))
+    .reduce((total, skill) => total + skill.points, 0)
+  const verifiedEarnedPoints =
+    supportedPoints + (hasSeniorityEvidence ? requirements.seniorityPoints : 0)
+  const seniorityGap =
+    evaluation.seniorityMatchesRole === false
+      ? `Seniority no aplicable: experiencia inferida en ${(evaluation.experienceAreas ?? [evaluation.experienceArea ?? 'otra área profesional']).join(', ')}; el puesto requiere el área de ${evaluation.roleArea ?? `"${requirements.role}"`}.`
+      : null
+
+  return {
+    ...evaluation,
+    strengths:
+      evaluation.seniorityMatchesRole === false
+        ? evaluation.strengths.filter((strength) => !isSeniorityEntry(strength))
+        : evaluation.strengths,
+    gaps:
+      seniorityGap && !evaluation.gaps.some((gap) => normalizeEvaluationText(gap).includes('seniority'))
+        ? [...evaluation.gaps, seniorityGap]
+        : evaluation.gaps,
+    earnedPoints: Math.min(verifiedEarnedPoints, evaluation.totalPoints),
+  }
+}
 
 const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
   const {
@@ -577,13 +662,14 @@ const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
     throw new ApiError(400, 'Los datos del análisis no son válidos.')
   }
 
+  const scoredEvaluation = normalizeEvaluationScore(evaluation, requirements)
   const calculatedVerdict =
-    (evaluation.earnedPoints / evaluation.totalPoints) * 100 >=
+    (scoredEvaluation.earnedPoints / scoredEvaluation.totalPoints) * 100 >=
     requirements.acceptanceThreshold
       ? 'Apto'
       : 'No Apto'
   let normalizedEvaluation = {
-    ...evaluation,
+    ...scoredEvaluation,
     verdict: calculatedVerdict,
     interviewQuestions:
       calculatedVerdict === 'Apto' ? evaluation.interviewQuestions : [],
@@ -598,8 +684,8 @@ const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
       interviewQuestions: await generateInterviewQuestions(
         requirements,
         resumeText,
-        evaluation.strengths,
-        evaluation.gaps,
+        scoredEvaluation.strengths,
+        scoredEvaluation.gaps,
         env,
         fetchImpl,
       ),
@@ -648,8 +734,12 @@ const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
   }
 
   if (!response.ok) {
+    const errorBody = await response.text().catch(() => '')
     console.error(
-      `Supabase rechazó la persistencia del análisis con estado ${response.status}.`,
+      `Supabase rechazó la persistencia del análisis con estado ${response.status}: ${errorBody.slice(
+        0,
+        1000,
+      )}`,
     )
     throw new ApiError(
       502,
@@ -776,8 +866,17 @@ const findExistingEvaluationRun = async (
     )
   }
 
+  const scoredSavedRun = normalizeEvaluationScore(
+    {
+      earnedPoints: savedRun.earned_points,
+      totalPoints: savedRun.total_points,
+      strengths: savedRun.strengths,
+      gaps: savedRun.gaps,
+    },
+    requirements,
+  )
   const calculatedVerdict =
-    (savedRun.earned_points / savedRun.total_points) * 100 >=
+    (scoredSavedRun.earnedPoints / scoredSavedRun.totalPoints) * 100 >=
     requirements.acceptanceThreshold
       ? 'Apto'
       : 'No Apto'
@@ -806,8 +905,8 @@ const findExistingEvaluationRun = async (
 
   return {
     candidateName: savedRun.candidate_name,
-    earnedPoints: savedRun.earned_points,
-    totalPoints: savedRun.total_points,
+    earnedPoints: scoredSavedRun.earnedPoints,
+    totalPoints: scoredSavedRun.totalPoints,
     verdict: calculatedVerdict,
     strengths: savedRun.strengths,
     gaps: savedRun.gaps,
@@ -972,7 +1071,7 @@ export const createApiRequestHandler = ({
             {
               role: 'system',
               content:
-                `Sos un evaluador de RRHH. Evaluá el CV del candidato frente a los JobRequirements. Cada habilidad de skills tiene un peso points independiente entre 1 y 10; el seniority tiene seniorityPoints. Para seniority, analizá únicamente las experiencias laborales cuyo título corresponda al role solicitado; no uses la experiencia total de otros roles, educación ni certificaciones. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Si el CV declara un seniority pero no informa años de experiencia relacionada con el role, usá ese nivel. Un candidato con un nivel superior al requerido está calificado igualmente y debe sumar los seniorityPoints; no lo penalices por sobrecalificación. Un candidato con un nivel inferior no cumple el seniority. Sumá los pesos de todas las habilidades y del seniority para obtener totalPoints, sin aplicar un límite máximo al total. earnedPoints debe ser la suma de los pesos de los requisitos cumplidos. Respondé Apto si la proporción de puntos obtenidos es igual o mayor al ${requirements.acceptanceThreshold}%, y No Apto si es menor. Para cada fortaleza, indicá la habilidad, el nivel o tipo de experiencia y la evidencia concreta encontrada en el CV; no escribas únicamente el nombre de la habilidad. Para cada brecha, indicá la habilidad faltante y explicá qué evidencia no aparece o qué requisito no queda acreditado. No inventes años, proyectos, responsabilidades ni tecnologías. Evitá duplicar una misma habilidad entre fortalezas y brechas. Si el veredicto es Apto, generá exactamente 3 preguntas de entrevista relevantes para los requisitos de la posición y la evidencia, fortalezas o brechas del candidato; deben permitir profundizar su experiencia concreta y no repetir la misma idea. Si el veredicto es No Apto, interviewQuestions debe ser un arreglo vacío. Extraé también los datos de contacto si están presentes (candidateEmail y candidatePhone; de lo contrario null). Respondé exclusivamente en formato JSON válido que cumpla la interfaz CandidateEvaluation: {"candidateName": string, "candidateEmail": string | null, "candidatePhone": string | null, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[], "interviewQuestions": string[]}.`,
+                `Sos un evaluador de RRHH. Evaluá el CV frente a los JobRequirements. Inferí el área objetivo roleArea usando el nombre del puesto y, obligatoriamente, sus habilidades y responsabilidades. Inferí todas las áreas profesionales relevantes del candidato en experienceAreas, usando tareas, responsabilidades, tecnologías, herramientas y resultados del CV; experienceArea debe ser el área principal por compatibilidad con el puesto. No dependas únicamente de títulos. Una especialización es compatible con su área general: "Desarrollo de software" es compatible con "Desarrollo de software backend", "Java backend" y "Desarrollo de APIs". Si el candidato trabajó en varias áreas, no lo descartes: seniorityMatchesRole=true si al menos una experiencia laboral relevante pertenece al roleArea o a una especialización compatible, aunque también tenga experiencia en otras áreas. Devolvé áreas breves y específicas. Para diagnosticar la decisión, devolvé seniorityAnalysis con relevantExperiences (lista de experiencias concretas consideradas compatibles), relevantYears (años sumados únicamente de esas experiencias), detectedLevel (nivel calculado con esos años), academicProjects (lista de proyectos académicos o personales relacionados con el área) y explanation (explicación breve de por qué el seniority coincide o no). Regla obligatoria según el nivel: si el seniority requerido es Trainee, los proyectos académicos o personales relacionados con el roleArea cuentan como experiencia válida y deben incluirse en relevantExperiences; podés usar su duración o evidencia concreta para validar Trainee. Si el seniority requerido es Junior, Semi Senior, Senior o Lead, calculá el nivel únicamente con tiempo de trabajo formal en experiencias laborales compatibles; no sumes proyectos académicos, personales, cursos ni educación para esos niveles, pero informá los proyectos relacionados en academicProjects y explicá que aportan contexto aunque no sumen años laborales. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Un nivel superior al requerido cumple; uno inferior no cumple. Antes de responder, verificá: (1) roleArea; (2) experienceAreas; (3) experiencias laborales compatibles; (4) proyectos académicos/personales compatibles; (5) fuente de experiencia permitida por el seniority requerido; (6) años relevantes; (7) nivel detectado; (8) seniorityMatchesRole. Si el nivel requerido es Trainee y existe un proyecto académico o personal relacionado con el roleArea, seniorityMatchesRole debe ser true. Para niveles superiores, solo devolvé true si el tiempo de trabajo formal compatible alcanza el nivel requerido. No devuelvas false por diferencias de granularidad entre un área general y una especialización. Si no se alcanza el nivel, explicalo en seniorityAnalysis.explanation y gaps. Para CADA habilidad y para el seniority indicá exactamente una clasificación en strengths o gaps. earnedPoints debe ser exclusivamente la suma de habilidades en strengths y seniority en strengths cuando seniorityMatchesRole sea true. totalPoints debe ser la suma de todos los pesos de skills y seniority. Respondé Apto si earnedPoints / totalPoints * 100 es igual o mayor al ${requirements.acceptanceThreshold}%, y No Apto si es menor. Si el veredicto es Apto, generá exactamente 3 preguntas relevantes; si es No Apto, interviewQuestions debe ser []. No inventes años, proyectos, responsabilidades ni tecnologías. Extraé candidateEmail y candidatePhone si están presentes; de lo contrario null. Respondé exclusivamente JSON válido con la interfaz CandidateEvaluation: {"candidateName": string, "candidateEmail": string | null, "candidatePhone": string | null, "experienceArea": string, "experienceAreas": string[], "roleArea": string, "seniorityMatchesRole": boolean, "seniorityAnalysis": {"relevantExperiences": string[], "relevantYears": number | null, "detectedLevel": string | null, "academicProjects": string[], "explanation": string}, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[], "interviewQuestions": string[]}.`,
             },
             {
               role: 'user',
@@ -994,8 +1093,12 @@ export const createApiRequestHandler = ({
           throw new ApiError(502, 'La respuesta de evaluación tiene un formato inválido.')
         }
 
+        const scoredEvaluation = normalizeEvaluationScore(
+          evaluation,
+          requirements,
+        )
         const calculatedVerdict =
-          (evaluation.earnedPoints / evaluation.totalPoints) * 100 >=
+          (scoredEvaluation.earnedPoints / scoredEvaluation.totalPoints) * 100 >=
           requirements.acceptanceThreshold
             ? 'Apto'
             : 'No Apto'
@@ -1007,15 +1110,15 @@ export const createApiRequestHandler = ({
           interviewQuestions = await generateInterviewQuestions(
             requirements,
             resumeText,
-            evaluation.strengths,
-            evaluation.gaps,
+            scoredEvaluation.strengths,
+            scoredEvaluation.gaps,
             env,
             fetchImpl,
           )
         }
 
         const normalizedEvaluation = {
-          ...evaluation,
+          ...scoredEvaluation,
           verdict: calculatedVerdict,
           interviewQuestions,
         }
