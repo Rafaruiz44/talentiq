@@ -84,6 +84,7 @@ export function App() {
     string | null
   >(null)
   const [positionSaving, setPositionSaving] = useState(false)
+  const savePositionRequested = useRef(false)
   const [positionStatusSavingId, setPositionStatusSavingId] = useState<
     string | null
   >(null)
@@ -424,17 +425,15 @@ export function App() {
         accessToken,
         position.id,
       )
-      if (!evaluation.reusedExistingEvaluation) {
-        await saveEvaluationRun({
-          accessToken,
-          candidateDocumentId: resume.candidateDocumentId,
-          candidateId: resume.candidateId,
-          evaluation,
-          positionId: position.id,
-          requirements: position.requirements,
-          resumeText: resume.text,
-        })
-      }
+      await saveEvaluationRun({
+        accessToken,
+        candidateDocumentId: resume.candidateDocumentId,
+        candidateId: resume.candidateId,
+        evaluation,
+        positionId: position.id,
+        requirements: position.requirements,
+        resumeText: resume.text,
+      })
       if (evaluation.candidateEmail || evaluation.candidatePhone) {
         void updateCandidateContactInfo({
           candidateId: resume.candidateId,
@@ -485,6 +484,11 @@ export function App() {
   }
 
   const handleSavePosition = async () => {
+    if (!savePositionRequested.current) {
+      return
+    }
+    savePositionRequested.current = false
+
     if (
       !session ||
       !jobRequirements.role.trim() ||
@@ -526,6 +530,7 @@ export function App() {
       )
       setSelectedPositionId(positionId)
       navigate(`/puestos/${encodeURIComponent(positionId)}`)
+      setPositionSaving(false)
 
       if (existingPosition) {
         setPositionNotice('Puesto actualizado.')
@@ -534,7 +539,6 @@ export function App() {
           const evaluatedApps = await listRankedApplications(
             session.user.id,
             positionId,
-            jobRequirements.acceptanceThreshold,
           )
 
           if (evaluatedApps.length > 0) {
@@ -544,6 +548,8 @@ export function App() {
               } previamente evaluado${evaluatedApps.length === 1 ? '' : 's'}...`,
             )
 
+            const failedCandidates: string[] = []
+            let reEvaluatedCount = 0
             for (const app of evaluatedApps) {
               try {
                 const resume = await getSavedCandidateResume({
@@ -564,21 +570,15 @@ export function App() {
                   positionId,
                 )
 
-                const shouldSave =
-                  !evaluation.reusedExistingEvaluation ||
-                  (evaluation.verdict === 'Apto' && app.verdict === 'No Apto')
-
-                if (shouldSave) {
-                  await saveEvaluationRun({
-                    accessToken: session.access_token,
-                    candidateDocumentId: app.candidateDocumentId,
-                    candidateId: app.candidateId,
-                    evaluation,
-                    positionId,
-                    requirements: savedPosition.requirements,
-                    resumeText: resume.text,
-                  })
-                }
+                await saveEvaluationRun({
+                  accessToken: session.access_token,
+                  candidateDocumentId: app.candidateDocumentId,
+                  candidateId: app.candidateId,
+                  evaluation,
+                  positionId,
+                  requirements: savedPosition.requirements,
+                  resumeText: resume.text,
+                })
 
                 if (evaluation.candidateEmail || evaluation.candidatePhone) {
                   void updateCandidateContactInfo({
@@ -587,24 +587,37 @@ export function App() {
                     phone: evaluation.candidatePhone,
                   })
                 }
+                reEvaluatedCount += 1
               } catch (reEvalErr) {
-                console.error(
-                  `Error al re-analizar candidato ${app.candidateName}:`,
-                  reEvalErr,
+                failedCandidates.push(
+                  `${app.candidateName}: ${
+                    reEvalErr instanceof Error
+                      ? reEvalErr.message
+                      : 'error desconocido'
+                  }`,
                 )
               }
             }
 
-            setPositionNotice(
-              `Puesto actualizado y ${evaluatedApps.length} candidato${
-                evaluatedApps.length === 1 ? '' : 's'
-              } re-analizado${evaluatedApps.length === 1 ? '' : 's'} exitosamente.`,
-            )
+            if (failedCandidates.length > 0) {
+              setPositionError(
+                `Puesto actualizado. Se re-analizaron ${reEvaluatedCount} de ${
+                  evaluatedApps.length
+                } candidatos. Fallos: ${failedCandidates.join(' | ')}`,
+              )
+            } else {
+              setPositionNotice(
+                `Puesto actualizado y ${reEvaluatedCount} candidato${
+                  reEvaluatedCount === 1 ? '' : 's'
+                } re-analizado${reEvaluatedCount === 1 ? '' : 's'} exitosamente.`,
+              )
+            }
           }
         } catch (fetchEvaluatedErr) {
-          console.error(
-            'Error al consultar evaluaciones previas del puesto:',
-            fetchEvaluatedErr,
+          setPositionError(
+            fetchEvaluatedErr instanceof Error
+              ? `Puesto actualizado, pero no se pudieron re-analizar los candidatos: ${fetchEvaluatedErr.message}`
+              : 'Puesto actualizado, pero no se pudieron re-analizar los candidatos.',
           )
         }
       } else {
@@ -931,7 +944,10 @@ export function App() {
               </button>
               <button
                 type="button"
-                onClick={() => void handleSavePosition()}
+                onClick={() => {
+                  savePositionRequested.current = true
+                  void handleSavePosition()
+                }}
                 disabled={
                   positionSaving ||
                   !jobRequirements.role.trim() ||

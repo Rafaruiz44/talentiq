@@ -113,13 +113,11 @@ export function ApplicationIntake({
         setEvaluatedApplications([])
         return
       }
-      const pos = positions.find((p) => p.id === targetPositionId)
       setLoadingEvaluated(true)
       try {
         const list = await listRankedApplications(
           session.user.id,
           targetPositionId,
-          pos?.requirements.acceptanceThreshold,
         )
         setEvaluatedApplications(list)
       } catch {
@@ -266,17 +264,15 @@ export function ApplicationIntake({
           recruiterId: session.user.id,
         })
 
-        if (!evaluation.reusedExistingEvaluation) {
-          await saveEvaluationRun({
-            accessToken: session.access_token,
-            candidateDocumentId: savedCandidate.candidateDocumentId,
-            candidateId: savedCandidate.candidateId,
-            evaluation,
-            positionId: selectedPosition.id,
-            requirements: selectedPosition.requirements,
-            resumeText,
-          })
-        }
+        await saveEvaluationRun({
+          accessToken: session.access_token,
+          candidateDocumentId: savedCandidate.candidateDocumentId,
+          candidateId: savedCandidate.candidateId,
+          evaluation,
+          positionId: selectedPosition.id,
+          requirements: selectedPosition.requirements,
+          resumeText,
+        })
 
         const percentage = Math.round(
           (evaluation.earnedPoints / evaluation.totalPoints) * 100,
@@ -409,17 +405,15 @@ export function ApplicationIntake({
           selectedPosition.id,
         )
 
-        if (!evaluation.reusedExistingEvaluation) {
-          await saveEvaluationRun({
-            accessToken: session.access_token,
-            candidateDocumentId: latestDocument.id,
-            candidateId: candidate.id,
-            evaluation,
-            positionId: selectedPosition.id,
-            requirements: selectedPosition.requirements,
-            resumeText: resume.text,
-          })
-        }
+        await saveEvaluationRun({
+          accessToken: session.access_token,
+          candidateDocumentId: latestDocument.id,
+          candidateId: candidate.id,
+          evaluation,
+          positionId: selectedPosition.id,
+          requirements: selectedPosition.requirements,
+          resumeText: resume.text,
+        })
 
         if (evaluation.candidateEmail || evaluation.candidatePhone) {
           void updateCandidateContactInfo({
@@ -677,7 +671,7 @@ export function ApplicationIntake({
                   </button>
                   <button
                     type="button"
-                    className="text-button"
+                    className="text-button deselect-button"
                     onClick={handleDeselectAllCandidates}
                     disabled={processing || selectedCandidateIds.length === 0}
                     data-testid="deselect-all-candidates"

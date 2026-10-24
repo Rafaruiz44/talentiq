@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 const maxBodyLength = 3_000_000
 const maxSourceLength = 500_000
 const maxResumeLength = 600_000
-const evaluatorVersion = 'candidate-evaluation-v5'
+const evaluatorVersion = 'candidate-evaluation-v6'
 const getContentFingerprint = (text) =>
   createHash('md5').update(text, 'utf8').digest('hex')
 const getEvaluationFingerprint = (requirements, resumeText) =>
@@ -577,6 +577,35 @@ const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
     throw new ApiError(400, 'Los datos del análisis no son válidos.')
   }
 
+  const calculatedVerdict =
+    (evaluation.earnedPoints / evaluation.totalPoints) * 100 >=
+    requirements.acceptanceThreshold
+      ? 'Apto'
+      : 'No Apto'
+  let normalizedEvaluation = {
+    ...evaluation,
+    verdict: calculatedVerdict,
+    interviewQuestions:
+      calculatedVerdict === 'Apto' ? evaluation.interviewQuestions : [],
+  }
+
+  if (
+    calculatedVerdict === 'Apto' &&
+    normalizedEvaluation.interviewQuestions.length !== 3
+  ) {
+    normalizedEvaluation = {
+      ...normalizedEvaluation,
+      interviewQuestions: await generateInterviewQuestions(
+        requirements,
+        resumeText,
+        evaluation.strengths,
+        evaluation.gaps,
+        env,
+        fetchImpl,
+      ),
+    }
+  }
+
   const { url } = getSupabaseConfiguration(env)
   const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !serviceRoleKey) {
@@ -600,12 +629,12 @@ const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
         p_candidate_id: candidateId,
         p_candidate_document_id: candidateDocumentId,
         p_position_id: positionId,
-        p_earned_points: evaluation.earnedPoints,
-        p_total_points: evaluation.totalPoints,
-        p_verdict: evaluation.verdict,
-        p_strengths: evaluation.strengths,
-        p_gaps: evaluation.gaps,
-        p_interview_questions: evaluation.interviewQuestions,
+        p_earned_points: normalizedEvaluation.earnedPoints,
+        p_total_points: normalizedEvaluation.totalPoints,
+        p_verdict: normalizedEvaluation.verdict,
+        p_strengths: normalizedEvaluation.strengths,
+        p_gaps: normalizedEvaluation.gaps,
+        p_interview_questions: normalizedEvaluation.interviewQuestions,
         p_request_fingerprint: getEvaluationFingerprint(
           requirements,
           resumeText,
@@ -736,7 +765,8 @@ const findExistingEvaluationRun = async (
     !Array.isArray(savedRun.interview_questions) ||
     !savedRun.interview_questions.every((item) => typeof item === 'string') ||
     (savedRun.verdict === 'Apto'
-      ? savedRun.interview_questions.length !== 3
+      ? savedRun.interview_questions.length !== 0 &&
+        savedRun.interview_questions.length !== 3
       : savedRun.interview_questions.length !== 0) ||
     !isUuid(savedRun.evaluation_run_id)
   ) {

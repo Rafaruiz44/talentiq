@@ -36,11 +36,8 @@ export function PositionRanking({
       return
     }
 
-    const selectedPosition = positions.find((item) => item.id === positionId)
-    const threshold = selectedPosition?.requirements.acceptanceThreshold
-
     let isActive = true
-    void listRankedApplications(recruiterId, positionId, threshold)
+    void listRankedApplications(recruiterId, positionId)
       .then((ranking) => {
         if (isActive) {
           setResults(ranking)
