@@ -13,6 +13,7 @@ import {
   updateCandidateContactInfo,
   type SavedCandidate,
 } from './services/candidates'
+import { listRankedApplications } from './services/applicationRanking'
 import { saveEvaluationRun } from './services/evaluations'
 import { inferCandidateEvaluation } from './services/inferCandidateEvaluation'
 import {
@@ -524,10 +525,91 @@ export function App() {
           : [savedPosition, ...current],
       )
       setSelectedPositionId(positionId)
-      setPositionNotice(
-        existingPosition ? 'Puesto actualizado.' : 'Puesto guardado.',
-      )
       navigate(`/puestos/${encodeURIComponent(positionId)}`)
+
+      if (existingPosition) {
+        setPositionNotice('Puesto actualizado.')
+        // Re-analizar todos los CVs que ya habían sido analizados para este puesto
+        try {
+          const evaluatedApps = await listRankedApplications(
+            session.user.id,
+            positionId,
+            jobRequirements.acceptanceThreshold,
+          )
+
+          if (evaluatedApps.length > 0) {
+            setPositionNotice(
+              `Puesto actualizado. Re-analizando ${evaluatedApps.length} candidato${
+                evaluatedApps.length === 1 ? '' : 's'
+              } previamente evaluado${evaluatedApps.length === 1 ? '' : 's'}...`,
+            )
+
+            for (const app of evaluatedApps) {
+              try {
+                const resume = await getSavedCandidateResume({
+                  recruiterId: session.user.id,
+                  candidateId: app.candidateId,
+                  candidateDocumentId: app.candidateDocumentId,
+                })
+
+                const evaluation = await inferCandidateEvaluation(
+                  savedPosition.requirements,
+                  {
+                    text: resume.text,
+                    fileName: resume.fileName,
+                    candidateId: app.candidateId,
+                    candidateDocumentId: app.candidateDocumentId,
+                  },
+                  session.access_token,
+                  positionId,
+                )
+
+                const shouldSave =
+                  !evaluation.reusedExistingEvaluation ||
+                  (evaluation.verdict === 'Apto' && app.verdict === 'No Apto')
+
+                if (shouldSave) {
+                  await saveEvaluationRun({
+                    accessToken: session.access_token,
+                    candidateDocumentId: app.candidateDocumentId,
+                    candidateId: app.candidateId,
+                    evaluation,
+                    positionId,
+                    requirements: savedPosition.requirements,
+                    resumeText: resume.text,
+                  })
+                }
+
+                if (evaluation.candidateEmail || evaluation.candidatePhone) {
+                  void updateCandidateContactInfo({
+                    candidateId: app.candidateId,
+                    email: evaluation.candidateEmail,
+                    phone: evaluation.candidatePhone,
+                  })
+                }
+              } catch (reEvalErr) {
+                console.error(
+                  `Error al re-analizar candidato ${app.candidateName}:`,
+                  reEvalErr,
+                )
+              }
+            }
+
+            setPositionNotice(
+              `Puesto actualizado y ${evaluatedApps.length} candidato${
+                evaluatedApps.length === 1 ? '' : 's'
+              } re-analizado${evaluatedApps.length === 1 ? '' : 's'} exitosamente.`,
+            )
+          }
+        } catch (fetchEvaluatedErr) {
+          console.error(
+            'Error al consultar evaluaciones previas del puesto:',
+            fetchEvaluatedErr,
+          )
+        }
+      } else {
+        setPositionNotice('Puesto guardado.')
+      }
     } catch (saveError) {
       setPositionError(
         saveError instanceof Error
@@ -739,6 +821,10 @@ export function App() {
               }
               onCreate={handleNewPosition}
               onOpen={handleSelectPosition}
+              onUpdateStatus={(positionId, status) =>
+                void handleUpdatePositionStatus(positionId, status)
+              }
+              statusUpdatingPositionId={positionStatusSavingId}
             />
           </section>
         )}
@@ -943,29 +1029,6 @@ export function App() {
                 </ul>
               </div>
               <div className="position-detail-actions">
-                <button
-                  type="button"
-                  className={
-                    currentPosition.status === 'Cerrada'
-                      ? 'position-status-button position-status-open'
-                      : 'position-status-button position-status-close'
-                  }
-                  disabled={positionStatusSavingId === currentPosition.id}
-                  onClick={() =>
-                    void handleUpdatePositionStatus(
-                      currentPosition.id,
-                      currentPosition.status === 'Cerrada' ? 'Abierta' : 'Cerrada',
-                    )
-                  }
-                  aria-label={`${currentPosition.status === 'Cerrada' ? 'Abrir' : 'Cerrar'} postulación ${currentPosition.title}`}
-                  data-testid="toggle-application-status"
-                >
-                  {positionStatusSavingId === currentPosition.id
-                    ? 'Actualizando...'
-                    : currentPosition.status === 'Cerrada'
-                      ? 'Abrir postulación'
-                      : 'Cerrar postulación'}
-                </button>
                 <button
                   type="button"
                   onClick={() =>

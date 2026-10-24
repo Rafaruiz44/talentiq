@@ -752,6 +752,28 @@ const findExistingEvaluationRun = async (
       ? 'Apto'
       : 'No Apto'
 
+  let interviewQuestions = []
+  let reusedExisting = true
+
+  if (calculatedVerdict === 'Apto') {
+    if (
+      Array.isArray(savedRun.interview_questions) &&
+      savedRun.interview_questions.length === 3
+    ) {
+      interviewQuestions = savedRun.interview_questions
+    } else {
+      interviewQuestions = await generateInterviewQuestions(
+        requirements,
+        resumeText,
+        savedRun.strengths,
+        savedRun.gaps,
+        env,
+        fetchImpl,
+      )
+      reusedExisting = false
+    }
+  }
+
   return {
     candidateName: savedRun.candidate_name,
     earnedPoints: savedRun.earned_points,
@@ -759,10 +781,58 @@ const findExistingEvaluationRun = async (
     verdict: calculatedVerdict,
     strengths: savedRun.strengths,
     gaps: savedRun.gaps,
-    interviewQuestions:
-      calculatedVerdict === 'Apto' ? savedRun.interview_questions : [],
-    reusedExistingEvaluation: true,
+    interviewQuestions,
+    reusedExistingEvaluation: reusedExisting,
   }
+}
+
+const generateInterviewQuestions = async (
+  requirements,
+  resumeText,
+  strengths,
+  gaps,
+  env,
+  fetchImpl,
+) => {
+  const content = await callAzureOpenAI(
+    [
+      {
+        role: 'system',
+        content:
+          `Sos un entrevistador técnico y evaluador de RRHH. Para el candidato que resulta Apto para la posición "${requirements.role}" (${requirements.seniority}), redactá exactamente 3 preguntas de entrevista profesionales, profundas y contextualizadas basadas en sus fortalezas, brechas y requisitos del puesto. Respondé exclusivamente en formato JSON válido: {"interviewQuestions": [string, string, string]}.`,
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          role: requirements.role,
+          seniority: requirements.seniority,
+          skills: requirements.skills,
+          strengths,
+          gaps,
+          resumeExcerpt: resumeText.slice(0, 3000),
+        }),
+      },
+    ],
+    env,
+    fetchImpl,
+  )
+  const parsed = parseModelJson(
+    content,
+    'Azure OpenAI devolvió un formato inválido para las preguntas de entrevista.',
+  )
+  if (
+    Array.isArray(parsed?.interviewQuestions) &&
+    parsed.interviewQuestions.length === 3 &&
+    parsed.interviewQuestions.every(
+      (q) => typeof q === 'string' && q.trim().length > 0,
+    )
+  ) {
+    return parsed.interviewQuestions.map((q) => q.trim())
+  }
+  throw new ApiError(
+    502,
+    'No se pudieron generar las 3 preguntas de entrevista requeridas.',
+  )
 }
 
 const parseModelJson = (content, message) => {
@@ -899,11 +969,25 @@ export const createApiRequestHandler = ({
           requirements.acceptanceThreshold
             ? 'Apto'
             : 'No Apto'
+
+        let interviewQuestions =
+          calculatedVerdict === 'Apto' ? evaluation.interviewQuestions : []
+
+        if (calculatedVerdict === 'Apto' && interviewQuestions.length !== 3) {
+          interviewQuestions = await generateInterviewQuestions(
+            requirements,
+            resumeText,
+            evaluation.strengths,
+            evaluation.gaps,
+            env,
+            fetchImpl,
+          )
+        }
+
         const normalizedEvaluation = {
           ...evaluation,
           verdict: calculatedVerdict,
-          interviewQuestions:
-            calculatedVerdict === 'Apto' ? evaluation.interviewQuestions : [],
+          interviewQuestions,
         }
 
         sendJson(

@@ -65,11 +65,9 @@ test('cerrar persiste el estado Cerrada, muestra el aviso y bloquea carga y eval
 }) => {
   const { persistedUpdates } = await mockApplicationStatus(page, 'Abierta')
 
-  // El botón de cerrar postulación ahora está en el detalle del puesto
-  await page.goto('/puestos/position-1')
-  await page
-    .getByRole('button', { name: 'Cerrar postulación Desarrollador Frontend' })
-    .click()
+  // El botón de cerrar puesto está en el listado de puestos a la derecha de Ver puesto
+  await page.goto('/puestos')
+  await page.getByTestId('toggle-status-position-1').click()
   expect(persistedUpdates).toEqual(['Cerrada'])
 
   // Al ir a postulaciones para esa posición, debe mostrarse cerrada
@@ -95,10 +93,8 @@ test('cerrar persiste el estado Cerrada, muestra el aviso y bloquea carga y eval
     page.getByRole('button', { name: 'Evaluar 1 candidato seleccionado' }),
   ).toBeDisabled()
 
-  await page.goto('/puestos/position-1')
-  await expect(
-    page.getByRole('button', { name: 'Abrir postulación Desarrollador Frontend' }),
-  ).toBeVisible()
+  await page.goto('/puestos')
+  await expect(page.getByTestId('toggle-status-position-1')).toContainText('Abrir puesto')
 })
 
 test('abrir persiste el estado Abierta y rehabilita los controles', async ({
@@ -106,11 +102,9 @@ test('abrir persiste el estado Abierta y rehabilita los controles', async ({
 }) => {
   const { persistedUpdates } = await mockApplicationStatus(page, 'Cerrada')
 
-  // Abrir la postulación desde el detalle del puesto
-  await page.goto('/puestos/position-1')
-  await page
-    .getByRole('button', { name: 'Abrir postulación Desarrollador Frontend' })
-    .click()
+  // Abrir el puesto desde el listado de puestos
+  await page.goto('/puestos')
+  await page.getByTestId('toggle-status-position-1').click()
   expect(persistedUpdates).toEqual(['Abierta'])
 
   // Al ir a postulaciones para esa posición, debe estar habilitada
@@ -133,9 +127,7 @@ test('abrir persiste el estado Abierta y rehabilita los controles', async ({
     page.getByRole('button', { name: 'Evaluar 1 candidato seleccionado' }),
   ).toBeEnabled()
 
-  await page.goto('/puestos/position-1')
-  await expect(
-    page.getByRole('button', { name: 'Cerrar postulación Desarrollador Frontend' }),
-  ).toBeVisible()
+  await page.goto('/puestos')
+  await expect(page.getByTestId('toggle-status-position-1')).toContainText('Cerrar puesto')
 })
 

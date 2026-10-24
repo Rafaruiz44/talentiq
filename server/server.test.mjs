@@ -140,26 +140,36 @@ before(async () => {
                   'Existing candidate resume',
                 )) ||
               lookup.p_resume_text === 'Legacy candidate resume' ||
-              lookup.p_resume_text === 'Existing candidate scoring 75 percent')
+              lookup.p_resume_text === 'Existing candidate scoring 75 percent' ||
+              lookup.p_resume_text === 'Existing not apt candidate scoring 65 percent')
             ? [
                 {
                   candidate_name: 'Existing candidate',
                   earned_points:
                     lookup.p_resume_text === 'Existing candidate scoring 75 percent'
                       ? 75
-                      : 10,
+                      : lookup.p_resume_text === 'Existing not apt candidate scoring 65 percent'
+                        ? 65
+                        : 10,
                   total_points:
-                    lookup.p_resume_text === 'Existing candidate scoring 75 percent'
+                    lookup.p_resume_text === 'Existing candidate scoring 75 percent' ||
+                    lookup.p_resume_text === 'Existing not apt candidate scoring 65 percent'
                       ? 100
                       : 10,
-                  verdict: 'Apto',
+                  verdict:
+                    lookup.p_resume_text === 'Existing not apt candidate scoring 65 percent'
+                      ? 'No Apto'
+                      : 'Apto',
                   strengths: ['Existing result'],
                   gaps: [],
-                  interview_questions: [
-                    '¿Cómo aplicaste React en el proyecto mencionado?',
-                    '¿Qué decisiones técnicas tomaste con React?',
-                    '¿Cómo validarías la calidad de esa implementación?',
-                  ],
+                  interview_questions:
+                    lookup.p_resume_text === 'Existing not apt candidate scoring 65 percent'
+                      ? []
+                      : [
+                          '¿Cómo aplicaste React en el proyecto mencionado?',
+                          '¿Qué decisiones técnicas tomaste con React?',
+                          '¿Cómo validarías la calidad de esa implementación?',
+                        ],
                   evaluation_run_id:
                     '77777777-7777-4777-8777-777777777777',
                 },
@@ -663,6 +673,29 @@ test('recalculates a reused evaluation against the requested threshold', async (
   assert.equal(evaluation.verdict, 'No Apto')
   assert.deepEqual(evaluation.interviewQuestions, [])
   assert.equal(azureCalls, azureCallsBeforeLookup)
+})
+
+test('generates interview questions when a previously not apt candidate becomes apt after threshold recalculation', async () => {
+  const azureCallsBeforeLookup = azureCalls
+  const response = await fetch(`${apiUrl}/api/evaluate-candidate`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer candidate-lookup-test-token',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...validRequest,
+      requirements: { ...validRequest.requirements, acceptanceThreshold: 60 },
+      resumeText: 'Existing not apt candidate scoring 65 percent',
+    }),
+  })
+
+  assert.equal(response.status, 200)
+  const evaluation = await response.json()
+  assert.equal(evaluation.reusedExistingEvaluation, false)
+  assert.equal(evaluation.verdict, 'Apto')
+  assert.equal(evaluation.interviewQuestions.length, 3)
+  assert.equal(azureCalls, azureCallsBeforeLookup + 1)
 })
 
 test('checks legacy evaluations before calling Azure OpenAI', async () => {

@@ -129,3 +129,89 @@ test('actualiza el veredicto en el ranking cuando el porcentaje de aceptación d
   await expect(page.getByTestId('ranking-item').locator('.status-badge')).toHaveText('Apto')
 })
 
+test('al guardar la edición de un puesto re-analiza los candidatos ya evaluados', async ({
+  page,
+}) => {
+  let reanalyzed = false
+  await mockAuthenticatedSession(page, [positionWithThreshold(70)])
+  await page.route('**/rest/v1/rpc/save_position', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify('position-1'),
+    })
+  })
+  await page.route('**/rest/v1/evaluation_runs?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: 'run-1',
+          application_id: 'app-1',
+          candidate_id: 'cand-1',
+          candidate_document_id: 'doc-1',
+          earned_points: 68,
+          total_points: 100,
+          verdict: 'No Apto',
+          strengths: ['Experiencia previa'],
+          gaps: [],
+          interview_questions: [],
+          evaluated_at: '2026-10-04T18:00:00.000Z',
+          applications: {
+            position_id: 'position-1',
+            candidates: { full_name: 'Candidato Guardado' },
+          },
+          candidate_documents: { original_file_name: 'cv.pdf' },
+        },
+      ]),
+    })
+  })
+  await page.route('**/rest/v1/candidate_documents?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: 'doc-1',
+          candidate_id: 'cand-1',
+          original_file_name: 'cv.pdf',
+          extracted_text: 'Texto de prueba del CV',
+        },
+      ]),
+    })
+  })
+  await page.route('**/api/evaluate-candidate', async (route) => {
+    reanalyzed = true
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        candidateName: 'Candidato Guardado',
+        earnedPoints: 80,
+        totalPoints: 100,
+        verdict: 'Apto',
+        strengths: ['TypeScript'],
+        gaps: [],
+        interviewQuestions: ['P1', 'P2', 'P3'],
+      }),
+    })
+  })
+  await page.route('**/api/evaluation-runs', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        applicationId: 'app-1',
+        evaluationRunId: 'eval-run-2',
+        reusedExisting: false,
+      }),
+    })
+  })
+
+  await page.goto('/puestos/position-1/editar')
+  await page.getByRole('button', { name: 'Guardar cambios' }).click()
+  await expect(page.getByTestId('position-notice')).toContainText('re-analizado')
+  expect(reanalyzed).toBe(true)
+})
+

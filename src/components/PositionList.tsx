@@ -1,10 +1,12 @@
-import type { SavedPosition } from '../services/positions'
+import type { PositionStatus, SavedPosition } from '../services/positions'
 
 interface PositionListProps {
   positions: SavedPosition[]
   loading: boolean
   onCreate: () => void
   onOpen: (positionId: string) => void
+  onUpdateStatus?: (positionId: string, status: PositionStatus) => void
+  statusUpdatingPositionId?: string | null
 }
 
 export function PositionList({
@@ -12,6 +14,8 @@ export function PositionList({
   loading,
   onCreate,
   onOpen,
+  onUpdateStatus,
+  statusUpdatingPositionId,
 }: PositionListProps) {
   return (
     <section className="position-list-panel" aria-labelledby="position-list-title">
@@ -52,7 +56,10 @@ export function PositionList({
                 <th scope="col">Habilidades</th>
                 <th scope="col">Estado</th>
                 <th scope="col">
-                  <span className="visually-hidden">Acciones</span>
+                  <span className="visually-hidden">Detalle</span>
+                </th>
+                <th scope="col" className="position-col-toggle">
+                  <span className="visually-hidden">Acciones de puesto</span>
                 </th>
               </tr>
             </thead>
@@ -81,8 +88,36 @@ export function PositionList({
                       className="table-action"
                       onClick={() => onOpen(position.id)}
                       aria-label={`Abrir ${position.title}`}
+                      data-testid={`view-position-${position.id}`}
                     >
                       Ver puesto
+                    </button>
+                  </td>
+                  <td className="position-status-cell">
+                    <button
+                      type="button"
+                      className={`table-action position-status-toggle-btn ${
+                        position.status === 'Cerrada'
+                          ? 'position-status-toggle-open'
+                          : 'position-status-toggle-close'
+                      }`}
+                      disabled={statusUpdatingPositionId === position.id}
+                      onClick={() =>
+                        onUpdateStatus?.(
+                          position.id,
+                          position.status === 'Cerrada' ? 'Abierta' : 'Cerrada',
+                        )
+                      }
+                      aria-label={`${
+                        position.status === 'Cerrada' ? 'Abrir' : 'Cerrar'
+                      } postulación ${position.title}`}
+                      data-testid={`toggle-status-${position.id}`}
+                    >
+                      {statusUpdatingPositionId === position.id
+                        ? 'Actualizando...'
+                        : position.status === 'Cerrada'
+                          ? 'Abrir puesto'
+                          : 'Cerrar puesto'}
                     </button>
                   </td>
                 </tr>
