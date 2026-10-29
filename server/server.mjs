@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 const maxBodyLength = 3_000_000
 const maxSourceLength = 500_000
 const maxResumeLength = 600_000
-const evaluatorVersion = 'candidate-evaluation-v18'
+const evaluatorVersion = 'candidate-evaluation-v19'
 const getContentFingerprint = (text) =>
   createHash('md5').update(text, 'utf8').digest('hex')
 const getEvaluationFingerprint = (requirements, resumeText) =>
@@ -581,11 +581,38 @@ const normalizeEvaluationScore = (evaluation, requirements) => {
     return evaluation
   }
 
-  const hasSkillEvidence = (skill, entries) => {
-    const skillName = normalizeEvaluationText(skill.name)
-    return entries.some((entry) =>
-      normalizeEvaluationText(entry).includes(skillName),
+  const skillAliasGroups = [
+    ['apex', 'salesforce apex'],
+    ['aws', 'amazon web services'],
+    ['azure', 'microsoft azure'],
+    ['css', 'css3'],
+    ['gcp', 'google cloud platform'],
+    ['html', 'html5'],
+    ['javascript', 'js', 'ecmascript'],
+    ['k8s', 'kubernetes'],
+    ['lwc', 'lightning web components'],
+    ['mongodb', 'mongo'],
+    ['node', 'node.js', 'nodejs'],
+    ['postgres', 'postgresql'],
+    ['react', 'react.js', 'reactjs'],
+    ['rest', 'rest api', 'restful api'],
+    ['salesforce', 'sf'],
+    ['typescript', 'ts'],
+    ['vue', 'vue.js', 'vuejs'],
+  ]
+  const getSkillVariants = (value) => {
+    const normalized = normalizeEvaluationText(value)
+    const aliasGroup = skillAliasGroups.find((group) =>
+      group.includes(normalized),
     )
+    return aliasGroup ?? [normalized]
+  }
+  const hasSkillEvidence = (skill, entries) => {
+    const skillVariants = getSkillVariants(skill.name)
+    return entries.some((entry) => {
+      const normalizedEntry = normalizeEvaluationText(entry)
+      return skillVariants.some((variant) => normalizedEntry.includes(variant))
+    })
   }
   const isSeniorityEntry = (entry) => {
     const normalizedEntry = normalizeEvaluationText(entry)
@@ -599,13 +626,7 @@ const normalizeEvaluationScore = (evaluation, requirements) => {
       normalizeEvaluationText(requirements.seniority),
     ].some((term) => normalizedEntry.includes(term))
   }
-  const hasSeniorityEvidence = evaluation.strengths.some((strength) => {
-    const normalizedStrength = normalizeEvaluationText(strength)
-    return (
-      normalizedStrength.includes('seniority') ||
-      normalizedStrength.includes(normalizeEvaluationText(requirements.seniority))
-    ) && evaluation.seniorityMatchesRole !== false
-  })
+  const hasSeniorityEvidence = evaluation.seniorityMatchesRole === true
   const supportedPoints = requirements.skills
     .filter((skill) => hasSkillEvidence(skill, evaluation.strengths))
     .reduce((total, skill) => total + skill.points, 0)
@@ -774,6 +795,9 @@ const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
     applicationId: savedRun.application_id,
     evaluationRunId: savedRun.evaluation_run_id,
     reusedExisting: savedRun.reused_existing,
+    earnedPoints: normalizedEvaluation.earnedPoints,
+    totalPoints: normalizedEvaluation.totalPoints,
+    verdict: normalizedEvaluation.verdict,
   }
 }
 

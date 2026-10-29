@@ -508,7 +508,7 @@ export function App() {
         accessToken,
         position.id,
       )
-      await saveEvaluationRun({
+      const savedEvaluation = await saveEvaluationRun({
         accessToken,
         candidateDocumentId: resume.candidateDocumentId,
         candidateId: resume.candidateId,
@@ -526,12 +526,12 @@ export function App() {
       }
       if (activeUserId.current === recruiterId) {
         const percentage = Math.round(
-          (evaluation.earnedPoints / evaluation.totalPoints) * 100,
+          (savedEvaluation.earnedPoints / savedEvaluation.totalPoints) * 100,
         )
         setCandidateEvaluationResult({
           candidateId: resume.candidateId,
           candidateName: evaluation.candidateName,
-          verdict: evaluation.verdict,
+          verdict: savedEvaluation.verdict,
           percentage,
           positionTitle: position.title,
         })

@@ -11,6 +11,15 @@ interface SaveEvaluationRunInput {
   resumeText: string
 }
 
+export interface SavedEvaluationResult {
+  applicationId: string
+  evaluationRunId: string
+  reusedExisting: boolean
+  earnedPoints: number
+  totalPoints: number
+  verdict: 'Apto' | 'No Apto'
+}
+
 const getApiError = (body: unknown): string => {
   if (
     typeof body === 'object' &&
@@ -32,7 +41,7 @@ export async function saveEvaluationRun({
   positionId,
   requirements,
   resumeText,
-}: SaveEvaluationRunInput): Promise<boolean> {
+}: SaveEvaluationRunInput): Promise<SavedEvaluationResult> {
   const response = await fetch('/api/evaluation-runs', {
     method: 'POST',
     headers: {
@@ -62,10 +71,23 @@ export async function saveEvaluationRun({
     !('evaluationRunId' in result) ||
     typeof result.evaluationRunId !== 'string' ||
     !('reusedExisting' in result) ||
-    typeof result.reusedExisting !== 'boolean'
+    typeof result.reusedExisting !== 'boolean' ||
+    !('earnedPoints' in result) ||
+    typeof result.earnedPoints !== 'number' ||
+    !('totalPoints' in result) ||
+    typeof result.totalPoints !== 'number' ||
+    !('verdict' in result) ||
+    (result.verdict !== 'Apto' && result.verdict !== 'No Apto')
   ) {
-    throw new Error('El servidor devolvió identificadores de análisis inválidos.')
+    throw new Error('El servidor devolvió un resultado de análisis inválido.')
   }
 
-  return result.reusedExisting
+  return {
+    applicationId: result.applicationId,
+    evaluationRunId: result.evaluationRunId,
+    reusedExisting: result.reusedExisting,
+    earnedPoints: result.earnedPoints,
+    totalPoints: result.totalPoints,
+    verdict: result.verdict,
+  }
 }

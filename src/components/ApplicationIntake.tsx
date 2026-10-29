@@ -264,7 +264,7 @@ export function ApplicationIntake({
           recruiterId: session.user.id,
         })
 
-        await saveEvaluationRun({
+        const savedEvaluation = await saveEvaluationRun({
           accessToken: session.access_token,
           candidateDocumentId: savedCandidate.candidateDocumentId,
           candidateId: savedCandidate.candidateId,
@@ -275,7 +275,7 @@ export function ApplicationIntake({
         })
 
         const percentage = Math.round(
-          (evaluation.earnedPoints / evaluation.totalPoints) * 100,
+          (savedEvaluation.earnedPoints / savedEvaluation.totalPoints) * 100,
         )
         const isBelowThreshold =
           percentage < selectedPosition.requirements.acceptanceThreshold
@@ -287,7 +287,7 @@ export function ApplicationIntake({
                   ...item,
                   state: 'completed',
                   isBelowThreshold,
-                  message: `${evaluation.verdict} · ${percentage}% de compatibilidad`,
+                  message: `${savedEvaluation.verdict} · ${percentage}% de compatibilidad`,
                 }
               : item,
           ),
@@ -405,7 +405,7 @@ export function ApplicationIntake({
           selectedPosition.id,
         )
 
-        await saveEvaluationRun({
+        const savedEvaluation = await saveEvaluationRun({
           accessToken: session.access_token,
           candidateDocumentId: latestDocument.id,
           candidateId: candidate.id,
@@ -424,7 +424,7 @@ export function ApplicationIntake({
         }
 
         const percentage = Math.round(
-          (evaluation.earnedPoints / evaluation.totalPoints) * 100,
+          (savedEvaluation.earnedPoints / savedEvaluation.totalPoints) * 100,
         )
         const isBelowThreshold =
           percentage < selectedPosition.requirements.acceptanceThreshold
@@ -436,7 +436,7 @@ export function ApplicationIntake({
                   ...item,
                   state: 'completed',
                   isBelowThreshold,
-                  message: `${evaluation.verdict} · ${percentage}% de compatibilidad`,
+                  message: `${savedEvaluation.verdict} · ${percentage}% de compatibilidad`,
                 }
               : item,
           ),

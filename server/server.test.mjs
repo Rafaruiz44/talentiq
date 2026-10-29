@@ -19,7 +19,7 @@ const getEvaluationFingerprint = (requirements, resumeText) =>
   createHash('sha256')
     .update(
       JSON.stringify({
-        evaluatorVersion: 'candidate-evaluation-v18',
+        evaluatorVersion: 'candidate-evaluation-v19',
         requirements: {
           role: requirements.role,
           seniority: requirements.seniority,
@@ -584,6 +584,9 @@ test('stores an evaluation run under the authenticated recruiter', async () => {
     applicationId: '11111111-1111-4111-8111-111111111111',
     evaluationRunId: '22222222-2222-4222-8222-222222222222',
     reusedExisting: false,
+    earnedPoints: 10,
+    totalPoints: 10,
+    verdict: 'Apto',
   })
   const { p_request_fingerprint, ...savedEvaluation } =
     evaluationWrites.at(-1)
@@ -598,7 +601,7 @@ test('stores an evaluation run under the authenticated recruiter', async () => {
     p_strengths: ['Experiencia con React'],
     p_gaps: [],
     p_interview_questions: validEvaluationRunRequest.evaluation.interviewQuestions,
-    p_evaluator_version: 'candidate-evaluation-v18',
+    p_evaluator_version: 'candidate-evaluation-v19',
   })
   assert.match(p_request_fingerprint, /^[0-9a-f]{64}$/)
 })
@@ -647,7 +650,7 @@ test('reuses a matching evaluation without calling Azure OpenAI', async () => {
       p_recruiter_id: 'authenticated-recruiter',
       p_candidate_id: '66666666-6666-4666-8666-666666666666',
       p_position_id: validRequest.positionId,
-      p_evaluator_version: 'candidate-evaluation-v18',
+      p_evaluator_version: 'candidate-evaluation-v19',
       p_requirements: validRequest.requirements,
       p_resume_text: 'Existing candidate resume',
     },
