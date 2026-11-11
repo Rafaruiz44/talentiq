@@ -68,3 +68,16 @@ export const mockAuthenticatedSession = async (
 
 export { expect }
 export const test = base
+
+// The real /api/evaluation-runs answers with the persisted score and verdict.
+// Mocks echo the values sent by the client so the UI receives a valid contract.
+export const savedScoreFrom = (postData: string | null) => {
+  const { evaluation } = JSON.parse(postData ?? '{}') as {
+    evaluation?: { earnedPoints?: number; totalPoints?: number; verdict?: string }
+  }
+  return {
+    earnedPoints: evaluation?.earnedPoints,
+    totalPoints: evaluation?.totalPoints,
+    verdict: evaluation?.verdict,
+  }
+}

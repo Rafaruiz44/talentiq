@@ -24,6 +24,12 @@ export interface CandidateResume {
   candidateDocumentId?: string
 }
 
+export interface SkillAssessment {
+  skill: string
+  met: boolean
+  evidence: string
+}
+
 export interface CandidateEvaluation {
   candidateName: string
   candidateEmail?: string | null
@@ -32,6 +38,10 @@ export interface CandidateEvaluation {
   experienceAreas?: string[]
   roleArea?: string
   seniorityMatchesRole?: boolean
+  seniorityAnalysis?: {
+    explanation: string
+  }
+  skillAssessments?: SkillAssessment[]
   earnedPoints: number
   totalPoints: number
   verdict: 'Apto' | 'No Apto'

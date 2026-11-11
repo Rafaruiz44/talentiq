@@ -279,7 +279,10 @@ export function App() {
   const isRankingPage = routePath === '/ranking'
   const isNewPosition = routePath === '/puestos/nuevo'
   const editRouteMatch = routePath.match(/^\/puestos\/([^/]+)\/editar$/)
-  const detailRouteMatch = routePath.match(/^\/puestos\/([^/]+)$/)
+  // '/puestos/nuevo' is the creation screen, not the detail of a position.
+  const detailRouteMatch = isNewPosition
+    ? null
+    : routePath.match(/^\/puestos\/([^/]+)$/)
   const editingPositionId = editRouteMatch
     ? decodeURIComponent(editRouteMatch[1])
     : null

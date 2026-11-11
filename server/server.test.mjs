@@ -19,7 +19,7 @@ const getEvaluationFingerprint = (requirements, resumeText) =>
   createHash('sha256')
     .update(
       JSON.stringify({
-        evaluatorVersion: 'candidate-evaluation-v19',
+        evaluatorVersion: 'candidate-evaluation-v21',
         requirements: {
           role: requirements.role,
           seniority: requirements.seniority,
@@ -100,6 +100,7 @@ before(async () => {
             'Existing candidate resume',
             'Legacy candidate resume',
             'Existing candidate scoring 75 percent',
+            'Existing not apt candidate scoring 65 percent',
           ].includes(lookup.p_extracted_text)
             ? [
                 {
@@ -183,31 +184,61 @@ before(async () => {
       const azureRequest = JSON.parse(init.body)
       azureRequests.push(azureRequest)
       assert.equal(init.headers['api-key'], serverEnv.AZURE_OPENAI_KEY)
-      const candidateResume = JSON.parse(
+      const { candidateResume, jobRequirements } = JSON.parse(
         azureRequest.messages[1].content,
-      ).candidateResume
-      const missingPython = candidateResume === 'Candidate missing Python'
-      const earnedPoints = missingPython
-        ? 29
-        : candidateResume === 'Candidate scoring 75 percent'
-        ? 75
-        : candidateResume === 'Candidate scoring exactly 80 percent'
-          ? 80
-          : 10
-      const totalPoints = missingPython || candidateResume.startsWith('Candidate scoring')
-        ? 100
-        : 10
+      )
+      // Test fixture rule: the mocked model credits a skill when its exact
+      // name appears in the resume, unless the resume asks for a specific
+      // model answer.
+      const scriptedAssessments =
+        candidateResume === 'Candidate with synonyms'
+          ? [
+              { skill: 'c#', met: true, evidence: 'Programa en csharp.' },
+              { skill: '.NET', met: true, evidence: 'APIs con dotnet core.' },
+              { skill: 'ingles', met: true, evidence: 'English C1.' },
+            ]
+          : candidateResume === 'Candidate with JavaScript only'
+            ? [
+                { skill: 'Java', met: false, evidence: 'Solo JavaScript, no Java.' },
+                { skill: 'React', met: true, evidence: 'React en producción.' },
+              ]
+            : null
+      const skillAssessments =
+        scriptedAssessments ??
+        jobRequirements?.skills
+          .filter(
+            (skill) =>
+              candidateResume !== 'Candidate omitting a skill' ||
+              skill.name !== 'Python',
+          )
+          .map((skill) => ({
+            skill: skill.name,
+            met: candidateResume.includes(skill.name),
+            evidence: candidateResume.includes(skill.name)
+              ? `Usa ${skill.name}.`
+              : `No menciona ${skill.name}.`,
+          }))
       return Response.json({
         choices: [
           {
             message: {
               content: JSON.stringify({
                 candidateName: 'Candidate',
-                earnedPoints,
-                totalPoints,
+                seniorityMatchesRole: true,
+                seniorityAnalysis: {
+                  relevantExperiences: [],
+                  relevantYears: 4,
+                  detectedLevel: 'Semi Senior',
+                  academicProjects: [],
+                  explanation: 'Cuatro años de experiencia compatible.',
+                },
+                skillAssessments,
+                // Values the server must ignore: the score is recalculated.
+                earnedPoints: 1,
+                totalPoints: 1,
+                strengths: ['Texto libre del modelo'],
+                gaps: [],
                 verdict: 'Apto',
-                strengths: ['React experience'],
-                gaps: missingPython ? ['Python: no se encontró evidencia.'] : [],
                 interviewQuestions: [
                   '¿Cómo aplicaste React en tu experiencia más relevante?',
                   '¿Qué desafío técnico resolviste con React?',
@@ -260,6 +291,17 @@ const validEvaluationRunRequest = {
   resumeText: validRequest.resumeText,
   evaluation: {
     candidateName: 'Candidato de prueba',
+    seniorityMatchesRole: true,
+    seniorityAnalysis: {
+      relevantExperiences: ['Frontend en Acme'],
+      relevantYears: 4,
+      detectedLevel: 'Semi Senior',
+      academicProjects: [],
+      explanation: 'Cuatro años como frontend.',
+    },
+    skillAssessments: [
+      { skill: 'React', met: true, evidence: 'React en producción.' },
+    ],
     earnedPoints: 10,
     totalPoints: 10,
     verdict: 'Apto',
@@ -343,20 +385,25 @@ test('validates the Supabase session before calling Azure with server credential
   })
 
   assert.equal(response.status, 200)
-  assert.deepEqual(await response.json(), {
-    candidateName: 'Candidate',
-    earnedPoints: 10,
-    totalPoints: 10,
-    verdict: 'Apto',
-    strengths: ['React experience'],
-    gaps: [],
-    interviewQuestions: [
-      '¿Cómo aplicaste React en tu experiencia más relevante?',
-      '¿Qué desafío técnico resolviste con React?',
-      '¿Cómo asegurarías la calidad del código React?',
-    ],
-    reusedExistingEvaluation: false,
-  })
+  const evaluation = await response.json()
+  assert.equal(evaluation.candidateName, 'Candidate')
+  assert.equal(evaluation.earnedPoints, 10)
+  assert.equal(evaluation.totalPoints, 10)
+  assert.equal(evaluation.verdict, 'Apto')
+  assert.deepEqual(evaluation.strengths, [
+    'React: Usa React.',
+    'Seniority Semi Senior: Cuatro años de experiencia compatible.',
+  ])
+  assert.deepEqual(evaluation.gaps, [])
+  assert.deepEqual(evaluation.skillAssessments, [
+    { skill: 'React', met: true, evidence: 'Usa React.' },
+  ])
+  assert.deepEqual(evaluation.interviewQuestions, [
+    '¿Cómo aplicaste React en tu experiencia más relevante?',
+    '¿Qué desafío técnico resolviste con React?',
+    '¿Cómo asegurarías la calidad del código React?',
+  ])
+  assert.equal(evaluation.reusedExistingEvaluation, false)
   assert.equal(azureCalls, 1)
   assert.match(
     azureRequests.at(-1).messages[0].content,
@@ -393,15 +440,23 @@ test('overrides an apt model verdict when the score is below the configured thre
     },
     body: JSON.stringify({
       ...validRequest,
-      requirements: { ...validRequest.requirements, acceptanceThreshold: 80 },
-      resumeText: 'Candidate scoring 75 percent',
+      requirements: {
+        ...validRequest.requirements,
+        acceptanceThreshold: 80,
+        seniorityPoints: 2,
+        skills: [
+          { name: 'React', points: 7 },
+          { name: 'Python', points: 3 },
+        ],
+      },
+      resumeText: 'Candidate scoring 75 percent with React',
     }),
   })
 
   assert.equal(response.status, 200)
   const evaluation = await response.json()
-  assert.equal(evaluation.earnedPoints, 75)
-  assert.equal(evaluation.totalPoints, 100)
+  assert.equal(evaluation.earnedPoints, 9)
+  assert.equal(evaluation.totalPoints, 12)
   assert.equal(evaluation.verdict, 'No Apto')
   assert.deepEqual(evaluation.interviewQuestions, [])
 })
@@ -415,15 +470,23 @@ test('keeps the candidate apt when the score equals the configured threshold', a
     },
     body: JSON.stringify({
       ...validRequest,
-      requirements: { ...validRequest.requirements, acceptanceThreshold: 80 },
-      resumeText: 'Candidate scoring exactly 80 percent',
+      requirements: {
+        ...validRequest.requirements,
+        acceptanceThreshold: 80,
+        seniorityPoints: 2,
+        skills: [
+          { name: 'React', points: 6 },
+          { name: 'Python', points: 2 },
+        ],
+      },
+      resumeText: 'Candidate scoring exactly 80 percent with React',
     }),
   })
 
   assert.equal(response.status, 200)
   const evaluation = await response.json()
-  assert.equal(evaluation.earnedPoints, 80)
-  assert.equal(evaluation.totalPoints, 100)
+  assert.equal(evaluation.earnedPoints, 8)
+  assert.equal(evaluation.totalPoints, 10)
   assert.equal(evaluation.verdict, 'Apto')
   assert.equal(evaluation.interviewQuestions.length, 3)
 })
@@ -598,10 +661,13 @@ test('stores an evaluation run under the authenticated recruiter', async () => {
     p_earned_points: 10,
     p_total_points: 10,
     p_verdict: 'Apto',
-    p_strengths: ['Experiencia con React'],
+    p_strengths: [
+      'React: React en producción.',
+      'Seniority Semi Senior: Cuatro años como frontend.',
+    ],
     p_gaps: [],
     p_interview_questions: validEvaluationRunRequest.evaluation.interviewQuestions,
-    p_evaluator_version: 'candidate-evaluation-v19',
+    p_evaluator_version: 'candidate-evaluation-v21',
   })
   assert.match(p_request_fingerprint, /^[0-9a-f]{64}$/)
 })
@@ -650,7 +716,7 @@ test('reuses a matching evaluation without calling Azure OpenAI', async () => {
       p_recruiter_id: 'authenticated-recruiter',
       p_candidate_id: '66666666-6666-4666-8666-666666666666',
       p_position_id: validRequest.positionId,
-      p_evaluator_version: 'candidate-evaluation-v19',
+      p_evaluator_version: 'candidate-evaluation-v21',
       p_requirements: validRequest.requirements,
       p_resume_text: 'Existing candidate resume',
     },
@@ -755,4 +821,133 @@ test('does not reuse an evaluation when a job requirement changes', async () => 
       'Existing candidate resume',
     ),
   )
+})
+
+const evaluateAs = async (requirements, resumeText) => {
+  const response = await fetch(`${apiUrl}/api/evaluate-candidate`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer candidate-lookup-test-token',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ ...validRequest, requirements, resumeText }),
+  })
+  return { status: response.status, body: await response.json() }
+}
+
+const devRequirements = (skills) => ({
+  ...validRequest.requirements,
+  seniorityPoints: 2,
+  skills,
+})
+
+test('scores only from per-skill decisions and ignores model points', async () => {
+  const { status, body } = await evaluateAs(
+    devRequirements([
+      { name: 'Java', points: 5 },
+      { name: 'React', points: 3 },
+    ]),
+    'Candidate with JavaScript only',
+  )
+
+  assert.equal(status, 200)
+  assert.equal(body.earnedPoints, 5)
+  assert.equal(body.totalPoints, 10)
+  assert.equal(body.verdict, 'No Apto')
+  assert.deepEqual(body.gaps, ['Java: Solo JavaScript, no Java.'])
+  assert.deepEqual(body.interviewQuestions, [])
+})
+
+test('matches skill decisions to requirements ignoring case and accents', async () => {
+  const { status, body } = await evaluateAs(
+    devRequirements([
+      { name: 'C#', points: 5 },
+      { name: '.NET', points: 5 },
+      { name: 'Inglés', points: 3 },
+    ]),
+    'Candidate with synonyms',
+  )
+
+  assert.equal(status, 200)
+  assert.equal(body.earnedPoints, 15)
+  assert.equal(body.totalPoints, 15)
+  assert.deepEqual(
+    body.skillAssessments.map(({ skill }) => skill),
+    ['C#', '.NET', 'Inglés'],
+  )
+})
+
+test('counts every required skill even when the position has more than four', async () => {
+  const skills = ['React', 'TypeScript', 'Node.js', 'Docker', 'AWS', 'PostgreSQL', 'Kubernetes']
+    .map((name) => ({ name, points: 3 }))
+  const { status, body } = await evaluateAs(
+    devRequirements(skills),
+    'React TypeScript Node.js Docker AWS PostgreSQL',
+  )
+
+  assert.equal(status, 200)
+  assert.equal(body.earnedPoints, 20)
+  assert.equal(body.totalPoints, 23)
+  assert.equal(body.verdict, 'Apto')
+  assert.equal(body.strengths.length, 7)
+  assert.deepEqual(body.gaps, ['Kubernetes: No menciona Kubernetes.'])
+})
+
+test('fails explicitly when the model does not assess every required skill', async () => {
+  const { status, body } = await evaluateAs(
+    devRequirements([
+      { name: 'React', points: 5 },
+      { name: 'Python', points: 5 },
+    ]),
+    'Candidate omitting a skill',
+  )
+
+  assert.equal(status, 502)
+  assert.match(body.error, /no evaluó todas las habilidades/)
+})
+
+test('recalculates a saved analysis from its skill decisions, not from client points', async () => {
+  const response = await fetch(`${apiUrl}/api/evaluation-runs`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer evaluation-test-token',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...validEvaluationRunRequest,
+      evaluation: {
+        ...validEvaluationRunRequest.evaluation,
+        skillAssessments: [
+          { skill: 'React', met: false, evidence: 'No usa React.' },
+        ],
+      },
+    }),
+  })
+
+  assert.equal(response.status, 201)
+  const saved = await response.json()
+  assert.equal(saved.earnedPoints, 5)
+  assert.equal(saved.verdict, 'No Apto')
+  assert.deepEqual(evaluationWrites.at(-1).p_gaps, ['React: No usa React.'])
+  assert.deepEqual(evaluationWrites.at(-1).p_interview_questions, [])
+})
+
+test('rejects a saved analysis without skill decisions whose total does not match the position', async () => {
+  const { skillAssessments: _omitted, ...withoutDecisions } =
+    validEvaluationRunRequest.evaluation
+  const previousWrites = evaluationWrites.length
+  const response = await fetch(`${apiUrl}/api/evaluation-runs`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer evaluation-test-token',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...validEvaluationRunRequest,
+      evaluation: { ...withoutDecisions, earnedPoints: 100, totalPoints: 100 },
+    }),
+  })
+
+  assert.equal(response.status, 400)
+  assert.equal(evaluationWrites.length, previousWrites)
 })

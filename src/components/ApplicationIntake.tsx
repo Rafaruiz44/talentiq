@@ -900,7 +900,13 @@ export function ApplicationIntake({
                       </span>
                     </div>
                     <div className="application-evaluated-score">
-                      <span className={isBelow ? 'compatibility-below-threshold' : undefined}>
+                      <span
+                        className={
+                          isBelow
+                            ? 'compatibility-below-threshold'
+                            : 'compatibility-meets-threshold'
+                        }
+                      >
                         {percentage}% de compatibilidad
                       </span>
                       <span

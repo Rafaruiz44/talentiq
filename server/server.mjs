@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 const maxBodyLength = 3_000_000
 const maxSourceLength = 500_000
 const maxResumeLength = 600_000
-const evaluatorVersion = 'candidate-evaluation-v19'
+const evaluatorVersion = 'candidate-evaluation-v21'
 const getContentFingerprint = (text) =>
   createHash('md5').update(text, 'utf8').digest('hex')
 const getEvaluationFingerprint = (requirements, resumeText) =>
@@ -576,80 +576,133 @@ const normalizeEvaluationText = (value) =>
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
 
-const normalizeEvaluationScore = (evaluation, requirements) => {
-  if (evaluation.gaps.length === 0 && evaluation.seniorityMatchesRole !== false) {
-    return evaluation
+const getSkillKey = (value) => normalizeEvaluationText(value).trim()
+
+const getTotalPoints = (requirements) =>
+  requirements.skills.reduce((total, skill) => total + skill.points, 0) +
+  requirements.seniorityPoints
+
+const isSkillAssessmentList = (value) =>
+  Array.isArray(value) &&
+  value.length <= 100 &&
+  value.every(
+    (item) =>
+      item &&
+      typeof item === 'object' &&
+      typeof item.skill === 'string' &&
+      item.skill.trim().length > 0 &&
+      typeof item.met === 'boolean' &&
+      typeof item.evidence === 'string',
+  )
+
+// Returns one assessment per required skill, in requirement order, or null
+// when the model did not assess every required skill.
+const matchSkillAssessments = (assessments, requirements) => {
+  if (!isSkillAssessmentList(assessments)) {
+    return null
   }
 
-  const skillAliasGroups = [
-    ['apex', 'salesforce apex'],
-    ['aws', 'amazon web services'],
-    ['azure', 'microsoft azure'],
-    ['css', 'css3'],
-    ['gcp', 'google cloud platform'],
-    ['html', 'html5'],
-    ['javascript', 'js', 'ecmascript'],
-    ['k8s', 'kubernetes'],
-    ['lwc', 'lightning web components'],
-    ['mongodb', 'mongo'],
-    ['node', 'node.js', 'nodejs'],
-    ['postgres', 'postgresql'],
-    ['react', 'react.js', 'reactjs'],
-    ['rest', 'rest api', 'restful api'],
-    ['salesforce', 'sf'],
-    ['typescript', 'ts'],
-    ['vue', 'vue.js', 'vuejs'],
-  ]
-  const getSkillVariants = (value) => {
-    const normalized = normalizeEvaluationText(value)
-    const aliasGroup = skillAliasGroups.find((group) =>
-      group.includes(normalized),
-    )
-    return aliasGroup ?? [normalized]
+  const byKey = new Map()
+  for (const assessment of assessments) {
+    const key = getSkillKey(assessment.skill)
+    if (!byKey.has(key)) {
+      byKey.set(key, assessment)
+    }
   }
-  const hasSkillEvidence = (skill, entries) => {
-    const skillVariants = getSkillVariants(skill.name)
-    return entries.some((entry) => {
-      const normalizedEntry = normalizeEvaluationText(entry)
-      return skillVariants.some((variant) => normalizedEntry.includes(variant))
-    })
-  }
-  const isSeniorityEntry = (entry) => {
-    const normalizedEntry = normalizeEvaluationText(entry)
-    return [
-      'seniority',
-      'trainee',
-      'junior',
-      'semi senior',
-      'senior',
-      'lead',
-      normalizeEvaluationText(requirements.seniority),
-    ].some((term) => normalizedEntry.includes(term))
-  }
-  const hasSeniorityEvidence = evaluation.seniorityMatchesRole === true
-  const supportedPoints = requirements.skills
-    .filter((skill) => hasSkillEvidence(skill, evaluation.strengths))
-    .reduce((total, skill) => total + skill.points, 0)
-  const verifiedEarnedPoints =
-    supportedPoints + (hasSeniorityEvidence ? requirements.seniorityPoints : 0)
-  const seniorityGap =
-    evaluation.seniorityMatchesRole === false
-      ? `Seniority no aplicable: experiencia inferida en ${(evaluation.experienceAreas ?? [evaluation.experienceArea ?? 'otra área profesional']).join(', ')}; el puesto requiere el área de ${evaluation.roleArea ?? `"${requirements.role}"`}.`
+
+  const matched = requirements.skills.map((skill) => {
+    const assessment = byKey.get(getSkillKey(skill.name))
+    return assessment
+      ? {
+          skill: skill.name,
+          met: assessment.met,
+          evidence: assessment.evidence.trim().slice(0, 500),
+        }
       : null
+  })
+
+  return matched.every(Boolean) ? matched : null
+}
+
+const getSeniorityText = (evaluation, requirements) => {
+  const explanation =
+    typeof evaluation.seniorityAnalysis?.explanation === 'string'
+      ? evaluation.seniorityAnalysis.explanation.trim().slice(0, 500)
+      : ''
+  return evaluation.seniorityMatchesRole === true
+    ? `Seniority ${requirements.seniority}: ${explanation || 'acreditado.'}`
+    : `Seniority ${requirements.seniority}: ${explanation || 'no acreditado.'}`
+}
+
+// The score is calculated only from the per-skill decisions of the model and
+// its seniority decision. Strengths and gaps are derived from the same data
+// so the explanation shown to the recruiter always matches the score.
+const scoreSkillAssessments = (evaluation, requirements) => {
+  const skillAssessments = matchSkillAssessments(
+    evaluation.skillAssessments,
+    requirements,
+  )
+  if (!skillAssessments || typeof evaluation.seniorityMatchesRole !== 'boolean') {
+    return null
+  }
+
+  const pointsBySkill = new Map(
+    requirements.skills.map((skill) => [skill.name, skill.points]),
+  )
+  const earnedPoints =
+    skillAssessments
+      .filter((assessment) => assessment.met)
+      .reduce((total, assessment) => total + pointsBySkill.get(assessment.skill), 0) +
+    (evaluation.seniorityMatchesRole ? requirements.seniorityPoints : 0)
+  const describe = (assessment) =>
+    assessment.evidence
+      ? `${assessment.skill}: ${assessment.evidence}`
+      : assessment.met
+        ? `${assessment.skill}: acreditado en el CV.`
+        : `${assessment.skill}: sin evidencia en el CV.`
+  const seniorityText = getSeniorityText(evaluation, requirements)
 
   return {
-    ...evaluation,
-    strengths:
-      evaluation.seniorityMatchesRole === false
-        ? evaluation.strengths.filter((strength) => !isSeniorityEntry(strength))
-        : evaluation.strengths,
-    gaps:
-      seniorityGap && !evaluation.gaps.some((gap) => normalizeEvaluationText(gap).includes('seniority'))
-        ? [...evaluation.gaps, seniorityGap]
-        : evaluation.gaps,
-    earnedPoints: Math.min(verifiedEarnedPoints, evaluation.totalPoints),
+    skillAssessments,
+    earnedPoints,
+    totalPoints: getTotalPoints(requirements),
+    strengths: [
+      ...skillAssessments.filter((assessment) => assessment.met).map(describe),
+      ...(evaluation.seniorityMatchesRole ? [seniorityText] : []),
+    ],
+    gaps: [
+      ...skillAssessments.filter((assessment) => !assessment.met).map(describe),
+      ...(evaluation.seniorityMatchesRole ? [] : [seniorityText]),
+    ],
   }
 }
+
+const getVerdict = (earnedPoints, totalPoints, requirements) =>
+  (earnedPoints / totalPoints) * 100 >= requirements.acceptanceThreshold
+    ? 'Apto'
+    : 'No Apto'
+
+// The model no longer provides points, strengths or gaps; the rest of its
+// answer must satisfy the same contract as a stored evaluation.
+const isModelEvaluation = (value) =>
+  Boolean(
+    value &&
+      typeof value === 'object' &&
+      isCandidateEvaluation({
+        ...value,
+        earnedPoints: 0,
+        totalPoints: 1,
+        verdict: 'No Apto',
+        strengths: [],
+        gaps: [],
+        interviewQuestions: [],
+      }) &&
+      typeof value.seniorityMatchesRole === 'boolean' &&
+      isSkillAssessmentList(value.skillAssessments) &&
+      (value.interviewQuestions === undefined ||
+        (Array.isArray(value.interviewQuestions) &&
+          value.interviewQuestions.every((item) => typeof item === 'string'))),
+  )
 
 const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
   const {
@@ -683,12 +736,35 @@ const saveEvaluationRun = async (userId, input, env, fetchImpl) => {
     throw new ApiError(400, 'Los datos del análisis no son válidos.')
   }
 
-  const scoredEvaluation = normalizeEvaluationScore(evaluation, requirements)
-  const calculatedVerdict =
-    (scoredEvaluation.earnedPoints / scoredEvaluation.totalPoints) * 100 >=
-    requirements.acceptanceThreshold
-      ? 'Apto'
-      : 'No Apto'
+  // New analyses carry per-skill decisions and are scored again here. A
+  // result reused from history has no decisions; its stored score was already
+  // calculated by this server, so only its consistency with the position is
+  // checked.
+  let scoredEvaluation
+  if (evaluation.skillAssessments !== undefined) {
+    scoredEvaluation = scoreSkillAssessments(evaluation, requirements)
+    if (!scoredEvaluation) {
+      throw new ApiError(
+        400,
+        'El análisis no evalúa todas las habilidades del puesto.',
+      )
+    }
+  } else {
+    if (evaluation.totalPoints !== getTotalPoints(requirements)) {
+      throw new ApiError(400, 'Los datos del análisis no son válidos.')
+    }
+    scoredEvaluation = {
+      earnedPoints: evaluation.earnedPoints,
+      totalPoints: evaluation.totalPoints,
+      strengths: evaluation.strengths,
+      gaps: evaluation.gaps,
+    }
+  }
+  const calculatedVerdict = getVerdict(
+    scoredEvaluation.earnedPoints,
+    scoredEvaluation.totalPoints,
+    requirements,
+  )
   let normalizedEvaluation = {
     ...scoredEvaluation,
     verdict: calculatedVerdict,
@@ -890,20 +966,17 @@ const findExistingEvaluationRun = async (
     )
   }
 
-  const scoredSavedRun = normalizeEvaluationScore(
-    {
-      earnedPoints: savedRun.earned_points,
-      totalPoints: savedRun.total_points,
-      strengths: savedRun.strengths,
-      gaps: savedRun.gaps,
-    },
+  // The stored score was calculated by this evaluator version; only the
+  // verdict depends on the current threshold.
+  const scoredSavedRun = {
+    earnedPoints: savedRun.earned_points,
+    totalPoints: savedRun.total_points,
+  }
+  const calculatedVerdict = getVerdict(
+    scoredSavedRun.earnedPoints,
+    scoredSavedRun.totalPoints,
     requirements,
   )
-  const calculatedVerdict =
-    (scoredSavedRun.earnedPoints / scoredSavedRun.totalPoints) * 100 >=
-    requirements.acceptanceThreshold
-      ? 'Apto'
-      : 'No Apto'
 
   let interviewQuestions = []
   let reusedExisting = true
@@ -1095,7 +1168,7 @@ export const createApiRequestHandler = ({
             {
               role: 'system',
               content:
-                `Sos un evaluador de RRHH. Evaluá el CV frente a los JobRequirements. Inferí el área objetivo roleArea usando el nombre del puesto y, obligatoriamente, sus habilidades y responsabilidades. Inferí todas las áreas profesionales relevantes del candidato en experienceAreas, usando tareas, responsabilidades, tecnologías, herramientas y resultados del CV; experienceArea debe ser el área principal por compatibilidad con el puesto. No dependas únicamente de títulos. Una especialización es compatible con su área general: "Desarrollo de software" es compatible con "Desarrollo de software backend", "Java backend" y "Desarrollo de APIs". Si el candidato trabajó en varias áreas, no lo descartes: seniorityMatchesRole=true si al menos una experiencia laboral relevante pertenece al roleArea o a una especialización compatible, aunque también tenga experiencia en otras áreas. Devolvé áreas breves y específicas. Para diagnosticar la decisión, devolvé seniorityAnalysis con relevantExperiences (lista de experiencias concretas consideradas compatibles), relevantYears (años sumados únicamente de esas experiencias), detectedLevel (nivel calculado con esos años), academicProjects (lista de proyectos académicos o personales relacionados con el área) y explanation (explicación breve de por qué el seniority coincide o no). Regla obligatoria según el nivel: si el seniority requerido es Trainee, los proyectos académicos o personales relacionados con el roleArea cuentan como experiencia válida y deben incluirse en relevantExperiences; podés usar su duración o evidencia concreta para validar Trainee. Si el seniority requerido es Junior, Semi Senior, Senior o Lead, calculá el nivel únicamente con tiempo de trabajo formal en experiencias laborales compatibles; no sumes proyectos académicos, personales, cursos ni educación para esos niveles, pero informá los proyectos relacionados en academicProjects y explicá que aportan contexto aunque no sumen años laborales. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Un nivel superior al requerido cumple; uno inferior no cumple. Antes de responder, verificá: (1) roleArea; (2) experienceAreas; (3) experiencias laborales compatibles; (4) proyectos académicos/personales compatibles; (5) fuente de experiencia permitida por el seniority requerido; (6) años relevantes; (7) nivel detectado; (8) seniorityMatchesRole. Si el nivel requerido es Trainee y existe un proyecto académico o personal relacionado con el roleArea, seniorityMatchesRole debe ser true. Para niveles superiores, solo devolvé true si el tiempo de trabajo formal compatible alcanza el nivel requerido. No devuelvas false por diferencias de granularidad entre un área general y una especialización. Si no se alcanza el nivel, explicalo en seniorityAnalysis.explanation y gaps. Para CADA habilidad y para el seniority indicá exactamente una clasificación en strengths o gaps. earnedPoints debe ser exclusivamente la suma de habilidades en strengths y seniority en strengths cuando seniorityMatchesRole sea true. totalPoints debe ser la suma de todos los pesos de skills y seniority. Respondé Apto si earnedPoints / totalPoints * 100 es igual o mayor al ${requirements.acceptanceThreshold}%, y No Apto si es menor. Si el veredicto es Apto, generá exactamente 3 preguntas relevantes; si es No Apto, interviewQuestions debe ser []. No inventes años, proyectos, responsabilidades ni tecnologías. Extraé candidateEmail y candidatePhone si están presentes; de lo contrario null. Respondé exclusivamente JSON válido con la interfaz CandidateEvaluation: {"candidateName": string, "candidateEmail": string | null, "candidatePhone": string | null, "experienceArea": string, "experienceAreas": string[], "roleArea": string, "seniorityMatchesRole": boolean, "seniorityAnalysis": {"relevantExperiences": string[], "relevantYears": number | null, "detectedLevel": string | null, "academicProjects": string[], "explanation": string}, "earnedPoints": number, "totalPoints": number, "verdict": "Apto" | "No Apto", "strengths": string[], "gaps": string[], "interviewQuestions": string[]}.`,
+                `Sos un evaluador de RRHH. Evaluá el CV frente a los JobRequirements. Inferí el área objetivo roleArea usando el nombre del puesto y, obligatoriamente, sus habilidades y responsabilidades. Inferí todas las áreas profesionales relevantes del candidato en experienceAreas, usando tareas, responsabilidades, tecnologías, herramientas y resultados del CV; experienceArea debe ser el área principal por compatibilidad con el puesto. No dependas únicamente de títulos. Una especialización es compatible con su área general: "Desarrollo de software" es compatible con "Desarrollo de software backend", "Java backend" y "Desarrollo de APIs". Si el candidato trabajó en varias áreas, no lo descartes: seniorityMatchesRole=true si al menos una experiencia laboral relevante pertenece al roleArea o a una especialización compatible, aunque también tenga experiencia en otras áreas. Regla obligatoria de compatibilidad de una experiencia con el roleArea: decidila por el cargo y las tareas principales de esa experiencia, no por las tecnologías que comparte con el puesto. Es compatible si sus tareas principales son el mismo tipo de trabajo que el puesto o cubren una parte del puesto; por ejemplo, desarrollo frontend o desarrollo backend son compatibles con un puesto fullstack. Las tecnologías o habilidades que le falten al candidato no afectan esta decisión: se reflejan únicamente en skillAssessments. No es compatible si las tareas principales pertenecen a otra disciplina aunque use el mismo lenguaje o herramienta; por ejemplo, un analista de datos que usa Python para scripts y reportes no tiene experiencia en desarrollo backend, y un tester que escribe scripts de prueba no tiene experiencia como desarrollador. Aplicá esta regla de la misma forma en cada evaluación. Devolvé áreas breves y específicas. Para diagnosticar la decisión, devolvé seniorityAnalysis con relevantExperiences (lista de experiencias concretas consideradas compatibles), relevantYears (años sumados únicamente de esas experiencias), detectedLevel (nivel calculado con esos años), academicProjects (lista de proyectos académicos o personales relacionados con el área) y explanation (explicación breve de por qué el seniority coincide o no). Regla obligatoria según el nivel: si el seniority requerido es Trainee, los proyectos académicos o personales relacionados con el roleArea cuentan como experiencia válida y deben incluirse en relevantExperiences; podés usar su duración o evidencia concreta para validar Trainee. Si el seniority requerido es Junior, Semi Senior, Senior o Lead, calculá el nivel únicamente con tiempo de trabajo formal en experiencias laborales compatibles; no sumes proyectos académicos, personales, cursos ni educación para esos niveles, pero informá los proyectos relacionados en academicProjects y explicá que aportan contexto aunque no sumen años laborales. Usá estos rangos: Trainee hasta 1 año, Junior más de 1 y hasta 3 años, Semi Senior más de 3 y hasta 5 años, Senior más de 5 y hasta 8 años, Lead más de 8 años. Un nivel superior al requerido cumple; uno inferior no cumple. Antes de responder, verificá: (1) roleArea; (2) experienceAreas; (3) experiencias laborales compatibles; (4) proyectos académicos/personales compatibles; (5) fuente de experiencia permitida por el seniority requerido; (6) años relevantes; (7) nivel detectado; (8) seniorityMatchesRole. Si el nivel requerido es Trainee y existe un proyecto académico o personal relacionado con el roleArea, seniorityMatchesRole debe ser true. Para niveles superiores, solo devolvé true si el tiempo de trabajo formal compatible alcanza el nivel requerido. No devuelvas false por diferencias de granularidad entre un área general y una especialización. Si no se alcanza el nivel, explicalo en seniorityAnalysis.explanation. Habilidades: devolvé skillAssessments con exactamente un elemento por cada habilidad de jobRequirements.skills, en el mismo orden, con "skill" copiado textualmente del nombre de la habilidad del puesto. Marcá met=true solo si el CV muestra uso real de esa habilidad en experiencia laboral, proyectos o formación aplicada. Reconocé la habilidad aunque el CV use otro nombre, abreviatura, variante de escritura, idioma o versión del mismo elemento; por ejemplo C# y csharp, .NET y dotnet o ASP.NET Core, SQL Server y MSSQL o T-SQL, React JS y React, Node JS y Node.js, Inglés y English, Kubernetes y K8s. También cuenta cuando el CV menciona una herramienta que implica necesariamente la habilidad (por ejemplo Spring Boot implica Java, Django implica Python). Marcá met=false cuando la habilidad solo aparece como interés, objetivo o algo por aprender, o cuando el CV muestra una tecnología distinta aunque el nombre se parezca o sea de la misma categoría: Java no es JavaScript, SQL no es NoSQL, MySQL no es PostgreSQL, Vue no es React. No uses coincidencias de letras dentro de otras palabras o nombres propios. En "evidence" escribí una frase breve en español con la evidencia concreta del CV (o por qué no se acredita); si hay una tecnología relacionada pero distinta, mencionála ahí. El servidor calcula el puntaje sumando los pesos de las habilidades con met=true y el peso del seniority si seniorityMatchesRole es true; el veredicto es Apto si ese puntaje dividido el total es igual o mayor al ${requirements.acceptanceThreshold}%, y No Apto si es menor. Calculá el veredicto con esa regla; si es Apto, generá exactamente 3 preguntas relevantes en interviewQuestions; si es No Apto, interviewQuestions debe ser []. No inventes años, proyectos, responsabilidades ni tecnologías. Extraé candidateEmail y candidatePhone si están presentes; de lo contrario null. Respondé exclusivamente JSON válido con la interfaz CandidateEvaluation: {"candidateName": string, "candidateEmail": string | null, "candidatePhone": string | null, "experienceArea": string, "experienceAreas": string[], "roleArea": string, "seniorityMatchesRole": boolean, "seniorityAnalysis": {"relevantExperiences": string[], "relevantYears": number | null, "detectedLevel": string | null, "academicProjects": string[], "explanation": string}, "skillAssessments": [{"skill": string, "met": boolean, "evidence": string}], "verdict": "Apto" | "No Apto", "interviewQuestions": string[]}.`,
             },
             {
               role: 'user',
@@ -1113,22 +1186,31 @@ export const createApiRequestHandler = ({
           'Azure OpenAI devolvió un JSON inválido.',
         )
 
-        if (!isCandidateEvaluation(evaluation)) {
+        if (!isModelEvaluation(evaluation)) {
           throw new ApiError(502, 'La respuesta de evaluación tiene un formato inválido.')
         }
 
-        const scoredEvaluation = normalizeEvaluationScore(
-          evaluation,
+        const skillScore = scoreSkillAssessments(evaluation, requirements)
+        if (!skillScore) {
+          throw new ApiError(
+            502,
+            'Azure OpenAI no evaluó todas las habilidades del puesto. Intentá nuevamente.',
+          )
+        }
+        // Points, strengths and gaps always come from skillScore, never from
+        // values the model may have added on its own.
+        const scoredEvaluation = { ...evaluation, ...skillScore }
+        const calculatedVerdict = getVerdict(
+          scoredEvaluation.earnedPoints,
+          scoredEvaluation.totalPoints,
           requirements,
         )
-        const calculatedVerdict =
-          (scoredEvaluation.earnedPoints / scoredEvaluation.totalPoints) * 100 >=
-          requirements.acceptanceThreshold
-            ? 'Apto'
-            : 'No Apto'
 
         let interviewQuestions =
-          calculatedVerdict === 'Apto' ? evaluation.interviewQuestions : []
+          calculatedVerdict === 'Apto' &&
+          Array.isArray(evaluation.interviewQuestions)
+            ? evaluation.interviewQuestions.filter((question) => question.trim())
+            : []
 
         if (calculatedVerdict === 'Apto' && interviewQuestions.length !== 3) {
           interviewQuestions = await generateInterviewQuestions(

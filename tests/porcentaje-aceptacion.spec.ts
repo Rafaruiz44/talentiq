@@ -1,4 +1,4 @@
-import { expect, mockAuthenticatedSession, test } from './fixtures'
+import { expect, mockAuthenticatedSession, savedScoreFrom, test } from './fixtures'
 
 const positionWithThreshold = (acceptanceThreshold: number) => ({
   id: 'position-1',
@@ -205,6 +205,7 @@ test('al guardar la edición de un puesto re-analiza los candidatos ya evaluados
         applicationId: 'app-1',
         evaluationRunId: 'eval-run-2',
         reusedExisting: false,
+        ...savedScoreFrom(route.request().postData()),
       }),
     })
   })

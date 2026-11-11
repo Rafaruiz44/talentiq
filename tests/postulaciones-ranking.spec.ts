@@ -1,4 +1,4 @@
-import { expect, mockAuthenticatedSession, test } from './fixtures'
+import { expect, mockAuthenticatedSession, savedScoreFrom, test } from './fixtures'
 
 const position = {
   id: 'position-1',
@@ -107,6 +107,7 @@ test('analiza y guarda varios CVs de forma individual en una postulación', asyn
         applicationId: `application-${evaluationRunCalls}`,
         evaluationRunId: `run-${evaluationRunCalls}`,
         reusedExisting: false,
+        ...savedScoreFrom(route.request().postData()),
       }),
     })
   })
@@ -409,6 +410,7 @@ test('permite seleccionar y evaluar candidatos existentes de la base en una post
         applicationId: 'app-esteban-1',
         evaluationRunId: 'run-esteban-1',
         reusedExisting: false,
+        ...savedScoreFrom(route.request().postData()),
       }),
     })
   })
