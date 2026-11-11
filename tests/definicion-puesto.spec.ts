@@ -39,8 +39,9 @@ test('agrega una habilidad con su peso individual', async ({ page }) => {
   await page.getByRole('button', { name: '+ Agregar' }).click()
 
   await expect(page.getByRole('textbox', { name: 'Habilidad' })).toHaveValue('')
-  await expect(page.getByRole('listitem')).toContainText('SQL')
-  await expect(page.getByRole('listitem')).toContainText('8')
+  // The page also renders breadcrumb list items, so target the skill item.
+  await expect(page.getByRole('listitem').filter({ hasText: 'SQL' })).toBeVisible()
+  await expect(page.getByRole('slider', { name: 'Peso de SQL' })).toHaveValue('8')
 })
 
 test('permite modificar el peso de una habilidad ya agregada', async ({ page }) => {

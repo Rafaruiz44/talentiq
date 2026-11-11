@@ -90,7 +90,7 @@ test('muestra el porcentaje mínimo de aceptación en el detalle', async ({ page
   await expect(page.getByText('85%', { exact: true })).toBeVisible()
 })
 
-test('actualiza el veredicto en el ranking cuando el porcentaje de aceptación del puesto es menor', async ({
+test('muestra en el ranking el veredicto persistido, recalculado por la base al bajar el porcentaje de aceptación', async ({
   page,
 }) => {
   await mockAuthenticatedSession(page, [positionWithThreshold(60)])
@@ -98,6 +98,10 @@ test('actualiza el veredicto en el ranking cuando el porcentaje de aceptación d
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
+      // save_position recalculates the stored verdict when the threshold
+      // changes (migration 20261023202000), so with a 60 % threshold the
+      // persisted verdict of a 68 % run is already 'Apto'. The ranking shows
+      // the persisted verdict without recalculating it.
       body: JSON.stringify([
         {
           id: 'run-1',
@@ -106,7 +110,7 @@ test('actualiza el veredicto en el ranking cuando el porcentaje de aceptación d
           candidate_document_id: 'doc-1',
           earned_points: 68,
           total_points: 100,
-          verdict: 'No Apto',
+          verdict: 'Apto',
           strengths: ['Experiencia sólida'],
           gaps: [],
           interview_questions: [],
@@ -211,6 +215,9 @@ test('al guardar la edición de un puesto re-analiza los candidatos ya evaluados
   })
 
   await page.goto('/puestos/position-1/editar')
+  // Re-analysis only runs when the evaluation requirements change.
+  await page.getByRole('textbox', { name: 'Habilidad' }).fill('Docker')
+  await page.getByRole('button', { name: '+ Agregar' }).click()
   await page.getByRole('button', { name: 'Guardar cambios' }).click()
   await expect(page.getByTestId('position-notice')).toContainText('re-analizado')
   expect(reanalyzed).toBe(true)
