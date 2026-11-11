@@ -677,8 +677,10 @@ const scoreSkillAssessments = (evaluation, requirements) => {
   }
 }
 
+// Same rule as save_position in the database and as the percentage shown in
+// the UI: the percentage is rounded (half up) before comparing.
 const getVerdict = (earnedPoints, totalPoints, requirements) =>
-  (earnedPoints / totalPoints) * 100 >= requirements.acceptanceThreshold
+  Math.round((earnedPoints / totalPoints) * 100) >= requirements.acceptanceThreshold
     ? 'Apto'
     : 'No Apto'
 

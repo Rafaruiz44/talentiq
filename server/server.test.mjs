@@ -951,3 +951,24 @@ test('rejects a saved analysis without skill decisions whose total does not matc
   assert.equal(response.status, 400)
   assert.equal(evaluationWrites.length, previousWrites)
 })
+
+test('rounds the percentage before comparing it with the threshold', async () => {
+  // 16 / 23 = 69.57 %, shown as 70 %: apt with a 70 % threshold.
+  const { status, body } = await evaluateAs(
+    {
+      ...validRequest.requirements,
+      acceptanceThreshold: 70,
+      seniorityPoints: 10,
+      skills: [
+        { name: 'React', points: 6 },
+        { name: 'Python', points: 7 },
+      ],
+    },
+    'Candidate near the threshold with React',
+  )
+
+  assert.equal(status, 200)
+  assert.equal(body.earnedPoints, 16)
+  assert.equal(body.totalPoints, 23)
+  assert.equal(body.verdict, 'Apto')
+})
