@@ -6,7 +6,7 @@ Talentiq es una aplicación de apoyo a reclutadores. El alcance acordado para la
 
 - Registro e inicio de sesión de reclutadores mediante Google.
 - Un espacio privado por reclutador autenticado; no se comparten posiciones ni CVs entre cuentas en esta etapa.
-- Posiciones persistentes con estado propio: `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
+- Posiciones persistentes con estado propio: `Abierta` o `Cerrada` (migración `20261017001500_open_closed_position_status.sql`). Una posición cerrada bloquea la carga de CVs y la evaluación de candidatos.
 - Perfiles de candidatos y archivos CV persistidos; los archivos se almacenan en un bucket privado.
 - Carga masiva con progreso y errores independientes por CV.
 - Solicitudes persistentes por relación candidato–posición y reutilización del candidato en distintas posiciones abiertas.
