@@ -1,5 +1,16 @@
 import { supabaseClient } from './supabaseClient'
 
+export type ApplicationStage = 'Evaluado' | 'En entrevista' | 'Descartado'
+
+const applicationStages: ReadonlySet<string> = new Set([
+  'Evaluado',
+  'En entrevista',
+  'Descartado',
+])
+
+const isApplicationStage = (value: unknown): value is ApplicationStage =>
+  typeof value === 'string' && applicationStages.has(value)
+
 export interface RankedApplication {
   applicationId: string
   candidateId: string
@@ -15,6 +26,7 @@ export interface RankedApplication {
   gaps: string[]
   interviewQuestions: string[]
   evaluatedAt: string
+  stage: ApplicationStage | null
 }
 
 const asRecord = (value: unknown): Record<string, unknown> => {
@@ -67,7 +79,10 @@ const parseRankedApplication = (
     !row.strengths.every((item) => typeof item === 'string') ||
     !Array.isArray(row.gaps) ||
     !row.gaps.every((item) => typeof item === 'string') ||
-    typeof row.evaluated_at !== 'string'
+    typeof row.evaluated_at !== 'string' ||
+    (application.stage !== null &&
+      application.stage !== undefined &&
+      !isApplicationStage(application.stage))
   ) {
     throw new Error('Supabase devolvió una evaluación con formato inválido.')
   }
@@ -99,6 +114,7 @@ const parseRankedApplication = (
         ? parseInterviewQuestions(row.interview_questions, row.id)
         : [],
     evaluatedAt: row.evaluated_at,
+    stage: isApplicationStage(application.stage) ? application.stage : null,
   }
 }
 
@@ -113,7 +129,7 @@ export async function listRankedApplications(
   let { data, error } = await supabaseClient
     .from('evaluation_runs')
     .select(
-      'id, application_id, candidate_id, candidate_document_id, earned_points, total_points, verdict, strengths, gaps, evaluated_at, applications!inner(position_id, candidates!inner(full_name, email, phone)), candidate_documents!inner(original_file_name), interview_questions(evaluation_run_id, question)',
+      'id, application_id, candidate_id, candidate_document_id, earned_points, total_points, verdict, strengths, gaps, evaluated_at, applications!inner(position_id, stage, candidates!inner(full_name, email, phone)), candidate_documents!inner(original_file_name), interview_questions(evaluation_run_id, question)',
     )
     .eq('recruiter_id', recruiterId)
     .eq('status', 'completed')
@@ -124,7 +140,7 @@ export async function listRankedApplications(
     const fallback = await supabaseClient
       .from('evaluation_runs')
       .select(
-        'id, application_id, candidate_id, candidate_document_id, earned_points, total_points, verdict, strengths, gaps, evaluated_at, applications!inner(position_id, candidates!inner(full_name, email)), candidate_documents!inner(original_file_name), interview_questions(evaluation_run_id, question)',
+        'id, application_id, candidate_id, candidate_document_id, earned_points, total_points, verdict, strengths, gaps, evaluated_at, applications!inner(position_id, stage, candidates!inner(full_name, email)), candidate_documents!inner(original_file_name), interview_questions(evaluation_run_id, question)',
       )
       .eq('recruiter_id', recruiterId)
       .eq('status', 'completed')
@@ -159,4 +175,30 @@ export async function listRankedApplications(
     }
     return left.candidateName.localeCompare(right.candidateName, 'es-AR')
   })
+}
+
+// Changes the stage of one candidate-position application. RLS only allows
+// the owner recruiter to update it, so an empty result means it was not found.
+export async function setApplicationStage(
+  recruiterId: string,
+  applicationId: string,
+  stage: ApplicationStage,
+): Promise<void> {
+  if (!supabaseClient) {
+    throw new Error('Supabase no está configurado.')
+  }
+
+  const { data, error } = await supabaseClient
+    .from('applications')
+    .update({ stage, updated_at: new Date().toISOString() })
+    .eq('id', applicationId)
+    .eq('recruiter_id', recruiterId)
+    .select('id')
+
+  if (error) {
+    throw new Error(`No se pudo actualizar la postulación: ${error.message}`)
+  }
+  if (!Array.isArray(data) || data.length !== 1) {
+    throw new Error('La postulación no existe o no pertenece a esta cuenta.')
+  }
 }

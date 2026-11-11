@@ -2622,3 +2622,25 @@ main.dark-mode .compatibility-meets-threshold {
   border-color: rgba(34, 197, 94, 0.45);
   text-decoration: none;
 }
+
+/* Postulaciones descartadas: ocultas por defecto, atenuadas al mostrarlas */
+.discarded-toggle {
+  align-self: flex-start;
+  margin-bottom: 12px;
+}
+
+.stage-action-button {
+  min-height: 30px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+}
+
+.ranking-card-discarded,
+.application-evaluated-item-discarded {
+  opacity: 0.6;
+}
+
+.ranking-card-discarded:focus-within,
+.application-evaluated-item-discarded:focus-within {
+  opacity: 1;
+}

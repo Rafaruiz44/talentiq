@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import type { SavedPosition } from '../services/positions'
 import {
   listRankedApplications,
+  setApplicationStage,
+  type ApplicationStage,
   type RankedApplication,
 } from '../services/applicationRanking'
 
@@ -30,6 +32,42 @@ export function PositionRanking({
   const [results, setResults] = useState<RankedApplication[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showDiscarded, setShowDiscarded] = useState(false)
+  const [stageError, setStageError] = useState<string | null>(null)
+  const [updatingApplicationId, setUpdatingApplicationId] = useState<
+    string | null
+  >(null)
+
+  const discardedCount = results.filter(
+    (result) => result.stage === 'Descartado',
+  ).length
+  const visibleResults = showDiscarded
+    ? results
+    : results.filter((result) => result.stage !== 'Descartado')
+
+  const handleStageChange = async (
+    applicationId: string,
+    stage: ApplicationStage,
+  ) => {
+    setUpdatingApplicationId(applicationId)
+    setStageError(null)
+    try {
+      await setApplicationStage(recruiterId, applicationId, stage)
+      setResults((current) =>
+        current.map((result) =>
+          result.applicationId === applicationId ? { ...result, stage } : result,
+        ),
+      )
+    } catch (stageChangeError: unknown) {
+      setStageError(
+        stageChangeError instanceof Error
+          ? stageChangeError.message
+          : 'No se pudo actualizar la postulación.',
+      )
+    } finally {
+      setUpdatingApplicationId(null)
+    }
+  }
 
   useEffect(() => {
     if (!positionId) {
@@ -101,21 +139,42 @@ export function PositionRanking({
         </select>
       </label>
       {error && <p role="alert" data-testid="ranking-error">{error}</p>}
+      {stageError && (
+        <p role="alert" data-testid="ranking-stage-error">{stageError}</p>
+      )}
+      {!loading && discardedCount > 0 && (
+        <button
+          type="button"
+          className="secondary-button discarded-toggle"
+          onClick={() => setShowDiscarded((current) => !current)}
+          aria-pressed={showDiscarded}
+          data-testid="ranking-toggle-discarded"
+        >
+          {showDiscarded
+            ? 'Ocultar descartados'
+            : `Mostrar descartados (${discardedCount})`}
+        </button>
+      )}
       {loading ? (
         <p role="status">Cargando evaluaciones...</p>
       ) : positionId && !error && results.length === 0 ? (
         <p role="status" className="application-empty-state">
           Todavía no hay CVs evaluados para esta posición.
         </p>
-      ) : results.length > 0 ? (
+      ) : results.length > 0 && visibleResults.length === 0 ? (
+        <p role="status" className="application-empty-state">
+          Todos los candidatos de esta posición están descartados.
+        </p>
+      ) : visibleResults.length > 0 ? (
         <ol className="ranking-list" data-testid="ranking-list">
-          {results.map((result, index) => {
+          {visibleResults.map((result, index) => {
+            const isDiscarded = result.stage === 'Descartado'
             const percentage = Math.round(
               (result.earnedPoints / result.totalPoints) * 100,
             )
             return (
               <li
-                className="ranking-card"
+                className={`ranking-card${isDiscarded ? ' ranking-card-discarded' : ''}`}
                 key={result.applicationId}
                 data-testid="ranking-item"
               >
@@ -204,6 +263,23 @@ export function PositionRanking({
                   <span className={`status-badge ${result.verdict === 'Apto' ? 'status-abierta' : 'status-cancelada'}`}>
                     {result.verdict}
                   </span>
+                  {isDiscarded && (
+                    <span className="status-badge discarded-badge">Descartado</span>
+                  )}
+                  <button
+                    type="button"
+                    className="secondary-button stage-action-button"
+                    disabled={updatingApplicationId === result.applicationId}
+                    onClick={() =>
+                      void handleStageChange(
+                        result.applicationId,
+                        isDiscarded ? 'Evaluado' : 'Descartado',
+                      )
+                    }
+                    data-testid={`${isDiscarded ? 'restore' : 'discard'}-application-${result.applicationId}`}
+                  >
+                    {isDiscarded ? 'Restaurar' : 'Descartar'}
+                  </button>
                 </div>
               </li>
             )

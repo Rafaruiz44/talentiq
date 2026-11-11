@@ -23,6 +23,8 @@ import {
 import { saveEvaluationRun } from '../services/evaluations'
 import {
   listRankedApplications,
+  setApplicationStage,
+  type ApplicationStage,
   type RankedApplication,
 } from '../services/applicationRanking'
 import type { CandidateResume } from '../types'
@@ -100,6 +102,45 @@ export function ApplicationIntake({
     RankedApplication[]
   >([])
   const [loadingEvaluated, setLoadingEvaluated] = useState(false)
+  const [showDiscarded, setShowDiscarded] = useState(false)
+  const [stageError, setStageError] = useState<string | null>(null)
+  const [updatingApplicationId, setUpdatingApplicationId] = useState<
+    string | null
+  >(null)
+
+  const discardedCount = evaluatedApplications.filter(
+    (app) => app.stage === 'Descartado',
+  ).length
+  const visibleEvaluatedApplications = showDiscarded
+    ? evaluatedApplications
+    : evaluatedApplications.filter((app) => app.stage !== 'Descartado')
+
+  const handleStageChange = async (
+    applicationId: string,
+    stage: ApplicationStage,
+  ) => {
+    if (!session?.user?.id) {
+      return
+    }
+    setUpdatingApplicationId(applicationId)
+    setStageError(null)
+    try {
+      await setApplicationStage(session.user.id, applicationId, stage)
+      setEvaluatedApplications((current) =>
+        current.map((app) =>
+          app.applicationId === applicationId ? { ...app, stage } : app,
+        ),
+      )
+    } catch (stageChangeError: unknown) {
+      setStageError(
+        stageChangeError instanceof Error
+          ? stageChangeError.message
+          : 'No se pudo actualizar la postulación.',
+      )
+    } finally {
+      setUpdatingApplicationId(null)
+    }
+  }
 
   const selectedPosition = positions.find(
     (position) => position.id === positionId,
@@ -855,12 +896,30 @@ export function ApplicationIntake({
         >
           <div className="step-heading">
             <h3 id="evaluated-candidates-heading">
-              Candidatos ya evaluados para este puesto ({evaluatedApplications.length})
+              Candidatos ya evaluados para este puesto (
+              {evaluatedApplications.length - discardedCount})
             </h3>
             <p>
               Listado de todos los candidatos que ya cuentan con una evaluación registrada en este puesto.
             </p>
           </div>
+
+          {stageError && (
+            <p role="alert" data-testid="evaluated-stage-error">{stageError}</p>
+          )}
+          {!loadingEvaluated && discardedCount > 0 && (
+            <button
+              type="button"
+              className="secondary-button discarded-toggle"
+              onClick={() => setShowDiscarded((current) => !current)}
+              aria-pressed={showDiscarded}
+              data-testid="evaluated-toggle-discarded"
+            >
+              {showDiscarded
+                ? 'Ocultar descartados'
+                : `Mostrar descartados (${discardedCount})`}
+            </button>
+          )}
 
           {loadingEvaluated ? (
             <p role="status">Cargando candidatos evaluados...</p>
@@ -868,13 +927,18 @@ export function ApplicationIntake({
             <p className="empty-state-text" role="status" data-testid="no-evaluated-candidates">
               Aún no hay candidatos evaluados para este puesto.
             </p>
+          ) : visibleEvaluatedApplications.length === 0 ? (
+            <p className="empty-state-text" role="status">
+              Todos los candidatos evaluados de este puesto están descartados.
+            </p>
           ) : (
             <ul
               className="application-evaluated-list"
               aria-labelledby="evaluated-candidates-heading"
               data-testid="application-evaluated-list"
             >
-              {evaluatedApplications.map((app) => {
+              {visibleEvaluatedApplications.map((app) => {
+                const isDiscarded = app.stage === 'Descartado'
                 const threshold = selectedPosition?.requirements.acceptanceThreshold ?? 70
                 const percentage =
                   app.totalPoints > 0
@@ -884,7 +948,9 @@ export function ApplicationIntake({
                 return (
                   <li
                     key={app.applicationId}
-                    className="application-evaluated-item"
+                    className={`application-evaluated-item${
+                      isDiscarded ? ' application-evaluated-item-discarded' : ''
+                    }`}
                     data-testid={`evaluated-candidate-item-${app.applicationId}`}
                   >
                     <div className="application-evaluated-identity">
@@ -916,6 +982,25 @@ export function ApplicationIntake({
                       >
                         {app.verdict}
                       </span>
+                      {isDiscarded && (
+                        <span className="status-badge discarded-badge">Descartado</span>
+                      )}
+                      <button
+                        type="button"
+                        className="secondary-button stage-action-button"
+                        disabled={updatingApplicationId === app.applicationId}
+                        onClick={() =>
+                          void handleStageChange(
+                            app.applicationId,
+                            isDiscarded ? 'Evaluado' : 'Descartado',
+                          )
+                        }
+                        data-testid={`${
+                          isDiscarded ? 'restore' : 'discard'
+                        }-evaluated-${app.applicationId}`}
+                      >
+                        {isDiscarded ? 'Restaurar' : 'Descartar'}
+                      </button>
                     </div>
                   </li>
                 )
