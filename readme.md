@@ -19,7 +19,7 @@ Para consultar el estado de implementación revisado y las próximas tareas, ver
 - Ejecutar un análisis de compatibilidad y mostrar puntaje, veredicto `Apto` o `No Apto`, fortalezas y brechas.
 - Cambiar entre tema claro y oscuro; la preferencia se conserva en `sessionStorage`.
 
-El umbral actual de aprobación está fijado en 70 %. El resultado de la evaluación y las solicitudes candidato–puesto todavía no se persisten. Si Azure OpenAI no está configurado o falla, la aplicación informa el error y no devuelve una evaluación local de respaldo.
+Cada puesto define su porcentaje mínimo de aceptación (de 50 % a 100 %, 70 % por defecto). Las evaluaciones y las solicitudes candidato–puesto se persisten en Supabase. Si Azure OpenAI no está configurado o falla, la aplicación informa el error y no devuelve una evaluación local de respaldo.
 
 La interfaz autenticada usa un shell adaptable Modern SaaS minimalista y navegación cliente con History API, sin dependencia de routing adicional.
 
@@ -27,7 +27,7 @@ La interfaz autenticada usa un shell adaptable Modern SaaS minimalista y navegac
 
 - Registro e inicio de sesión de reclutadores con Google.
 - Banco privado de CVs y posiciones por reclutador; no se comparten datos entre cuentas en esta etapa.
-- Posiciones persistentes con estado `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
+- Posiciones persistentes con estado `Abierta` o `Cerrada`; una posición cerrada no admite carga ni evaluación de CVs.
 - Banco privado de candidatos: persistencia de datos y texto extraído, y almacenamiento del archivo original en un bucket privado.
 - Carga masiva de CVs con progreso y errores por archivo.
 - Solicitudes persistentes que asocian un candidato con una o varias posiciones abiertas.
@@ -66,7 +66,7 @@ npm run dev
 
 Vite mostrará la URL local, normalmente `http://localhost:5173`.
 
-Para habilitar el inicio de sesión, usá `.env.example` como referencia y agregá a `.env` `SUPABASE_URL` y `SUPABASE_ANON_KEY` con la URL del proyecto y su clave pública (publishable/anon). La clave anon es pública y se incluye en el cliente web. Permití `http://localhost:5173` en las URL de redirección de Supabase. No pongas claves `service_role`, secretos OAuth ni credenciales privadas en variables expuestas al frontend. Si faltan estos valores, la aplicación bloquea el acceso al espacio privado.
+Para habilitar el inicio de sesión, agregá a `.env` `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (las lee el frontend) y `SUPABASE_URL` y `SUPABASE_ANON_KEY` (las lee el backend), con la URL del proyecto y su clave pública (publishable/anon); ver el bloque de variables de la sección de Vercel. La clave anon es pública y se incluye en el cliente web. Solo las variables con prefijo `VITE_` llegan al navegador (`envPrefix` en `vite.config.ts`). Permití `http://localhost:5173` en las URL de redirección de Supabase. No pongas claves `service_role`, secretos OAuth ni credenciales privadas en variables expuestas al frontend. Si faltan estos valores, la aplicación bloquea el acceso al espacio privado.
 
 El guardado de candidatos requiere además `SUPABASE_SERVICE_ROLE_KEY` en el entorno local del backend. Es una credencial administrativa: mantenerla solo en `.env`/entorno del servidor, nunca en el frontend, en `VITE_*` ni en el repositorio.
 
@@ -109,7 +109,7 @@ Los pasos concretos están en [documentacion/configuracion-supabase-google-auth.
 2. Configurar Google OAuth con Client ID y Client Secret si aún no está habilitado.
 3. Permitir las origins del frontend (por ejemplo `http://localhost:5173`).
 4. Verificar las políticas RLS y el bucket privado creados por la migración ya aplicada.
-5. Mantener `SUPABASE_URL` y `SUPABASE_ANON_KEY` en `.env` únicamente.
+5. Mantener las variables de Supabase en `.env` o en las variables de entorno de Vercel, nunca en el repositorio.
 6. Nunca exponer `service_role` ni claves privadas en el bundle.
 
 El guardado de puestos requiere `supabase/migrations/20261003214000_save_position_rpc.sql`, ya aplicada por el usuario en el proyecto. La función inserta o actualiza el puesto y reemplaza sus habilidades dentro de una sola transacción, y valida que el puesto pertenezca al usuario autenticado.
@@ -118,7 +118,7 @@ El guardado del candidato y su CV requiere `supabase/migrations/20261004150000_s
 
 ## Configuración de IA
 
-Configurar `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_KEY`, `AZURE_OPENAI_DEPLOYMENT` y `AZURE_OPENAI_API_VERSION` para el proceso Node del backend, usando `.env.example` como referencia. Estas variables no deben tener el prefijo `VITE_`: Vite incorpora las variables `VITE_*` al cliente. El endpoint `/api/evaluate-candidate` valida el token de sesión con Supabase antes de llamar a Azure; la importación de ofertas también requiere autenticación.
+Configurar `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_KEY`, `AZURE_OPENAI_DEPLOYMENT` y `AZURE_OPENAI_API_VERSION` para el proceso Node del backend, en `.env`. Estas variables no deben tener el prefijo `VITE_`: Vite incorpora las variables `VITE_*` al cliente. El endpoint `/api/evaluate-candidate` valida el token de sesión con Supabase antes de llamar a Azure; la importación de ofertas también requiere autenticación.
 
 Si una clave de Azure se configuró anteriormente como `VITE_AZURE_OPENAI_KEY` o se usó en una compilación accesible, revocarla y crear una nueva antes de volver a habilitar el servicio. No se debe considerar privada una clave que ya pudo estar incluida en un bundle.
 

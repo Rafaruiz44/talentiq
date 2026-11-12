@@ -13,7 +13,7 @@ La evaluación de IA es una herramienta de apoyo. La decisión de selección cor
 - Cada reclutador debe tener una cuenta y podrá registrarse/iniciar sesión con Google, si la integración elegida lo permite.
 - En esta etapa, cada reclutador es propietario de su espacio privado, sus posiciones y su banco de candidatos.
 - No se incluyen empresas, invitaciones ni colaboración/compartición de datos entre reclutadores en esta entrega.
-- Las posiciones tienen estado propio: `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
+- Las posiciones tienen estado propio: `Abierta` o `Cerrada`. Una posición cerrada no admite carga ni evaluación de CVs.
 - La etapa del candidato se mantiene por cada relación candidato–posición: `Evaluado`, `En entrevista` o `Descartado`.
 - Los CVs se almacenan en un bucket privado. La base de datos conserva sus metadatos, el texto extraído y la referencia al archivo.
 - El reclutador puede asociar un candidato de su banco a varias posiciones abiertas; cada solicitud/postulación corresponde a una relación candidato–posición.
@@ -55,7 +55,7 @@ Como diseño inicial se propone Supabase para PostgreSQL, autenticación con Goo
 | Tabla | Campos principales propuestos | Relación y restricciones |
 |---|---|---|
 | `profiles` | `user_id`, nombre visible, correo | `user_id` referencia al usuario autenticado de Supabase. |
-| `positions` | `id`, `recruiter_id`, título, seniority, puntos, estado, fechas | Pertenece al reclutador autenticado; estado limitado a `Nueva`, `Abierta`, `Cubierta` o `Cancelada`. |
+| `positions` | `id`, `recruiter_id`, título, seniority, puntos, estado, fechas | Pertenece al reclutador autenticado; estado limitado a `Abierta` o `Cerrada`. |
 | `position_skills` | `position_id`, nombre de habilidad, peso | Una habilidad por posición; peso entre 1 y 10. |
 | `candidates` | `id`, `recruiter_id`, nombre, correo opcional, datos normalizados permitidos, fechas | Pertenece al banco privado de un reclutador. Los atributos exactos y la política de duplicados quedan pendientes. |
 | `candidate_documents` | `id`, `recruiter_id`, `candidate_id`, nombre original, tipo MIME, tamaño, ruta privada, texto extraído, estado de procesamiento, fechas | El binario se guarda en Storage; la base guarda metadatos, texto y ruta. El estado permite informar carga/procesamiento individual. |
@@ -138,11 +138,11 @@ Este primer flujo valida autenticación y aislamiento por reclutador antes de ca
 
 - **Escenario: Actualizar estado**
   - **Dado** que tengo acceso a una posición
-  - **Cuando** cambio su estado a `Abierta`, `Cubierta` o `Cancelada`
+  - **Cuando** la cierro o la vuelvo a abrir
   - **Entonces** se guarda el nuevo estado de la posición.
 - **Escenario: Mostrar estados permitidos**
   - **Dado** que consulto una posición
-  - **Entonces** su estado se representa con uno de los valores `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
+  - **Entonces** su estado se representa con uno de los valores `Abierta` o `Cerrada`.
 - **Escenario: No modificar etapas de candidatos**
   - **Dado** que una posición tiene candidatos en distintas etapas
   - **Cuando** cambio el estado de la posición

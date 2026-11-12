@@ -50,7 +50,7 @@ Los puestos y sus requisitos se guardan en Supabase. El CV y el resultado de la 
 ## Alcance acordado para la entrega final
 
 - Registro e inicio de sesión de reclutadores con Google, mediante un proveedor de autenticación que debe seleccionarse.
-- Posiciones persistentes propiedad del reclutador, con requisitos, ponderaciones y estado propio: `Nueva`, `Abierta`, `Cubierta` o `Cancelada`.
+- Posiciones persistentes propiedad del reclutador, con requisitos, ponderaciones y estado propio: `Abierta` o `Cerrada`.
 - Banco de CVs privado por reclutador, con perfiles persistentes, metadatos, texto extraído y referencia al archivo.
 - Almacenamiento de archivos en un bucket privado.
 - Carga de múltiples CVs con progreso y errores informados por candidato/archivo, sin que un error individual interrumpa el resto del lote.
