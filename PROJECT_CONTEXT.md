@@ -1,64 +1,59 @@
-# Talentiq — Contexto del proyecto
+# Talentiq: contexto del proyecto
 
-## 1. Objetivo de la entrega final
+## 1. Objetivo
 
-Talentiq es una aplicación de apoyo para reclutadores. La entrega final amplía el MVP para que cada reclutador autenticado tenga posiciones persistentes, un banco privado reutilizable de CVs, solicitudes candidato–posición, historial de evaluaciones, seguimiento de etapas y preparación de entrevistas.
+Talentiq es una aplicación de apoyo para reclutadores. Cada reclutador autenticado tiene posiciones persistentes, un banco privado reutilizable de CVs, solicitudes candidato–posición evaluadas con IA, un ranking por posición, preguntas de entrevista para los candidatos aptos y la posibilidad de descartar candidatos.
 
 La evaluación asistida por IA apoya el análisis; no sustituye la decisión del equipo reclutador.
 
-## 2. Alcance acordado para la entrega
+La entrega final está desplegada en Vercel: [https://talentiq-pi.vercel.app/](https://talentiq-pi.vercel.app/).
 
-- Los reclutadores deben registrarse e iniciar sesión con Google mediante Supabase Auth.
-- En esta primera etapa cada reclutador es dueño de sus posiciones, solicitudes, candidatos y banco privado; no hay empresas, invitaciones ni colaboración entre cuentas.
-- Las posiciones se persisten con requisitos, ponderaciones y estado independiente: `Abierta` o `Cerrada`. Una posición cerrada conserva su información e historial, pero no admite nuevas cargas ni evaluaciones hasta volver a abrirse.
+## 2. Alcance de la entrega final
+
+El alcance está implementado y verificado con Supabase y Azure OpenAI reales, salvo los pendientes de la sección 6.
+
+- Los reclutadores inician sesión con Google mediante Supabase Auth.
+- Cada reclutador es dueño de sus posiciones, solicitudes, candidatos y banco privado; no hay empresas, invitaciones ni colaboración entre cuentas.
+- Las posiciones se persisten con requisitos, ponderaciones, porcentaje mínimo de aceptación y estado independiente: `Abierta` o `Cerrada`. Una posición cerrada conserva su información, pero no admite nuevas cargas ni evaluaciones hasta volver a abrirse.
 - Los candidatos y los metadatos, texto extraído y referencia al archivo de CV se persisten; los documentos se guardan en un bucket privado y cada reclutador solo accede a los suyos.
-- Se pueden cargar varios CVs, procesándolos individualmente y mostrando progreso y errores por archivo.
-- Un reclutador puede asociar un candidato de su banco a varias posiciones abiertas. Cada solicitud corresponde a una pareja candidato–posición.
-- La etapa pertenece a la solicitud candidato–posición y usa `Evaluado`, `En entrevista` o `Descartado`; no es el estado de la posición.
-- Cada análisis con CV, puesto, requisitos o versión del evaluador distintos se conserva como una ejecución histórica. Si todas esas entradas coinciden con una ejecución guardada, se reutiliza el resultado sin agregar una fila idéntica.
-- Se generan preguntas de entrevista utilizando los requisitos de la posición y las fortalezas o brechas del candidato en ese cruce.
-- Las llamadas principales a Azure OpenAI deben ejecutarse desde el backend; las credenciales no deben exponerse en el frontend.
-- El despliegue accesible es un objetivo de entrega y requiere verificar un flujo funcional integrado.
+- Se pueden cargar varios CVs a la vez; cada uno se procesa individualmente y muestra su progreso y sus errores.
+- Un reclutador puede evaluar un candidato de su banco en varias posiciones. Cada solicitud corresponde a una pareja candidato–posición.
+- La etapa pertenece a la solicitud candidato–posición (`Evaluado`, `En entrevista` o `Descartado`); no es el estado de la posición.
+- Cada solicitud conserva su evaluación vigente. Si el CV, el puesto, los requisitos y la versión del evaluador coinciden con la evaluación guardada, se reutiliza sin llamar a Azure; si alguno cambió, se reemplaza.
+- Se generan preguntas de entrevista con los requisitos de la posición y las fortalezas o brechas del candidato en ese cruce.
+- Las llamadas a Azure OpenAI se ejecutan desde el backend; las credenciales no se exponen en el frontend.
 
-El alcance y las historias propuestas están en [documentacion/alcance-entrega-final-y-historias.md](documentacion/alcance-entrega-final-y-historias.md).
+El alcance y las historias de usuario están en [documentacion/alcance-entrega-final-y-historias.md](documentacion/alcance-entrega-final-y-historias.md).
 
-## 3. Estado actual implementado (no confundir con el alcance acordado)
+## 3. Implementación
 
-- Stack en el repositorio: Vite, React 19 y TypeScript.
-- `src/App.tsx` administra la sesión, navegación y puestos guardados; la carga y evaluación de CVs se realiza en Postulaciones y se persiste en el historial.
-- La interfaz autenticada usa un shell Modern SaaS adaptable y separa los flujos en `/puestos` (listado), `/puestos/nuevo` (creación), `/puestos/:id` (detalle y enlace a postulaciones), `/puestos/:id/editar` (edición), `/postulaciones` (carga múltiple, análisis y persistencia de CVs) y `/ranking` (evaluaciones recientes ordenadas por compatibilidad para una posición). La navegación usa History API, sin agregar una dependencia de routing.
-- `src/services/positions.ts` consulta los puestos del reclutador autenticado y persiste cada puesto y sus habilidades con la función transaccional `save_position`.
-- `src/components/PositionList.tsx` presenta los puestos del reclutador y permite abrir su detalle o crear uno nuevo.
-- `src/components/JobRequirementsForm.tsx` permite definir o editar el rol, habilidades ponderadas, seniority y el porcentaje mínimo de aceptación entre 50 % y 100 % en incrementos de 5. El detalle del puesto también muestra el umbral guardado.
-- `/puestos/:id` es una vista de consulta del puesto con un acceso que abre `/postulaciones?positionId=:id`; ya no tiene carga ni análisis de CV individual.
-- `src/components/ApplicationIntake.tsx` es el único punto de carga: acepta varios PDF de hasta 5 MB, los procesa secuencialmente, extrae el texto en el navegador con PDF.js y muestra progreso/error por archivo. En esa pantalla, el reclutador puede abrir o cerrar la posición seleccionada; una posición cerrada bloquea tanto nuevas cargas como evaluaciones de candidatos guardados. Un análisis exitoso reutiliza o guarda el candidato y el documento y persiste la evaluación en la solicitud correspondiente. `src/services/extractPdfText.ts` centraliza la extracción.
-- Desde el banco, un reclutador puede elegir una posición y volver a evaluar directamente el CV guardado; no necesita descargarlo ni cargarlo otra vez.
-- `src/components/PositionRanking.tsx` permite elegir una posición y muestra el último resultado completado de cada solicitud. `src/services/applicationRanking.ts` consulta la tabla privada `evaluation_runs`, filtra por posición y reclutador, y ordena por proporción de puntos obtenidos. Estas nuevas vistas tienen E2E con Supabase/API simulados; falta su verificación contra servicios reales.
-- `src/services/inferCandidateEvaluation.ts` envía requisitos, texto del CV y el puesto a `POST /api/evaluate-candidate` con el token de sesión; valida y normaliza la respuesta en el cliente.
-- `server/server.mjs` valida los tokens mediante Supabase antes de las rutas privadas, mantiene las credenciales Azure en variables server-side `AZURE_OPENAI_*`, consulta el historial antes de invocar Azure y persiste evaluaciones nuevas mediante RPCs de servicio.
-- La persistencia de candidato/documento usa funciones transaccionales definidas en `supabase/migrations/20261004150000_save_candidate_document_rpc.sql` y `supabase/migrations/20261004170000_deduplicate_candidate_documents.sql`; el bucket tiene una política para que el reclutador pueda limpiar una carga fallida.
-- La consulta y escritura idempotente de evaluaciones usa `supabase/migrations/20261004180000_reuse_unchanged_evaluations.sql`. La migración `20261004190000_reuse_legacy_unchanged_evaluations.sql` extiende la búsqueda a evaluaciones antiguas sin huella, solo si el CV coincide exactamente y la posición no se modificó desde esa evaluación.
-- En desarrollo, `npm run dev:api` inicia el backend y Vite reenvía `/api` al puerto 3001. Las rutas backend tienen pruebas Node en `server/server.test.mjs`.
-- `api/[...route].mjs` expone en Vercel el mismo handler Node usado localmente para las rutas `/api/*`; `api/candidates.mjs` y `api/candidates/lookup.mjs` exponen además esas dos rutas de candidatos explícitamente. El handler normaliza rutas con o sin prefijo `/api`. El usuario confirmó que `/api/evaluate-candidate` responde `200`, pero `/api/candidates/lookup` devolvió `404 NOT_FOUND` de Vercel; la corrección requiere un nuevo deployment y validación real. Las variables server-side de Supabase y Azure OpenAI no deben usar prefijos `VITE_`.
-- El usuario confirmó que aplicó las migraciones `supabase/migrations/20261002203000_initial_private_recruiter_schema.sql` y `supabase/migrations/20261003214000_save_position_rpc.sql` en su proyecto Supabase; tras aplicar la segunda, confirmó que el puesto apareció correctamente.
-- El usuario confirmó que Google está habilitado y que el inicio de sesión OAuth termina con la sesión activa en Talentiq. Al cerrar sesión vuelve a la pantalla de acceso; al iniciar otra vez, Google reutiliza la sesión del navegador y no solicita la contraseña. Se conserva este comportamiento SSO.
-- El usuario compartió la consulta de `pg_policies`: `positions` y `position_skills` tienen políticas `SELECT`, `INSERT` y `UPDATE` con `recruiter_id = auth.uid()` para `authenticated`. Storage muestra las tres políticas previstas para `candidate-cvs`; no se ha inspeccionado el predicado completo de cada política de Storage.
-- El usuario confirmó la ejecución satisfactoria de guardado de un puesto con la migración `save_position` aplicada.
-- Las pruebas Playwright cubren autenticación y la interfaz de gestión de puestos con respuestas de Supabase simuladas; el usuario confirmó además que un puesto guardado apareció correctamente en el proyecto real.
-- El usuario informó que la interfaz está publicada en Vercel. La recarga de rutas SPA se configura en `vercel.json`; la integración del backend serverless con ese deployment y la persistencia de CVs en el proyecto Supabase nuevo siguen pendientes de validación real.
+- Stack: Vite, React 19 y TypeScript en modo estricto. Hosting en Vercel para el frontend y la API.
+- `src/App.tsx` administra la sesión, la navegación y los puestos guardados, y dispara el re-análisis de candidatos al editar un puesto. La interfaz separa los flujos en `/puestos` (listado), `/puestos/nuevo` (creación), `/puestos/:id` (detalle y acceso a Postulaciones), `/puestos/:id/editar` (edición), `/candidatos` (banco), `/postulaciones` (carga y evaluación) y `/ranking`. La navegación usa History API, sin dependencia de routing.
+- `src/services/positions.ts` consulta los puestos del reclutador y persiste cada puesto y sus habilidades con la función transaccional `save_position`. También define qué posiciones aparecen en los selectores (las cerradas solo si se pide incluirlas).
+- `src/components/PositionList.tsx` lista los puestos y permite ver su detalle, crear uno nuevo y abrirlo o cerrarlo.
+- `src/components/JobRequirementsForm.tsx` define o edita el nombre, las habilidades ponderadas, el seniority y el porcentaje mínimo de aceptación entre 50 % y 100 % en incrementos de 5.
+- `src/components/ApplicationIntake.tsx` es el punto de carga: acepta varios PDF de hasta 5 MB, los procesa secuencialmente, extrae el texto con PDF.js (`src/services/extractPdfText.ts`) y muestra progreso y errores por archivo. También evalúa candidatos guardados del banco y lista los ya evaluados para el puesto, con la opción de descartarlos. Una posición cerrada bloquea las cargas y las evaluaciones.
+- `src/components/CandidateBank.tsx` muestra el banco privado con búsqueda y permite evaluar un CV guardado en otro puesto sin volver a subirlo.
+- `src/components/PositionRanking.tsx` muestra la evaluación vigente de cada solicitud de un puesto, ordenada por compatibilidad, con fortalezas, brechas, preguntas de entrevista y descarte. `src/services/applicationRanking.ts` consulta `evaluation_runs` filtrando por puesto y reclutador, y actualiza la etapa de las solicitudes.
+- `src/services/inferCandidateEvaluation.ts` envía requisitos, texto del CV y puesto a `POST /api/evaluate-candidate` con el token de sesión, y valida la respuesta. No recalcula el puntaje.
+- `server/server.mjs` valida los tokens con Supabase antes de las rutas privadas, consulta el historial antes de invocar Azure, contiene el prompt de evaluación (versión `candidate-evaluation-v21`), calcula el puntaje con las decisiones por habilidad de la IA y persiste candidatos y evaluaciones mediante funciones de la base restringidas al servidor. Las credenciales de Azure están en variables server-side `AZURE_OPENAI_*`.
+- `api/[...route].mjs` expone en Vercel el mismo handler Node usado localmente; `api/candidates.mjs` y `api/candidates/lookup.mjs` exponen las rutas de candidatos. En desarrollo, `npm run dev:api` inicia el backend y Vite reenvía `/api` al puerto 3001.
+- `supabase/migrations/` contiene el esquema, las políticas RLS, el bucket privado `candidate-cvs` y las funciones de la base: guardado de puestos, guardado y detección de CVs idénticos, búsqueda y guardado de evaluaciones, preguntas de entrevista, umbral configurable y una única evaluación vigente por solicitud.
+- Al navegador solo llegan las variables `VITE_*` (`envPrefix` en `vite.config.ts`); las variables de Supabase y Azure del servidor no usan ese prefijo.
+- Las pruebas del backend están en `server/server.test.mjs` y las end-to-end en `tests/`; ambas usan servicios simulados. La validación con servicios reales está en [documentacion/pruebas-y-resultados.md](documentacion/pruebas-y-resultados.md).
 
-Por tanto, el login/logout de Google y el guardado de puestos se probaron con Supabase en una configuración anterior; el usuario configuró un proyecto Supabase nuevo y ajustó las variables del cliente local y de Vercel, pero falta confirmar que el deployment apunte a ese proyecto. `SUPABASE_SERVICE_ROLE_KEY` está configurada localmente; también se deben configurar las variables server-side en Vercel para habilitar evaluación y persistencia de CVs en producción. La persistencia de CVs, la carga masiva, el ranking y la integración desplegada no se deben considerar verificadas contra el proyecto nuevo hasta probarlas allí.
+El estado de cada funcionalidad y los pendientes se mantienen en [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md).
 
-## 4. Modelo funcional de referencia
+## 4. Modelo funcional
 
 - **Reclutador:** persona autenticada mediante Google.
-- **Posición:** pertenece a un reclutador y conserva requisitos, ponderaciones y estado.
-- **Candidato y documento:** pertenecen al banco privado del reclutador; el documento conserva metadatos, texto extraído y referencia al archivo.
+- **Posición:** pertenece a un reclutador y conserva requisitos, ponderaciones, umbral de aceptación y estado.
+- **Candidato y documento:** pertenecen al banco privado del reclutador; el documento conserva metadatos, texto extraído, huella del contenido y referencia al archivo.
 - **Solicitud candidato–posición:** pertenece al reclutador y vincula un candidato con una posición; conserva la etapa independiente de ese proceso.
-- **Ejecución de evaluación:** resultado histórico vinculado a una solicitud.
+- **Ejecución de evaluación:** evaluación vigente de una solicitud.
 - **Preguntas de entrevista:** asociadas a una ejecución de evaluación concreta.
 
-Un candidato puede estar en varias posiciones y tener distintas solicitudes, resultados y etapas. El estado de la posición no modifica automáticamente las etapas de sus solicitudes. Los datos de una cuenta no se comparten con otros reclutadores en esta primera etapa.
+Un candidato puede estar en varias posiciones y tener distintas solicitudes, resultados y etapas. El estado de la posición no modifica las etapas de sus solicitudes. Los datos de una cuenta no se comparten con otros reclutadores.
 
 ## 5. Reglas y criterios técnicos del proyecto
 
@@ -69,23 +64,28 @@ Un candidato puede estar en varias posiciones y tener distintas solicitudes, res
 - No confiar en ocultar información en la interfaz como mecanismo de aislamiento entre reclutadores.
 - Mantener claves y credenciales de servicios solo en el backend; no añadir secretos al bundle frontend ni a variables `VITE_*`.
 - Los fallos de persistencia, almacenamiento y servicios de IA deben comunicarse explícitamente; no deben producir resultados con apariencia de éxito.
-- Mantener o ampliar las pruebas E2E y agregar cobertura para aislamiento por reclutador, persistencia, estados, historial de evaluaciones, procesamiento masivo y fallos parciales.
+- Mantener o ampliar las pruebas del backend y E2E al cambiar una funcionalidad.
 
-## 6. Decisiones pendientes
+## 6. Pendientes y decisiones sin definir
 
-Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. Google OAuth y las políticas RLS de las tablas de posiciones se comprobaron con el usuario, quien también validó un guardado real de puesto. También quedan por definir el hosting, la detección de candidatos duplicados, los límites y formatos de CV, y las reglas de consentimiento, retención y eliminación de datos personales. La colaboración mediante espacios compartidos por empresas queda para una posible etapa posterior.
+Pendientes:
 
-No asumir decisiones sobre estas cuestiones sin confirmarlas.
+- Asignar la etapa `En entrevista` desde la interfaz.
+- Detectar a la misma persona cuando sube un CV actualizado; hoy solo se reconoce un CV con texto idéntico.
+- Eliminar candidatos y documentos desde la aplicación.
+- Historial completo de evaluaciones por solicitud y una vista para consultarlo; hoy se conserva solo la evaluación vigente.
+- Conectar la importación de requisitos desde ofertas de LinkedIn o Computrabajo al formulario de puestos.
+
+Sin definir: consentimiento, retención y eliminación de datos personales, y la colaboración mediante espacios compartidos por empresas. No asumir decisiones sobre estas cuestiones sin confirmarlas.
 
 ## 7. Guía de navegación
 
-- Flujo actual: `src/App.tsx`.
-- Contratos actuales: `src/types.ts`.
+- Sesión, navegación y edición de puestos: `src/App.tsx`.
+- Contratos: `src/types.ts`.
 - Requisitos de posición: `src/components/JobRequirementsForm.tsx`.
-- Carga y extracción de CV: `src/components/CvUpload.tsx`.
-- Evaluación actual: `src/services/inferCandidateEvaluation.ts`.
-- API de evaluación e importación: `server/server.mjs`.
-- Pruebas actuales: `tests/`.
-- Alcance y backlog propuestos: `documentacion/alcance-entrega-final-y-historias.md`.
-
-Este archivo describe tanto el alcance acordado como las diferencias con la implementación presente. Actualizar la sección de estado actual cuando las capacidades pendientes se incorporen realmente.
+- Carga de CVs y evaluación: `src/components/ApplicationIntake.tsx` y `src/services/extractPdfText.ts`.
+- Banco de candidatos: `src/components/CandidateBank.tsx`.
+- Ranking y descarte: `src/components/PositionRanking.tsx` y `src/services/applicationRanking.ts`.
+- API, prompt y cálculo del puntaje: `server/server.mjs`.
+- Pruebas: `server/server.test.mjs` y `tests/`.
+- Alcance e historias: `documentacion/alcance-entrega-final-y-historias.md`.

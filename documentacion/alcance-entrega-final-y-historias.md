@@ -1,7 +1,6 @@
 # Talentiq: alcance propuesto para la entrega final
 
-Este documento registra la ampliación del alcance acordada para la entrega final. Reemplaza, para la planificación de esta entrega, las restricciones del MVP que excluían autenticación, persistencia y procesamiento masivo. No implica que estas capacidades ya estén implementadas.
-
+Este documento registra la ampliación del alcance acordada para la entrega final. Reemplaza, para la planificación de esta entrega, las restricciones del MVP que excluían autenticación, persistencia y procesamiento masivo.
 ## Objetivo
 
 Ofrecer a cada reclutador autenticado un espacio privado para administrar sus posiciones, mantener un banco reutilizable de CVs, registrar solicitudes candidato–posición, seguir cada proceso y preparar entrevistas.

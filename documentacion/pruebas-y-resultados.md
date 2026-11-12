@@ -1,87 +1,29 @@
 # Pruebas y resultados
 
-**Trabajo práctico:** Inteligencia Artificial Aplicada  
-**Entrega:** MVP  
-**Grupo:** 2  
-**Institución:** Universidad Nacional de La Matanza  
-**Carrera y período:** Ingeniería en Informática, 2026, segundo cuatrimestre  
-**Fecha de ejecución:** 25 de septiembre de 2026
+**Trabajo práctico:** Inteligencia Artificial Aplicada
+**Entrega:** Final
+**Grupo:** 2
+**Institución:** Universidad Nacional de La Matanza
+**Carrera y período:** Ingeniería en Informática, 2026, segundo cuatrimestre
+**Demo pública:** [https://talentiq-pi.vercel.app/](https://talentiq-pi.vercel.app/)
 
-## Resumen ejecutivo
-
-Se ejecutaron lint, build y las pruebas end-to-end. Las tres validaciones finalizaron con código de salida 0. La suite Playwright ejecutó siete pruebas y las siete pasaron. En una primera ejecución se encontraron desalineaciones entre los tests y la interfaz actual; se corrigieron las pruebas para reflejar los controles y el comportamiento observados.
+## Resumen: validación del 12 de noviembre de 2026
 
 | Validación | Comando | Resultado |
 |---|---|---|
-| Lint | `npm run lint` | Aprobado, código de salida 0 |
-| Compilación TypeScript y Vite | `npm run build` | Aprobada, código de salida 0; Vite emitió una advertencia de tamaño de bundle |
-| Pruebas E2E | `npx playwright test --reporter=list` | 7 ejecutadas y aprobadas; código de salida 0 |
+| Lint | `npm run lint` | Aprobado |
+| Compilación TypeScript y Vite | `npm run build` | Aprobada |
+| Pruebas del backend | `npm run test:server` | 29 de 29 aprobadas |
+| Pruebas end-to-end | `npx playwright test` | 30 de 30 aprobadas |
 
-## Entorno
+Además de las pruebas automatizadas, el flujo completo se verificó en el despliegue de Vercel con Supabase y Azure OpenAI reales: inicio de sesión, puestos, carga masiva de CVs, banco de candidatos, evaluación, ranking, preguntas de entrevista y descarte de candidatos.
 
-- Sistema operativo: Windows.
-- Node.js: v24.19.0.
-- npm: 11.17.0.
-- Navegador del proyecto Playwright: Chromium.
-- Ejecución local; Talentiq todavía no tiene una demo desplegada.
+### Qué cubre cada tipo de prueba
 
-## Alcance de las pruebas existentes
+- **Backend (`server/server.test.mjs`):** autenticación obligatoria en las rutas privadas, aislamiento por reclutador al guardar CVs, cálculo del puntaje a partir de las decisiones por habilidad, redondeo del porcentaje, error explícito si la IA omite una habilidad, reutilización de evaluaciones sin llamar a Azure y persistencia de evaluaciones. Usa Supabase y Azure simulados.
+- **End-to-end (`tests/`):** autenticación, creación y edición de puestos, porcentaje de aceptación, estado abierto o cerrado, carga masiva con errores independientes, banco de candidatos, ranking, re-análisis al editar un puesto, descarte y restauración de candidatos, y ocultamiento de puestos cerrados en los selectores. Usa Supabase y la API simulados.
+- **Con servicios reales:** la evaluación con Azure OpenAI real y la prueba manual en la aplicación se detallan en la sección siguiente; la verificación del despliegue la realizó el equipo en la demo pública.
 
-Los archivos de Playwright cubren la definición de requisitos del puesto, la ponderación de habilidades, la carga de un PDF, el resultado de un análisis y el cambio de tema.
-
-### Casos aprobados
-
-| Caso | Resultado |
-|---|---|
-| Mantener deshabilitado el análisis hasta completar los datos requeridos | Aprobado |
-| Agregar una habilidad con su peso individual | Aprobado |
-| Modificar el peso de una habilidad existente | Aprobado |
-| Seleccionar un archivo PDF desde la zona de carga | Aprobado |
-| Calcular y mostrar la compatibilidad y el veredicto | Aprobado |
-| Mostrar el desglose de fortalezas y brechas | Aprobado |
-| Cambiar entre tema claro y oscuro y conservar la preferencia durante la sesión | Aprobado |
-
-Los dos casos de análisis cargan un PDF válido de prueba. La respuesta de Azure OpenAI se intercepta con una respuesta determinista para que las pruebas no dependan de credenciales, red o variabilidad del modelo.
-
-### Hallazgos de la primera ejecución y resolución
-
-| Hallazgo inicial | Resolución |
-|---|---|---|
-| Dos pruebas buscaban un campo accesible llamado `Rol`, que ya no existe en la interfaz. | Se actualizaron para completar el puesto, agregar habilidades individualmente y seleccionar el seniority mediante los controles actuales. |
-| Una prueba intentaba pulsar `Procesar análisis` vacío, aunque la interfaz lo mantiene deshabilitado. | Se cambió el criterio para verificar que el botón siga deshabilitado mientras falten datos requeridos. |
-
-## Detalle de ejecución
-
-### Lint
-
-Se ejecutó `npm run lint`. Oxlint terminó sin reportar errores y devolvió código de salida 0.
-
-### Build
-
-Se ejecutó `npm run build`, que invoca `tsc -b` y luego `vite build`. Ambos pasos finalizaron correctamente con código de salida 0.
-
-Vite mostró una advertencia: hay chunks superiores a 500 kB después de minificar. En esta ejecución, el bundle JavaScript principal fue de aproximadamente 669 kB y el worker PDF de aproximadamente 1.265 kB. Es una advertencia de tamaño, no un fallo de compilación.
-
-### Playwright
-
-Se ejecutó `npx playwright test --reporter=list`. Playwright lanzó siete casos en Chromium usando dos workers. El resultado final fue siete aprobados en aproximadamente 5,6 segundos. Las pruebas de análisis usan un PDF válido generado en memoria y simulan la respuesta de Azure OpenAI cuando la aplicación intenta realizar una llamada externa.
-
-## Cobertura no verificada
-
-- La integración real con Azure OpenAI no se comprobó en esta ejecución: las llamadas de los E2E se simulan. No se inspeccionaron credenciales ni valores de `.env`.
-- No se probaron despliegue, rendimiento con grandes volúmenes, seguridad de producción ni compatibilidad con proveedores de Azure.
-- No se verificó OCR para PDF escaneados o documentos sin texto seleccionable.
-- No hay pruebas automatizadas de base de datos, banco de talentos, carga masiva o generación de preguntas de entrevista porque esas funciones no forman parte del MVP actual.
-- No se realizó una prueba manual independiente en un navegador ni se probó una demo pública.
-
-## Próximas acciones recomendadas
-
-- Probar Azure OpenAI de forma aislada con una configuración de desarrollo segura, además de las pruebas E2E simuladas.
-- Evaluar la reducción o división del bundle PDF si el tamaño de descarga afecta la experiencia.
-
-## Trazabilidad
-
-Los comandos y resultados de este informe corresponden a la ejecución local realizada el 25 de septiembre de 2026. Los comandos disponibles se definen en `package.json`; la configuración de navegador y servidor de pruebas está en `playwright.config.ts`; los escenarios se encuentran en `tests/analisis-cv.spec.ts` y `tests/definicion-puesto.spec.ts`.
 ## Validación de la evaluación de habilidades (11 de noviembre de 2026)
 
 ### Problema detectado
@@ -103,7 +45,7 @@ Una revisión del código mostró que el puntaje de cada habilidad no dependía 
 
 ### Pruebas automatizadas sin IA
 
-- Arnés que ejecuta el código real del cliente y del servidor con Azure y Supabase simulados, con una IA que responde siempre correctamente, sobre 10 casos (sinónimos, trampas de texto, puesto con 7 habilidades, seniority): antes del cambio 2 de 10 casos daban el puntaje esperado; después, 10 de 10.
+- Script de pruebas que ejecuta el código real del cliente y del servidor con Azure y Supabase simulados, con una IA que responde siempre correctamente, sobre 10 casos (sinónimos, trampas de texto, puesto con 7 habilidades, seniority): antes del cambio 2 de 10 casos daban el puntaje esperado; después, 10 de 10.
 - `npm run test:server`: 28 pruebas aprobadas, incluidas 6 nuevas que cubren cada problema detectado.
 - Playwright, ejecutado con el Chrome instalado en el equipo porque no se pudo descargar el navegador de Playwright: 22 de 25 aprobadas. Se corrigieron mocks desactualizados de `/api/evaluation-runs`, que no devolvían puntaje ni veredicto. Las 3 pruebas restantes fallan igual con el código anterior al cambio y no involucran el cálculo del puntaje.
 
@@ -162,3 +104,7 @@ Se cargaron 3 puestos y 5 CVs ficticios en PDF y se compararon las 15 combinacio
 - La variabilidad de la IA se midió con 3 corridas por caso; no garantiza que nunca varíe.
 - La prueba manual cubre 3 rubros además de desarrollo de software; otros rubros no fueron verificados.
 - El peso del seniority lo define el reclutador: con un peso bajo, un candidato que no cumple el seniority puede resultar Apto por sus habilidades.
+
+## Antecedente: validación de la entrega MVP (25 de septiembre de 2026)
+
+En la entrega MVP, la aplicación evaluaba un CV individual contra un puesto, sin autenticación ni persistencia. Se ejecutaron lint, build y 7 pruebas end-to-end en Chromium, todas aprobadas. Esas pruebas cubrían la definición de requisitos, la ponderación de habilidades, la carga de un PDF, el resultado del análisis y el cambio de tema, con la respuesta de Azure OpenAI simulada. Las pruebas actuales reemplazan y amplían esa cobertura.

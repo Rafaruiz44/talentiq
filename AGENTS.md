@@ -1,8 +1,8 @@
-# Talentiq — reglas del proyecto
+# Talentiq: reglas del proyecto
 
 ## Objetivo y alcance
 
-Talentiq es una aplicación de apoyo a reclutadores. El alcance acordado para la entrega final incluye:
+Talentiq es una aplicación de apoyo a reclutadores. El alcance de la entrega final está implementado y desplegado en Vercel ([https://talentiq-pi.vercel.app/](https://talentiq-pi.vercel.app/)), salvo los pendientes indicados más abajo. Incluye:
 
 - Registro e inicio de sesión de reclutadores mediante Google.
 - Un espacio privado por reclutador autenticado; no se comparten posiciones ni CVs entre cuentas en esta etapa.
@@ -10,13 +10,21 @@ Talentiq es una aplicación de apoyo a reclutadores. El alcance acordado para la
 - Perfiles de candidatos y archivos CV persistidos; los archivos se almacenan en un bucket privado.
 - Carga masiva con progreso y errores independientes por CV.
 - Solicitudes persistentes por relación candidato–posición y reutilización del candidato en distintas posiciones abiertas.
-- Historial de ejecuciones de evaluación por solicitud.
-- Etapas por cada solicitud candidato–posición: `Evaluado`, `En entrevista` o `Descartado`.
+- Una evaluación vigente por solicitud, que se reemplaza al re-evaluar.
+- Etapas por cada solicitud candidato–posición: `Evaluado`, `En entrevista` o `Descartado`. Desde la interfaz se puede descartar y restaurar.
 - Generación de preguntas de entrevista a partir de los requisitos y el análisis del cruce.
 - Llamadas principales a Azure OpenAI desde el backend, sin exponer secretos en el frontend.
-- Despliegue accesible y verificación de un flujo funcional como objetivo de entrega.
+- Despliegue en Vercel, verificado con Supabase y Azure OpenAI reales.
 
-Este es el alcance acordado, no una afirmación de que esas capacidades estén implementadas. El estado actual y las decisiones pendientes se describen en [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) y [documentacion/arquitectura-y-alcance.md](documentacion/arquitectura-y-alcance.md). Las historias propuestas están en [documentacion/alcance-entrega-final-y-historias.md](documentacion/alcance-entrega-final-y-historias.md).
+Pendientes:
+
+- Asignar la etapa `En entrevista` desde la interfaz.
+- Detectar a la misma persona cuando sube un CV actualizado (hoy solo se reconoce un CV con texto idéntico).
+- Eliminar candidatos y documentos desde la aplicación.
+- Historial completo de evaluaciones por solicitud y una vista para consultarlo.
+- Conectar la importación de requisitos desde ofertas al formulario de puestos.
+
+El estado detallado está en [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md), [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) y [documentacion/arquitectura-y-alcance.md](documentacion/arquitectura-y-alcance.md). Las historias de usuario están en [documentacion/alcance-entrega-final-y-historias.md](documentacion/alcance-entrega-final-y-historias.md).
 
 ## Reglas de implementación
 
@@ -40,15 +48,15 @@ Este es el alcance acordado, no una afirmación de que esas capacidades estén i
 - El estado de una posición no es el estado de un candidato.
 - La etapa de un candidato se guarda en su relación con una posición.
 - Cada solicitud corresponde a una pareja candidato–posición y pertenece a un reclutador.
-- Cada análisis con CV, puesto o requisitos distintos (o nueva versión del evaluador) agrega una evaluación histórica a la solicitud; si los datos y la versión no cambiaron, se reutiliza el resultado existente sin agregar otra ejecución.
+- Cada solicitud conserva una sola evaluación vigente. Un análisis con CV, puesto o requisitos distintos (o una nueva versión del evaluador) la reemplaza; si los datos y la versión no cambiaron, se reutiliza el resultado existente sin llamar a Azure.
 - Los datos y documentos de CV pertenecen al banco privado de un reclutador y no se comparten con otras cuentas.
 - Las preguntas generadas deben usar el contexto del cruce candidato–posición seleccionado.
 
-Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. Google OAuth y las políticas RLS de las tablas de posiciones ya fueron confirmadas; el bucket tiene las políticas esperadas, aunque falta inspeccionar sus predicados completos. El hosting aún requiere decisión. No fijar políticas de privacidad no acordadas.
+Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. Google OAuth y las políticas RLS de las tablas de posiciones ya fueron confirmadas; el bucket tiene las políticas esperadas, aunque falta inspeccionar sus predicados completos. El hosting es Vercel: frontend y API, esta última mediante Vercel Functions en `api/`. No fijar políticas de privacidad no acordadas.
 
 ## Contexto obligatorio para tareas de desarrollo
 
-- Consultar primero [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) para distinguir alcance objetivo e implementación presente.
+- Consultar primero [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) para conocer la implementación y los pendientes.
 - Consultar [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md) y actualizarlo en la misma tarea cuando un cambio modifique una capacidad visible, su integración con servicios, su estado de seguridad o el alcance pendiente. Actualizar también la fecha; no marcar como verificado contra servicios reales algo que solo se probó con mocks.
 - Revisar `App.tsx` y los archivos involucrados solo después de identificar el área afectada.
 - No asumir que una funcionalidad del alcance ya está implementada porque figure en las historias.
