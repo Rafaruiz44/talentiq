@@ -48,14 +48,16 @@ Trabajo práctico de Inteligencia Artificial Aplicada (UNLaM).
 
 El puntaje lo calcula siempre el servidor a partir de las decisiones de la IA; el navegador no puede modificarlo. La validación de este mecanismo con Azure real y con una prueba manual en varios rubros está en [documentacion/pruebas-y-resultados.md](documentacion/pruebas-y-resultados.md).
 
-## Pendientes
+## Fuera del alcance de la entrega
 
-- Etapa `En entrevista` por postulación (la etapa `Descartado` ya está disponible).
-- Detectar a la misma persona cuando sube un CV actualizado: hoy solo se reconoce un CV con texto idéntico.
+Estas funcionalidades quedaron fuera de la entrega final:
+
+- Etapa `En entrevista` por postulación (la etapa `Descartado` sí está disponible).
+- Detectar a la misma persona cuando sube un CV actualizado: solo se reconoce un CV con texto idéntico.
 - Eliminar candidatos y documentos desde la aplicación.
-- Vista del historial completo de evaluaciones de una postulación.
-- La importación de requisitos desde ofertas de LinkedIn o Computrabajo existe en el backend pero no está conectada al formulario de puestos.
-- No hay OCR: los PDF escaneados sin texto seleccionable no se pueden analizar.
+- Historial completo de evaluaciones de una postulación: se conserva solo la evaluación vigente.
+- Importar requisitos desde ofertas de LinkedIn o Computrabajo desde el formulario de puestos: existe en el backend, pero no está conectada a la interfaz.
+- OCR: los PDF escaneados sin texto seleccionable no se pueden analizar.
 
 El estado detallado de cada funcionalidad, incluido qué se verificó contra servicios reales y qué solo con pruebas simuladas, está en [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md).
 
@@ -146,7 +148,7 @@ documentacion/     Arquitectura, alcance, historias de usuario, pruebas y uso de
 
 ## Documentación
 
-- [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md): estado de cada funcionalidad y pendientes.
+- [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md): estado y verificación de cada funcionalidad.
 - [documentacion/arquitectura-y-alcance.md](documentacion/arquitectura-y-alcance.md): arquitectura y alcance.
 - [documentacion/alcance-entrega-final-y-historias.md](documentacion/alcance-entrega-final-y-historias.md): alcance de la entrega final e historias de usuario.
 - [documentacion/pruebas-y-resultados.md](documentacion/pruebas-y-resultados.md): pruebas y resultados.

@@ -48,7 +48,7 @@ La aplicación está desplegada en Vercel y verificada con Supabase y Azure Open
 
 ## Alcance de la entrega final
 
-El alcance acordado está implementado, con estas excepciones:
+El alcance acordado está implementado. Quedaron fuera de la entrega:
 
 - La etapa `En entrevista` existe en la base de datos, pero todavía no se puede asignar desde la interfaz. La etapa `Descartado` sí está disponible.
 - Solo se reconoce como el mismo candidato un CV con texto idéntico; no se detecta a la misma persona cuando sube un CV actualizado.
@@ -141,7 +141,7 @@ Las pruebas automatizadas cubren autenticación, puestos y umbral de aceptación
 
 Además, la evaluación se validó con Azure OpenAI real y con una prueba manual en la aplicación, y el flujo completo se verificó en el despliegue de Vercel con Supabase y Azure reales. El detalle está en [pruebas-y-resultados.md](./pruebas-y-resultados.md).
 
-## Decisiones pendientes
+## Decisiones sin definir
 
 - Consentimiento, retención, exportación y eliminación de CVs y datos personales.
 - Tratamiento de CVs escaneados sin texto seleccionable.
@@ -149,7 +149,7 @@ Además, la evaluación se validó con Azure OpenAI real y con una prueba manual
 
 ## Referencias del repositorio
 
-- `PROYECTO-ACTUAL.md`: estado de cada funcionalidad y pendientes.
+- `PROYECTO-ACTUAL.md`: estado y verificación de cada funcionalidad.
 - `src/App.tsx`: sesión, navegación y edición de puestos.
 - `src/components/ApplicationIntake.tsx`: carga masiva y evaluación de candidatos.
 - `src/components/PositionRanking.tsx`: ranking y descarte.

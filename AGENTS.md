@@ -2,7 +2,7 @@
 
 ## Objetivo y alcance
 
-Talentiq es una aplicación de apoyo a reclutadores. El alcance de la entrega final está implementado y desplegado en Vercel ([https://talentiq-pi.vercel.app/](https://talentiq-pi.vercel.app/)), salvo los pendientes indicados más abajo. Incluye:
+Talentiq es una aplicación de apoyo a reclutadores. La entrega final está implementada y desplegada en Vercel ([https://talentiq-pi.vercel.app/](https://talentiq-pi.vercel.app/)). Incluye:
 
 - Registro e inicio de sesión de reclutadores mediante Google.
 - Un espacio privado por reclutador autenticado; no se comparten posiciones ni CVs entre cuentas en esta etapa.
@@ -11,12 +11,12 @@ Talentiq es una aplicación de apoyo a reclutadores. El alcance de la entrega fi
 - Carga masiva con progreso y errores independientes por CV.
 - Solicitudes persistentes por relación candidato–posición y reutilización del candidato en distintas posiciones abiertas.
 - Una evaluación vigente por solicitud, que se reemplaza al re-evaluar.
-- Etapas por cada solicitud candidato–posición: `Evaluado`, `En entrevista` o `Descartado`. Desde la interfaz se puede descartar y restaurar.
+- Etapas por cada solicitud candidato–posición: `Evaluado`, `En entrevista` o `Descartado`. Desde la interfaz se puede descartar y restaurar; `En entrevista` existe en la base, pero no en la interfaz.
 - Generación de preguntas de entrevista a partir de los requisitos y el análisis del cruce.
 - Llamadas principales a Azure OpenAI desde el backend, sin exponer secretos en el frontend.
 - Despliegue en Vercel, verificado con Supabase y Azure OpenAI reales.
 
-Pendientes:
+Quedaron fuera del alcance de la entrega:
 
 - Asignar la etapa `En entrevista` desde la interfaz.
 - Detectar a la misma persona cuando sube un CV actualizado (hoy solo se reconoce un CV con texto idéntico).
@@ -56,7 +56,7 @@ Supabase está seleccionado para autenticación, base de datos y almacenamiento 
 
 ## Contexto obligatorio para tareas de desarrollo
 
-- Consultar primero [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) para conocer la implementación y los pendientes.
+- Consultar primero [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) para conocer la implementación y lo que quedó fuera del alcance.
 - Consultar [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md) y actualizarlo en la misma tarea cuando un cambio modifique una capacidad visible, su integración con servicios, su estado de seguridad o el alcance pendiente. Actualizar también la fecha; no marcar como verificado contra servicios reales algo que solo se probó con mocks.
 - Revisar `App.tsx` y los archivos involucrados solo después de identificar el área afectada.
 - No asumir que una funcionalidad del alcance ya está implementada porque figure en las historias.

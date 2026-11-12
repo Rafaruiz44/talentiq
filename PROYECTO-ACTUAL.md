@@ -3,7 +3,7 @@
 **Actualizado:** 12 de noviembre de 2026
 **Estado general:** entrega final completa y desplegada en [https://talentiq-pi.vercel.app/](https://talentiq-pi.vercel.app/).
 
-Este documento registra el estado de cada funcionalidad, cómo se verificó y qué queda pendiente. Distingue lo verificado con servicios reales (Supabase y Azure OpenAI) de lo probado solo con servicios simulados.
+Este documento registra el estado de cada funcionalidad, cómo se verificó y qué quedó fuera del alcance. Distingue lo verificado con servicios reales (Supabase y Azure OpenAI) de lo probado solo con servicios simulados.
 
 ## Resumen
 
@@ -31,7 +31,9 @@ Todas las funcionalidades de la tabla siguiente están desplegadas en Vercel y v
 | Despliegue | Frontend y API en Vercel. `api/[...route].mjs` adapta las rutas generales a Vercel Functions y `api/candidates.mjs` y `api/candidates/lookup.mjs` exponen las rutas de candidatos. |
 | Presentación | Navegación por puestos, candidatos, postulaciones y ranking con migas de pan; diseño adaptable y tema claro u oscuro, cuya preferencia se conserva en `sessionStorage`. |
 
-## Pendientes
+## Fuera del alcance de la entrega
+
+Estas funcionalidades quedaron fuera de la entrega final:
 
 - Asignar la etapa `En entrevista` desde la interfaz. La base ya la admite; `Descartado` ya está disponible.
 - Detectar a la misma persona cuando sube un CV actualizado. Hoy solo se reconoce un CV con texto idéntico.
@@ -57,6 +59,6 @@ Las pruebas automatizadas usan Supabase y Azure OpenAI simulados. La verificaci�
 
 ## Cómo mantener este documento actualizado
 
-Actualizar el resumen, la tabla de estado, los pendientes y la fecha en la misma tarea que cambie una capacidad visible o su integración con servicios. Si un cambio solo es interno y no modifica comportamiento, alcance, seguridad ni estado de despliegue, no hace falta cambiar este documento.
+Actualizar el resumen, la tabla de estado, lo que quedó fuera del alcance y la fecha en la misma tarea que cambie una capacidad visible o su integración con servicios. Si un cambio solo es interno y no modifica comportamiento, alcance, seguridad ni estado de despliegue, no hace falta cambiar este documento.
 
 La actualización es deliberada y se hace junto con cada cambio; no se genera automáticamente a partir del código porque la diferencia entre "implementado" y "verificado en un servicio real" requiere contexto que una extracción automática no puede determinar de forma fiable. La instrucción para futuras tareas de desarrollo está en `AGENTS.md`.

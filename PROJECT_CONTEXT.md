@@ -10,7 +10,7 @@ La entrega final está desplegada en Vercel: [https://talentiq-pi.vercel.app/](h
 
 ## 2. Alcance de la entrega final
 
-El alcance está implementado y verificado con Supabase y Azure OpenAI reales, salvo los pendientes de la sección 6.
+La entrega está implementada y verificada con Supabase y Azure OpenAI reales. Lo que quedó fuera del alcance figura en la sección 6.
 
 - Los reclutadores inician sesión con Google mediante Supabase Auth.
 - Cada reclutador es dueño de sus posiciones, solicitudes, candidatos y banco privado; no hay empresas, invitaciones ni colaboración entre cuentas.
@@ -42,7 +42,7 @@ El alcance y las historias de usuario están en [documentacion/alcance-entrega-f
 - Al navegador solo llegan las variables `VITE_*` (`envPrefix` en `vite.config.ts`); las variables de Supabase y Azure del servidor no usan ese prefijo.
 - Las pruebas del backend están en `server/server.test.mjs` y las end-to-end en `tests/`; ambas usan servicios simulados. La validación con servicios reales está en [documentacion/pruebas-y-resultados.md](documentacion/pruebas-y-resultados.md).
 
-El estado de cada funcionalidad y los pendientes se mantienen en [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md).
+El estado y la verificación de cada funcionalidad se mantienen en [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md).
 
 ## 4. Modelo funcional
 
@@ -66,9 +66,9 @@ Un candidato puede estar en varias posiciones y tener distintas solicitudes, res
 - Los fallos de persistencia, almacenamiento y servicios de IA deben comunicarse explícitamente; no deben producir resultados con apariencia de éxito.
 - Mantener o ampliar las pruebas del backend y E2E al cambiar una funcionalidad.
 
-## 6. Pendientes y decisiones sin definir
+## 6. Fuera del alcance y decisiones sin definir
 
-Pendientes:
+Quedaron fuera del alcance de la entrega:
 
 - Asignar la etapa `En entrevista` desde la interfaz.
 - Detectar a la misma persona cuando sube un CV actualizado; hoy solo se reconoce un CV con texto idéntico.
