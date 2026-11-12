@@ -1,88 +1,93 @@
 # Talentiq
 
-Talentiq es una aplicación de apoyo a reclutadores para comparar requisitos de una posición con la información de un CV y revisar un puntaje, un veredicto y un desglose de fortalezas y brechas. La evaluación ayuda al análisis inicial; no reemplaza la decisión humana de selección.
+Talentiq es una aplicación de apoyo a reclutadores. Cada reclutador define puestos con las habilidades que necesita y su peso, sube CVs en PDF y obtiene para cada candidato un puntaje de compatibilidad, un veredicto `Apto` o `No Apto`, las fortalezas y brechas que lo justifican y preguntas de entrevista para los aptos. La evaluación usa Azure OpenAI y ayuda al análisis inicial; no reemplaza la decisión humana de selección.
 
-## Estado del proyecto
+Trabajo práctico de Inteligencia Artificial Aplicada (UNLaM).
 
-El repositorio contiene el MVP ejecutable localmente. El alcance acordado para la entrega final amplía ese MVP con cuentas de reclutadores mediante Google, espacios privados por reclutador, posiciones y candidatos persistentes, carga masiva, solicitudes candidato–posición, historial de evaluaciones, seguimiento de etapas, preguntas de entrevista y despliegue accesible.
+## Funcionalidades
 
-Esas capacidades ampliadas están planificadas y no deben considerarse implementadas solo por estar documentadas. La arquitectura objetivo, el estado actual y las decisiones pendientes se describen en [documentacion/arquitectura-y-alcance.md](documentacion/arquitectura-y-alcance.md); las historias y sus criterios de aceptación están en [documentacion/alcance-entrega-final-y-historias.md](documentacion/alcance-entrega-final-y-historias.md).
+**Acceso y privacidad**
 
-Para consultar el estado de implementación revisado y las próximas tareas, ver [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md).
+- Inicio de sesión con Google mediante Supabase Auth.
+- Cada reclutador tiene un espacio privado: sus puestos, candidatos y evaluaciones no se comparten con otras cuentas. El aislamiento lo garantizan las políticas RLS de la base y la validación de sesión del backend.
 
-## Funcionalidades actuales del MVP
+**Puestos** (`/puestos`)
 
-- Gestionar puestos en pantallas diferenciadas: listado en `/puestos`, creación en `/puestos/nuevo`, detalle y evaluación en `/puestos/:id`, y edición en `/puestos/:id/editar`.
-- Definir el nombre del puesto, habilidades con peso individual y seniority requerido con su peso; los puestos y requisitos se guardan en Supabase.
-- Desde el detalle de un puesto, cargar un CV PDF individual de hasta 5 MB y extraer su texto con PDF.js en el navegador.
-- Después de un análisis exitoso, guardar el CV en el bucket privado y persistir el perfil del candidato, los metadatos y el texto extraído en Supabase.
-- Ejecutar un análisis de compatibilidad y mostrar puntaje, veredicto `Apto` o `No Apto`, fortalezas y brechas.
-- Cambiar entre tema claro y oscuro; la preferencia se conserva en `sessionStorage`.
+- Crear, consultar y editar puestos: nombre, habilidades con peso de 1 a 10, seniority requerido (`Trainee`, `Junior`, `Semi Senior`, `Senior`, `Lead`) con su peso y porcentaje mínimo de aceptación (de 50 % a 100 %, 70 % por defecto).
+- Abrir o cerrar un puesto. Un puesto cerrado no admite carga ni evaluación de CVs y se oculta de los selectores, salvo que se marque "Incluir cerrados".
+- Al editar un puesto se actualizan las evaluaciones existentes: si solo cambia el porcentaje mínimo se recalcula el veredicto sin llamar a la IA; si cambian habilidades, pesos o seniority, se vuelve a evaluar a los candidatos.
 
-Cada puesto define su porcentaje mínimo de aceptación (de 50 % a 100 %, 70 % por defecto). Las evaluaciones y las solicitudes candidato–puesto se persisten en Supabase. Si Azure OpenAI no está configurado o falla, la aplicación informa el error y no devuelve una evaluación local de respaldo.
+**Postulaciones** (`/postulaciones`)
 
-La interfaz autenticada usa un shell adaptable Modern SaaS minimalista y navegación cliente con History API, sin dependencia de routing adicional.
+- Carga masiva de CVs en PDF (hasta 5 MB cada uno). El texto se extrae en el navegador con PDF.js; cada archivo se procesa por separado e informa su progreso y sus errores sin frenar al resto.
+- Evaluación de candidatos que ya están en el banco, sin volver a subir su CV.
+- Lista de candidatos ya evaluados para el puesto, con la opción de descartarlos.
 
-## Alcance acordado para la entrega final
+**Ranking** (`/ranking`)
 
-- Registro e inicio de sesión de reclutadores con Google.
-- Banco privado de CVs y posiciones por reclutador; no se comparten datos entre cuentas en esta etapa.
-- Posiciones persistentes con estado `Abierta` o `Cerrada`; una posición cerrada no admite carga ni evaluación de CVs.
-- Banco privado de candidatos: persistencia de datos y texto extraído, y almacenamiento del archivo original en un bucket privado.
-- Carga masiva de CVs con progreso y errores por archivo.
-- Solicitudes persistentes que asocian un candidato con una o varias posiciones abiertas.
-- Historial de evaluaciones y etapas independientes por solicitud: `Evaluado`, `En entrevista` o `Descartado`.
-- Preguntas de entrevista basadas en los requisitos, fortalezas y brechas del cruce elegido.
-- Evaluación y generación de preguntas de Azure OpenAI desde un backend, sin claves secretas en el frontend.
-- Despliegue accesible con verificación de un flujo integrado.
+- Candidatos de un puesto ordenados por compatibilidad, con el detalle de fortalezas, brechas y preguntas de entrevista.
+- Descartar candidatos para ocultarlos del ranking; se pueden volver a mostrar y restaurar.
 
-Supabase está seleccionado para autenticación, base de datos y almacenamiento privado. El usuario confirmó las tablas, Google OAuth, las políticas RLS para puestos y ponderaciones, y un guardado real correcto de puesto y sus habilidades. La aplicación ya permite cargar, guardar y actualizar puestos desde Supabase. El hosting sigue pendiente. También resta definir duplicados, límites de archivo, retención y eliminación de datos personales. No hay una demo pública desplegada a la fecha de esta documentación. El trabajo colaborativo entre reclutadores y los bancos compartidos por empresa quedan como evolución futura.
+**Candidatos** (`/candidatos`)
 
-## Tecnologías presentes
+- Banco privado con búsqueda por nombre o archivo y datos de contacto extraídos del CV.
+- Reutilizar el CV guardado de un candidato para evaluarlo en otro puesto.
 
-- React 19 y TypeScript.
-- Vite.
-- PDF.js (`pdfjs-dist`) para extraer texto de PDFs en el navegador.
-- Azure OpenAI en el backend para evaluación e importación, si está configurado.
-- Node.js nativo para una API autenticada de evaluación e importación de requisitos desde ofertas públicas.
-- Playwright para pruebas end-to-end.
-- Oxlint para análisis estático.
+**Otros**
 
-Hay una migración SQL inicial en `supabase/migrations/` con el esquema, las políticas RLS y el bucket privado. El usuario confirmó que la aplicó y la consulta a `pg_policies` confirma las políticas de las tablas de puestos. La migración `20261003214000_save_position_rpc.sql` agrega el guardado atómico de un puesto con sus habilidades; el usuario confirmó haberla aplicado y haber guardado un puesto correctamente. El usuario también confirmó haber aplicado `20261004150000_save_candidate_document_rpc.sql`, que habilita la persistencia atómica de candidatos y metadatos de CV; todavía falta probar una escritura real desde el flujo de la aplicación.
+- Si se sube un CV con exactamente el mismo texto que uno ya guardado, se reutiliza en lugar de crear otro candidato.
+- Si el CV, el puesto y la versión del evaluador no cambiaron, se reutiliza la evaluación guardada sin consumir tokens de Azure.
+- Tema claro y oscuro.
 
-## Requisitos
+## Cómo se evalúa un CV
 
-- Node.js 22 o una versión compatible con Vite 8.
-- npm.
+1. Para cada habilidad del puesto, la IA decide si el CV la acredita y cita la evidencia. Reconoce sinónimos, abreviaturas, otros idiomas y herramientas que implican la habilidad (por ejemplo, `payroll` por liquidación de sueldos o SAP EWM por WMS). No cuenta habilidades que solo aparecen como objetivo de aprendizaje ni herramientas distintas de nombre parecido (SAP no es Tango; JavaScript no es Java).
+2. La IA decide si el candidato alcanza el seniority requerido. Para `Trainee` cuentan los proyectos académicos o personales; para los demás niveles, solo el tiempo de trabajo formal en experiencias compatibles con el área del puesto, decididas por el cargo y las tareas, no por las herramientas compartidas. Rangos: Trainee hasta 1 año, Junior hasta 3, Semi Senior hasta 5, Senior hasta 8 y Lead más de 8; un nivel superior al requerido cumple.
+3. El backend calcula el puntaje sumando los pesos de las habilidades acreditadas y el peso del seniority si se cumple. El porcentaje se redondea al entero más cercano y el candidato es `Apto` si alcanza el mínimo del puesto.
+4. Para los candidatos aptos se generan tres preguntas de entrevista basadas en el cruce entre el CV y el puesto.
+
+El puntaje lo calcula siempre el servidor a partir de las decisiones de la IA; el navegador no puede modificarlo. La validación de este mecanismo con Azure real y con una prueba manual en varios rubros está en [documentacion/pruebas-y-resultados.md](documentacion/pruebas-y-resultados.md).
+
+## Pendientes
+
+- Etapa `En entrevista` por postulación (la etapa `Descartado` ya está disponible).
+- Detectar a la misma persona cuando sube un CV actualizado: hoy solo se reconoce un CV con texto idéntico.
+- Eliminar candidatos y documentos desde la aplicación.
+- Vista del historial completo de evaluaciones de una postulación.
+- La importación de requisitos desde ofertas de LinkedIn o Computrabajo existe en el backend pero no está conectada al formulario de puestos.
+- No hay OCR: los PDF escaneados sin texto seleccionable no se pueden analizar.
+
+El estado detallado de cada funcionalidad, incluido qué se verificó contra servicios reales y qué solo con pruebas simuladas, está en [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md).
+
+## Tecnologías
+
+- React 19, TypeScript y Vite.
+- PDF.js (`pdfjs-dist`) para extraer el texto de los PDF en el navegador.
+- Node.js nativo para la API, desplegada como Vercel Functions.
+- Supabase: autenticación con Google, base de datos Postgres con RLS y almacenamiento privado de CVs.
+- Azure OpenAI para la evaluación, las preguntas de entrevista y la importación de ofertas, llamado solo desde el backend.
+- Playwright para pruebas end-to-end, `node --test` para pruebas del backend y Oxlint para análisis estático.
 
 ## Instalación y ejecución local
 
-Desde la carpeta raíz del proyecto:
+Requisitos: Node.js 22 o una versión compatible con Vite 8, y npm.
 
 ```powershell
 npm ci
 npm run dev
 ```
 
-Vite mostrará la URL local, normalmente `http://localhost:5173`.
-
-Para habilitar el inicio de sesión, agregá a `.env` `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (las lee el frontend) y `SUPABASE_URL` y `SUPABASE_ANON_KEY` (las lee el backend), con la URL del proyecto y su clave pública (publishable/anon); ver el bloque de variables de la sección de Vercel. La clave anon es pública y se incluye en el cliente web. Solo las variables con prefijo `VITE_` llegan al navegador (`envPrefix` en `vite.config.ts`). Permití `http://localhost:5173` en las URL de redirección de Supabase. No pongas claves `service_role`, secretos OAuth ni credenciales privadas en variables expuestas al frontend. Si faltan estos valores, la aplicación bloquea el acceso al espacio privado.
-
-El guardado de candidatos requiere además `SUPABASE_SERVICE_ROLE_KEY` en el entorno local del backend. Es una credencial administrativa: mantenerla solo en `.env`/entorno del servidor, nunca en el frontend, en `VITE_*` ni en el repositorio.
-
-El backend local sirve la evaluación protegida y la importación de requisitos. En una segunda terminal:
+Vite muestra la URL local, normalmente `http://localhost:5173`. La API se ejecuta en una segunda terminal:
 
 ```powershell
 npm run dev:api
 ```
 
-Escucha en el puerto 3001 por defecto. Vite reenvía las rutas `/api` al backend.
+Escucha en el puerto 3001 y Vite le reenvía las rutas `/api`. Sin la API levantada se puede iniciar sesión, pero no analizar CVs.
 
-### Despliegue en Vercel
+### Variables de entorno
 
-El archivo `api/[...route].mjs` adapta las rutas protegidas del backend a una Vercel Function. Al importar el proyecto en Vercel, usar `npm run build` como comando de build y dejar la salida de Vite (`dist`) como directorio de salida si Vercel no la detecta automáticamente.
-
-En Vercel > Settings > Environment Variables, configurar para Production, Preview o Development según corresponda:
+Crear un archivo `.env` en la raíz (está en `.gitignore`) con:
 
 ```env
 VITE_SUPABASE_URL=https://<project-ref>.supabase.co
@@ -94,37 +99,21 @@ AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com
 AZURE_OPENAI_KEY=<server-only-azure-openai-key>
 AZURE_OPENAI_DEPLOYMENT=<deployment-name>
 AZURE_OPENAI_API_VERSION=<api-version>
-APP_ORIGIN=https://<tu-proyecto>.vercel.app
+APP_ORIGIN=http://localhost:5173
 ```
 
-`VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` se incorporan al cliente porque son necesarias para Supabase Auth. Las variables restantes son exclusivas de la Function y nunca deben tener prefijo `VITE_`. Después de guardar o modificar variables, crear un nuevo deployment; las Functions no reciben cambios de entorno hasta el siguiente deployment.
+- Solo las variables con prefijo `VITE_` llegan al navegador (`envPrefix` en `vite.config.ts`). Son la URL y la clave pública de Supabase, necesarias para el login.
+- El resto son exclusivas del backend y nunca deben llevar el prefijo `VITE_`. `SUPABASE_SERVICE_ROLE_KEY` es una credencial administrativa; si una clave secreta llegó a estar en un bundle público, hay que revocarla y generar una nueva.
 
-## Configuración de Supabase y Google Auth
+### Supabase
 
-La autenticación con Supabase + Google ya está configurada. La guía de referencia está en:
+La configuración del proyecto y de Google OAuth está en [documentacion/configuracion-supabase-google-auth.md](documentacion/configuracion-supabase-google-auth.md). El esquema, las políticas RLS, el bucket privado y las funciones de la base están en [supabase/migrations/](supabase/migrations/) y se aplican en orden de nombre. Agregar `http://localhost:5173` y la URL de producción a las URL de redirección permitidas.
 
-Los pasos concretos están en [documentacion/configuracion-supabase-google-auth.md](documentacion/configuracion-supabase-google-auth.md). En resumen:
+### Despliegue en Vercel
 
-1. Confirmar que Google OAuth está habilitado en Supabase Authentication > Providers.
-2. Configurar Google OAuth con Client ID y Client Secret si aún no está habilitado.
-3. Permitir las origins del frontend (por ejemplo `http://localhost:5173`).
-4. Verificar las políticas RLS y el bucket privado creados por la migración ya aplicada.
-5. Mantener las variables de Supabase en `.env` o en las variables de entorno de Vercel, nunca en el repositorio.
-6. Nunca exponer `service_role` ni claves privadas en el bundle.
+`api/[...route].mjs`, `api/candidates.mjs` y `api/candidates/lookup.mjs` adaptan la API a Vercel Functions. El build es `npm run build` y la salida es `dist`. Las variables de entorno son las mismas del bloque anterior, con `APP_ORIGIN` apuntando a la URL de producción, y se cargan en Vercel > Settings > Environment Variables. Después de modificarlas hay que crear un deployment nuevo.
 
-El guardado de puestos requiere `supabase/migrations/20261003214000_save_position_rpc.sql`, ya aplicada por el usuario en el proyecto. La función inserta o actualiza el puesto y reemplaza sus habilidades dentro de una sola transacción, y valida que el puesto pertenezca al usuario autenticado.
-
-El guardado del candidato y su CV requiere `supabase/migrations/20261004150000_save_candidate_document_rpc.sql`, que el usuario confirmó haber aplicado. Esta migración añade una operación atómica restringida a `service_role` para crear el candidato y registrar el documento procesado, además de la política que permite a cada usuario eliminar sus propios objetos CV. La aplicación sube el PDF con la sesión autenticada; el backend valida esa sesión antes de registrar metadatos y texto extraído. Cada carga nueva crea un candidato; la detección de duplicados queda pendiente.
-
-## Configuración de IA
-
-Configurar `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_KEY`, `AZURE_OPENAI_DEPLOYMENT` y `AZURE_OPENAI_API_VERSION` para el proceso Node del backend, en `.env`. Estas variables no deben tener el prefijo `VITE_`: Vite incorpora las variables `VITE_*` al cliente. El endpoint `/api/evaluate-candidate` valida el token de sesión con Supabase antes de llamar a Azure; la importación de ofertas también requiere autenticación.
-
-Si una clave de Azure se configuró anteriormente como `VITE_AZURE_OPENAI_KEY` o se usó en una compilación accesible, revocarla y crear una nueva antes de volver a habilitar el servicio. No se debe considerar privada una clave que ya pudo estar incluida en un bundle.
-
-Las pruebas automatizadas simulan la respuesta de evaluación; no verifican credenciales ni conectividad reales con Azure OpenAI.
-
-## Pruebas y validaciones
+## Pruebas
 
 ```powershell
 npm run lint
@@ -133,23 +122,32 @@ npm run test:server
 npx playwright test
 ```
 
-Las pruebas E2E cubren autenticación, definición de requisitos, carga del CV individual, evaluación simulada y su contrato de persistencia; las pruebas de servidor simulan Supabase y Azure. El usuario verificó un guardado real de puesto en Supabase. La persistencia de candidatos requiere aplicar la migración nueva y configurar la clave administrativa server-side. Carga masiva, solicitudes, historial, etapas, generación de preguntas y despliegue todavía deben incorporarse.
+- `test:server` prueba la API con Supabase y Azure simulados: autenticación, aislamiento por reclutador, cálculo del puntaje, reutilización de evaluaciones y persistencia.
+- Playwright prueba los flujos de la interfaz con Supabase y la API simulados, y levanta la API y Vite automáticamente. La primera vez hay que instalar el navegador con `npx playwright install chromium`.
+- Ninguna de estas pruebas llama a Azure real. Las validaciones con Azure y las pruebas manuales están documentadas en [documentacion/pruebas-y-resultados.md](documentacion/pruebas-y-resultados.md).
 
-## Estructura principal
+## Estructura
 
 ```text
 src/
-  components/   Componentes de la interfaz
-  services/     Evaluación e importación de requisitos del MVP
-  App.tsx       Flujo principal actual
-  types.ts      Contratos actuales
+  components/      Pantallas y componentes de la interfaz
+  services/        Acceso a Supabase y a la API, extracción de texto de PDF
+  App.tsx          Navegación y flujo principal
+  types.ts         Contratos compartidos
 server/
-  server.mjs    API autenticada para evaluación e importación de requisitos
-  server.test.mjs Pruebas de autenticación y rutas protegidas
-tests/          Pruebas end-to-end del MVP
-documentacion/
-  arquitectura-y-alcance.md
-  alcance-entrega-final-y-historias.md
+  server.mjs       API autenticada: evaluación, candidatos e importación de ofertas
+  server.test.mjs  Pruebas del backend
+api/               Adaptadores de la API para Vercel Functions
+tests/             Pruebas end-to-end con Playwright
 supabase/
-  migrations/     Esquema privado aplicado y migraciones de funcionalidad
+  migrations/      Esquema, políticas RLS y funciones de la base
+documentacion/     Arquitectura, alcance, historias de usuario, pruebas y uso de IA
 ```
+
+## Documentación
+
+- [PROYECTO-ACTUAL.md](PROYECTO-ACTUAL.md): estado de cada funcionalidad y pendientes.
+- [documentacion/arquitectura-y-alcance.md](documentacion/arquitectura-y-alcance.md): arquitectura y alcance.
+- [documentacion/alcance-entrega-final-y-historias.md](documentacion/alcance-entrega-final-y-historias.md): alcance de la entrega final e historias de usuario.
+- [documentacion/pruebas-y-resultados.md](documentacion/pruebas-y-resultados.md): pruebas y resultados.
+- [documentacion/uso-de-IA-en-el-SDLC.md](documentacion/uso-de-IA-en-el-SDLC.md): uso de IA en el desarrollo.
