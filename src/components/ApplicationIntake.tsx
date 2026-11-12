@@ -9,8 +9,9 @@ import {
   type KeyboardEvent,
 } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import type {
-  SavedPosition,
+import {
+  getSelectablePositions,
+  type SavedPosition,
 } from '../services/positions'
 import { extractPdfText } from '../services/extractPdfText'
 import { inferCandidateEvaluation } from '../services/inferCandidateEvaluation'
@@ -103,6 +104,7 @@ export function ApplicationIntake({
   >([])
   const [loadingEvaluated, setLoadingEvaluated] = useState(false)
   const [showDiscarded, setShowDiscarded] = useState(false)
+  const [includeClosedPositions, setIncludeClosedPositions] = useState(false)
   const [stageError, setStageError] = useState<string | null>(null)
   const [updatingApplicationId, setUpdatingApplicationId] = useState<
     string | null
@@ -556,12 +558,25 @@ export function ApplicationIntake({
             data-testid="application-position"
           >
             <option value="">Elegí una posición</option>
-            {positions.map((position) => (
+            {getSelectablePositions(
+              positions,
+              includeClosedPositions,
+              positionId,
+            ).map((position) => (
               <option key={position.id} value={position.id}>
                 {position.title} — {position.status}
               </option>
             ))}
           </select>
+        </label>
+        <label className="include-closed-toggle">
+          <input
+            type="checkbox"
+            checked={includeClosedPositions}
+            onChange={(event) => setIncludeClosedPositions(event.target.checked)}
+            data-testid="application-include-closed"
+          />
+          <span>Incluir cerrados</span>
         </label>
       </div>
       {statusError && (

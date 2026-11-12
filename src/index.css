@@ -2644,3 +2644,15 @@ main.dark-mode .compatibility-meets-threshold {
 .application-evaluated-item-discarded:focus-within {
   opacity: 1;
 }
+
+/* Casilla para incluir puestos cerrados en los selectores */
+.include-closed-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  color: var(--label-text);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}

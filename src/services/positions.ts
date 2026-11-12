@@ -156,3 +156,18 @@ export const savePosition = async ({
 
   return data
 }
+
+// Positions offered in the Postulaciones and Ranking selectors. Closed
+// positions are hidden unless requested, but the selected one always stays
+// so the current selection is never lost.
+export const getSelectablePositions = (
+  positions: SavedPosition[],
+  includeClosed: boolean,
+  selectedPositionId: string,
+): SavedPosition[] =>
+  includeClosed
+    ? positions
+    : positions.filter(
+        (position) =>
+          position.status !== 'Cerrada' || position.id === selectedPositionId,
+      )

@@ -70,8 +70,10 @@ test('cerrar persiste el estado Cerrada, muestra el aviso y bloquea carga y eval
   await page.getByTestId('toggle-status-position-1').click()
   expect(persistedUpdates).toEqual(['Cerrada'])
 
-  // Al ir a postulaciones para esa posición, debe mostrarse cerrada
+  // Al ir a postulaciones para esa posición, debe mostrarse cerrada.
+  // Los puestos cerrados se ocultan del selector salvo que se incluyan.
   await page.goto('/postulaciones')
+  await page.getByTestId('application-include-closed').check()
   await page
     .getByRole('combobox', { name: 'Postulación / posición' })
     .selectOption('position-1')

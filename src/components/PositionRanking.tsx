@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import type { SavedPosition } from '../services/positions'
+import {
+  getSelectablePositions,
+  type SavedPosition,
+} from '../services/positions'
 import {
   listRankedApplications,
   setApplicationStage,
@@ -33,6 +36,7 @@ export function PositionRanking({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDiscarded, setShowDiscarded] = useState(false)
+  const [includeClosedPositions, setIncludeClosedPositions] = useState(false)
   const [stageError, setStageError] = useState<string | null>(null)
   const [updatingApplicationId, setUpdatingApplicationId] = useState<
     string | null
@@ -131,13 +135,29 @@ export function PositionRanking({
           <option value="">
             {positions.length ? 'Elegí una posición' : 'Primero creá una posición'}
           </option>
-          {positions.map((position) => (
+          {getSelectablePositions(
+            positions,
+            includeClosedPositions,
+            positionId,
+          ).map((position) => (
             <option key={position.id} value={position.id}>
               {position.title}
+              {position.status === 'Cerrada' ? ' (cerrada)' : ''}
             </option>
           ))}
         </select>
       </label>
+      <div className="application-position-toolbar">
+      <label className="include-closed-toggle">
+        <input
+          type="checkbox"
+          checked={includeClosedPositions}
+          onChange={(event) => setIncludeClosedPositions(event.target.checked)}
+          data-testid="ranking-include-closed"
+        />
+        <span>Incluir cerrados</span>
+      </label>
+      </div>
       {error && <p role="alert" data-testid="ranking-error">{error}</p>}
       {stageError && (
         <p role="alert" data-testid="ranking-stage-error">{stageError}</p>
