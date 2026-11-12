@@ -141,12 +141,6 @@ Las pruebas automatizadas cubren autenticación, puestos y umbral de aceptación
 
 Además, la evaluación se validó con Azure OpenAI real y con una prueba manual en la aplicación, y el flujo completo se verificó en el despliegue de Vercel con Supabase y Azure reales. El detalle está en [pruebas-y-resultados.md](./pruebas-y-resultados.md).
 
-## Decisiones sin definir
-
-- Consentimiento, retención, exportación y eliminación de CVs y datos personales.
-- Tratamiento de CVs escaneados sin texto seleccionable.
-- Si en una etapa futura se requerirán empresas, bancos compartidos e invitaciones entre reclutadores.
-
 ## Referencias del repositorio
 
 - `PROYECTO-ACTUAL.md`: estado y verificación de cada funcionalidad.

@@ -310,17 +310,6 @@ Este primer flujo valida autenticación y aislamiento por reclutador antes de ca
 - Los errores de almacenamiento o IA deben mostrarse explícitamente; no deben transformarse en resultados de éxito de respaldo sin indicarlo.
 - Las credenciales de Azure OpenAI permanecen en el backend y los archivos de CV se almacenan en un bucket privado.
 
-## Decisiones pendientes antes de implementar
+## Estado de la entrega
 
-- Confirmar Supabase y el plan/proyecto; decidir dónde se alojará el backend Node y cómo se conectará de forma segura a Supabase.
-- Regla para detectar candidatos duplicados dentro del banco de un reclutador.
-- Tipos y tamaños máximos de archivo, tratamiento de CVs escaneados y conducta ante documentos sin texto extraíble.
-- Consentimiento, retención, descarga y eliminación de CVs y datos personales.
-- Requisitos de acceso a la demo desplegada y configuración de sus datos de prueba.
-- Confirmar si en una etapa futura se necesitarán espacios compartidos por empresas y colaboración entre reclutadores.
-
-## Notas de trazabilidad con el estado actual
-
-El repositorio implementa hoy una interfaz React/Vite que conserva en memoria los requisitos de una posición, un CV PDF y su resultado de análisis. `server/server.mjs` valida sesiones Supabase antes de aceptar solicitudes de evaluación o importación, y llama a Azure OpenAI usando variables server-side `AZURE_OPENAI_*`. La integración real contra servicios remotos no queda verificada por las pruebas simuladas. Siguen pendientes la persistencia de candidatos, almacenamiento de CVs, solicitudes, evaluaciones, estados y preguntas.
-
-Las pruebas E2E actuales cubren la definición de requisitos, carga de un PDF, análisis de un CV y cambio de tema. No cubren las historias propuestas en este documento. El despliegue se considera objetivo pendiente, no capacidad ya entregada.
+Las historias de este documento están implementadas y desplegadas en Vercel, salvo las que quedaron fuera del alcance de la entrega. El estado y la verificación de cada funcionalidad están en [PROYECTO-ACTUAL.md](../PROYECTO-ACTUAL.md) y las pruebas en [pruebas-y-resultados.md](./pruebas-y-resultados.md).

@@ -41,11 +41,6 @@ Estas funcionalidades quedaron fuera de la entrega final:
 - Historial completo de evaluaciones por solicitud y una vista para consultarlo. Hoy cada solicitud conserva solo su evaluación vigente (migración `20261023224500_single_current_evaluation.sql`).
 - Conectar la importación de requisitos desde ofertas de LinkedIn o Computrabajo al formulario de puestos. El componente, el servicio cliente y el endpoint autenticado existen, pero el flujo no está conectado ni tiene pruebas E2E propias.
 
-## Decisiones sin definir
-
-- Consentimiento, retención y eliminación de datos personales y CVs.
-- Limpieza de los archivos duplicados que quedaron en Storage antes de la detección de CVs idénticos.
-
 ## Validación ejecutada el 12 de noviembre de 2026
 
 | Comando | Resultado |

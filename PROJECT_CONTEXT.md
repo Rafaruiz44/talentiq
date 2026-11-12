@@ -66,7 +66,7 @@ Un candidato puede estar en varias posiciones y tener distintas solicitudes, res
 - Los fallos de persistencia, almacenamiento y servicios de IA deben comunicarse explícitamente; no deben producir resultados con apariencia de éxito.
 - Mantener o ampliar las pruebas del backend y E2E al cambiar una funcionalidad.
 
-## 6. Fuera del alcance y decisiones sin definir
+## 6. Fuera del alcance
 
 Quedaron fuera del alcance de la entrega:
 
@@ -75,8 +75,6 @@ Quedaron fuera del alcance de la entrega:
 - Eliminar candidatos y documentos desde la aplicación.
 - Historial completo de evaluaciones por solicitud y una vista para consultarlo; hoy se conserva solo la evaluación vigente.
 - Conectar la importación de requisitos desde ofertas de LinkedIn o Computrabajo al formulario de puestos.
-
-Sin definir: consentimiento, retención y eliminación de datos personales, y la colaboración mediante espacios compartidos por empresas. No asumir decisiones sobre estas cuestiones sin confirmarlas.
 
 ## 7. Guía de navegación
 
